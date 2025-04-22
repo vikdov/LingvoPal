@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LingvoPal - Sign Up</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #ffffff;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 50px;
+            border-bottom: 1px solid #f0f0f0;
+            background-color: white;
+        }
+        .logo {
+            color: #0b5cff;
+            font-size: 28px;
+            font-weight: bold;
+            text-decoration: none;
+        }
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .header-right a {
+            text-decoration: none;
+            color: #747487;
+            font-size: 14px;
+        }
+        .header-right a.highlight {
+            color: #0b5cff;
+            font-weight: 500;
+        }
+        .container {
+            display: flex;
+            flex: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        .promo-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .signup-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .signup-form {
+            width: 100%;
+            max-width: 350px;
+        }
+        .signup-form h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-weight: 600;
+            font-size: 28px;
+            color: #232333;
+        }
+        .form-input {
+            width: 100%;
+            padding: 14px 12px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        .continue-button {
+            width: 100%;
+            background-color: #f0f4f8;
+            color: #333;
+            border: none;
+            border-radius: 8px;
+            padding: 14px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        .terms-text {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .terms-text a {
+            color: #0b5cff;
+            text-decoration: none;
+        }
+        .social-login {
+            text-align: center;
+            margin-top: 30px;
+        }
+        .social-login p {
+            color: #666;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        .social-icons {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+        }
+        .social-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f5f5f5;
+            cursor: pointer;
+            font-size: 14px;
+            color: #333;
+        }
+        .captcha-notice {
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+            margin-top: 30px;
+        }
+        .captcha-notice a {
+            color: #0b5cff;
+            text-decoration: none;
+        }
+        .checkbox-container {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .checkbox-container input {
+            margin-right: 10px;
+            margin-top: 3px;
+        }
+        .checkbox-container label {
+            font-size: 14px;
+            color: #333;
+            line-height: 1.4;
+        }
+        .benefits-box {
+            background-color: #fff;
+            border-radius: 8px;
+            padding: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            margin-bottom: 30px;
+            width: 100%;
+            max-width: 450px;
+        }
+        .benefits-title {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #232333;
+        }
+        .benefit-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+        .benefit-icon {
+            background-color: #4ade80;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            flex-shrink: 0;
+            font-size: 12px;
+        }
+        .benefit-text {
+            font-size: 14px;
+            color: #333;
+            line-height: 1.4;
+        }
+        .illustration {
+            max-width: 300px;
+            margin-bottom: 20px;
+        }
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            .promo-content, .signup-container {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="#" class="logo">LingvoPal</a>
+        <div class="header-right">
+            <a href="#">Already have an account? <span class="highlight">Sign In</span></a>
+            <a href="#">Support</a>
+            <a href="#">English ▼</a>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="promo-content">
+            <img src="/api/placeholder/400/320" alt="Illustration of person learning languages" class="illustration">
+            
+            <div class="benefits-box">
+                <h2 class="benefits-title">Create your free Basic account</h2>
+                
+                <div class="benefit-item">
+                    <div class="benefit-icon">✓</div>
+                    <div class="benefit-text">Unlimited language practice sessions up to 30 minutes with AI tutors</div>
+                </div>
+                
+                <div class="benefit-item">
+                    <div class="benefit-icon">✓</div>
+                    <div class="benefit-text">Automated pronunciation feedback to improve your accent</div>
+                </div>
+                
+                <div class="benefit-item">
+                    <div class="benefit-icon">✓</div>
+                    <div class="benefit-text">Secure, high-quality audio and video conversations</div>
+                </div>
+                
+                <div class="benefit-item">
+                    <div class="benefit-icon">✓</div>
+                    <div class="benefit-text">3 customizable vocabulary lists</div>
+                </div>
+                
+                <div class="benefit-item">
+                    <div class="benefit-icon">✓</div>
+                    <div class="benefit-text">Language Community Chat for cultural exchange and practice</div>
+                </div>
+                
+                <div class="benefit-item">
+                    <div class="benefit-icon">✓</div>
+                    <div class="benefit-text">LingvoPal Dictionary and Phrasebook in the LingvoPal app</div>
+                </div>
+                
+                <div class="benefit-item">
+                    <div class="benefit-icon">✓</div>
+                    <div class="benefit-text">Progress tracking and achievement badges</div>
+                </div>
+                
+                <div class="benefit-item">
+                    <div class="benefit-icon">✓</div>
+                    <div class="benefit-text">Scenario-based practice, cultural insights, and local expressions</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="signup-container">
+            <div class="signup-form">
+                <h1>Let's Get Started</h1>
+                <input type="email" placeholder="Email Address" class="form-input">
+                
+                <button class="continue-button">Continue</button>
+                
+                <div class="terms-text">
+                    By proceeding, I agree to <a href="#">LingvoPal's Privacy Statement</a> and <a href="#">Terms of Service</a>.
+                </div>
+                
+                <div class="checkbox-container">
+                    <input type="checkbox" id="receive-communications">
+                    <label for="receive-communications">I would like to receive communications about products, offerings, and industry trends from LingvoPal. I understand that I can unsubscribe at any time.</label>
+                </div>
+                
+                <div class="social-login">
+                    <p>Or sign up with</p>
+                    <div class="social-icons">
+                        <div class="social-icon">SSO</div>
+                        <div class="social-icon">🍎</div>
+                        <div class="social-icon">G</div>
+                        <div class="social-icon">f</div>
+                    </div>
+                </div>
+                
+                <div class="captcha-notice">
+                    LingvoPal is protected by reCAPTCHA and the <a href="#">Privacy Policy</a> and <a href="#">Terms of Service</a> apply.
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

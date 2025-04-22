@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LingvoPal - Sign Up</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="language-selector">
+        <select>
+            <option value="en">English</option>
+            <option value="zh">Polski</option>
+            <option value="de">Deutsch</option>
+            <option value="es">Español</option>
+        </select>
+    </div>
+
+    <div class="container">
+        <div class="signup-form">
+            <div class="logo">
+                <h1>Lingv<span><img class="globe"src="/home/asus/Documents/LingvoPal/templates/img/earth-americas-solid.svg" alt=""></span><span>Pal</span></h1>
+                <p>Your language learning companion</p>
+            </div>
+            
+            <div class="progress-bar">
+                <div class="progress-filled" id="progress-bar"></div>
+            </div>
+
+            <div class="step-info">
+                <div class="step-name" id="current-step-name">Account Setup</div>
+                <div class="steps-count">Step <span id="current-step">1</span> of 3</div>
+            </div>
+            
+            <form id="signup-form">
+                <!-- Step 1: Account Information -->
+                <div class="form-step active" id="step-1">
+                    <h2>Create your account</h2>
+                    
+                    <div class="form-group">
+                        <label for="name">Full Name</label>
+                        <input type="text" id="name" placeholder="Enter your full name" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" placeholder="Enter your email" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" placeholder="Create a password (8+ characters)" required>
+                    </div>
+                    
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="terms" required>
+                            <label for="terms" class="checkbox">I agree to the <a href="terms-of-service.html">Terms of Service</a> and <a href="privacy-policy.html">Privacy Policy</a></label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="newsletter">
+                            <label for="newsletter" class="checkbox">*Send me learning tips and updates</label>
+                        </div>
+                    </div>
+                    
+                    <button type="button" id="next-1" class="btn-next">Continue</button>
+                    
+                    <div class="or-divider">
+                        <span>OR</span>
+                    </div>
+                    
+                    <div class="social-login">
+                        <div class="social-btn">
+                            <a href="https://www.google.com/"><img class="social-img" src="img/search.png" alt="Google login method"></a>
+                        </div>
+                        <div class="social-btn">
+                            <a href="https://www.facebook.com/"><img class="social-img" src="img/facebook.png" alt="Facebook login method"></a>
+                        </div>
+                        <div class="social-btn">
+                           <a href="https://www.apple.com/"><img class="social-img" src="img/apple-logo.png" alt="Apple ID login method"></a> 
+                        </div>
+                    </div>
+                    
+                    <div class="login-link">
+                        Already have an account? <a href="login.html">Log in</a>
+                    </div>
+                </div>
+                
+                <!-- Step 2: Language Selection -->
+                <div class="form-step" id="step-2">
+                    <h2>Choose your languages</h2>
+                    
+                    <div class="form-group">
+                        <label for="native-language">Native Language</label>
+                        <select id="native-language" required>
+                            <option value="" disabled selected>Select your native language</option>
+                            <option value="fr">Polish</option>
+                            <option value="en">English</option>
+                            <option value="de">German</option>
+                            <option value="es">Spanish</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="learning-language">Language to Learn</label>
+                        <select id="learning-language" required>
+                            <option value="" disabled selected>Select language to learn</option>
+                            <option value="en">English</option>
+                            <option value="de">German</option>
+                            <option value="es">Spanish</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="proficiency">Current Proficiency Level</label>
+                        <select id="proficiency" required>
+                            <option value="" disabled selected>Select your current level</option>
+                            <option value="Not-specified">I don't know / Take a placement test later</option>
+                            <option value="beginner">Beginner (A1)</option>
+                            <option value="elementary">Elementary (A2)</option>
+                            <option value="intermediate">Intermediate (B1)</option>
+                            <option value="upper-intermediate">Upper Intermediate (B2)</option>
+                            <option value="advanced">Advanced (C1)</option>
+                            <option value="proficient">Proficient (C2)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button type="button" id="prev-2" class="btn-prev">Back</button>
+                        <button type="button" id="next-2">Continue</button>
+                    </div>
+                </div>
+                
+                <!-- Step 3: Goals and Preferences -->
+                <div class="form-step" id="step-3">
+                    <h2>Set your learning goals</h2>
+                    
+                    <p>What's your primary reason for learning this language?</p>
+                    
+                    <div class="goal-item" data-goal="travel">
+                        <h4>Travel</h4>
+                        <p>Learn essential phrases and cultural insights for your trips</p>
+                    </div>
+                    
+                    <div class="goal-item" data-goal="business">
+                        <h4>Work & Business</h4>
+                        <p>Focus on professional vocabulary and communication skills</p>
+                    </div>
+                    
+                    <div class="goal-item" data-goal="academic">
+                        <h4>Academic</h4>
+                        <p>Prepare for exams or enhance your academic language skills</p>
+                    </div>
+                    
+                    <div class="goal-item" data-goal="cultural">
+                        <h4>Cultural Interest</h4>
+                        <p>Explore literature, films, music, and cultural nuances</p>
+                    </div>
+
+                    <div class="goal-item" data-goal="cultural">
+                        <h4>Other</h4>
+                        <p>Don't specify/specify after</p>
+                    </div>
+                    
+                    <div class="time-commitment">
+                        <label for="time-slider">How much time can you commit daily?</label>
+                        <input type="range" id="time-slider" min="5" max="60" step="5" value="15" class="time-slider">
+                        <p id="time-value">15 minutes per day</p>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button type="button" id="prev-3" class="btn-prev">Back</button>
+                        <button type="submit" id="submit-form">Create Account & Start Learning</button>
+                    </div>
+                </div>
+                
+                <!-- Success message (hidden initially) -->
+                <div class="form-step" id="success">
+                    <div class="congratulations">
+                        <h3>Congratulations!</h3>
+                        <p>Your LingvoPal account has been created successfully.</p>
+                        <p>We've tailored a learning plan based on your preferences.</p>
+                        <button type="button" id="start-learning">Start Learning Now</button>
+                    </div>
+                </div>
+            </form>
+            
+        </div>
+    </div>
+
+    <script>
+        // Variables to track form state
+        let currentStep = 1;
+        const totalSteps = 3;
+        const stepNames = ['Account Setup', 'Language Selection', 'Learning Goals'];
+        
+        // DOM elements
+        const progressBar = document.getElementById('progress-bar');
+        const currentStepName = document.getElementById('current-step-name');
+        const currentStepNumber = document.getElementById('current-step');
+        const timeSlider = document.getElementById('time-slider');
+        const timeValue = document.getElementById('time-value');
+        
+        // Event listeners for navigation buttons
+        document.getElementById('next-1').addEventListener('click', validateAndNext);
+        document.getElementById('next-2').addEventListener('click', () => goToStep(3));
+        document.getElementById('prev-2').addEventListener('click', () => goToStep(1));
+        document.getElementById('prev-3').addEventListener('click', () => goToStep(2));
+        document.getElementById('submit-form').addEventListener('click', showSuccess);
+        
+        // Click handlers for goal items
+        const goalItems = document.querySelectorAll('.goal-item');
+        goalItems.forEach(option => {
+            option.addEventListener('click', function() {
+                this.classList.toggle('selected');
+            });
+        });
+        
+        // Time slider event
+        timeSlider.addEventListener('input', function() {
+            timeValue.textContent = this.value + ' minutes per day';
+        });
+        
+        // Function to validate Step 1 and proceed
+        function validateAndNext(e) {
+            e.preventDefault();
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const terms = document.getElementById('terms').checked;
+            
+            // Simple validation
+            if (!name || !email || !password || !terms) {
+                alert('Please fill in all required fields and accept the terms.');
+                return;
+            }
+            
+            if (password.length < 8) {
+                alert('Password must be at least 8 characters long.');
+                return;
+            }
+            
+            goToStep(2);
+        }
+        
+                // Function to navigate between steps  
+                function goToStep(step) {
+            if (step < 1 || step > totalSteps) return;
+            
+            // Hide all steps
+            document.querySelectorAll('.form-step').forEach(stepDiv => {
+                stepDiv.classList.remove('active');
+            });
+
+            // Show target step
+            document.getElementById(`step-${step}`).classList.add('active');
+
+            // Update progress bar and step info
+            currentStep = step;
+            currentStepNumber.textContent = step;
+            currentStepName.textContent = stepNames[step - 1];
+            progressBar.style.width = `${(step / totalSteps) * 100}%`;
+        }
+
+        // Function to display success message
+        function showSuccess(e) {
+            e.preventDefault();
+
+            const selectedGoal = document.querySelector('.goal-item.selected');
+            const nativeLang = document.getElementById('native-language').value;
+            const learningLang = document.getElementById('learning-language').value;
+            const proficiency = document.getElementById('proficiency').value;
+
+            // Validate step 3 selections
+            if (!selectedGoal || preferences.length === 0 || !nativeLang || !learningLang || !proficiency) {
+                alert('Please complete all selections before submitting.');
+                return;
+            }
+
+            // Show success message
+            document.querySelectorAll('.form-step').forEach(stepDiv => {
+                stepDiv.classList.remove('active');
+            });
+            document.getElementById('success').classList.add('active');
+            currentStepNumber.textContent = totalSteps;
+            currentStepName.textContent = "You're In!";
+            progressBar.style.width = '100%';
+
+            // Optional: Send form data to server here using fetch/ajax
+        }
+
+        // Optional: Redirect to dashboard or learning area on button click
+        document.getElementById('start-learning').addEventListener('click', () => {
+            window.location.href = 'logged-main-page.html'; // Update with your actual route
+        });
+    </script>
+</body>
+</html>
