@@ -1,0 +1,171 @@
+-- Enable foreign key support (required for ON DELETE CASCADE/SET NULL)
+PRAGMA foreign_keys = ON;
+
+-- Languages
+CREATE TABLE languages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL
+);
+
+-- Language Levels
+CREATE TABLE language_levels (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    code TEXT NOT NULL,
+    mode TEXT NOT NULL
+);
+
+-- Goals
+CREATE TABLE goals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    prompt TEXT
+);
+
+-- Users
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    email_verified INTEGER DEFAULT 0, -- BOOLEAN as INTEGER (0 = false, 1 = true)
+    password_hash TEXT NOT NULL,
+    username TEXT UNIQUE,
+    join_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    google_id TEXT UNIQUE,
+    facebook_id TEXT UNIQUE
+);
+
+-- User Settings (1:1 with users)
+CREATE TABLE user_settings (
+    user_id INTEGER PRIMARY KEY,
+    native_language_id INTEGER,
+    reminders INTEGER, -- BOOLEAN as INTEGER
+    newsletter INTEGER, -- BOOLEAN as INTEGER
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (native_language_id) REFERENCES languages(id)
+);
+
+-- User Languages (Many-to-Many)
+CREATE TABLE user_languages (
+    user_id INTEGER,
+    language_id INTEGER,
+    language_level_id INTEGER,
+    study_time INTEGER,
+    immersion_mode INTEGER DEFAULT 0, -- BOOLEAN as INTEGER
+    PRIMARY KEY (user_id, language_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (language_id) REFERENCES languages(id) ON DELETE CASCADE,
+    FOREIGN KEY (language_level_id) REFERENCES language_levels(id)
+);
+
+-- User Goals (Many-to-Many)
+CREATE TABLE user_goals (
+    user_id INTEGER,
+    goal_id INTEGER,
+    PRIMARY KEY (user_id, goal_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE CASCADE
+);
+
+-- Flashcards
+CREATE TABLE flashcards (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    creator_id INTEGER,
+    language_id INTEGER,
+    word TEXT NOT NULL,
+    sentence TEXT,
+    image_url TEXT,
+    synonyms TEXT,
+    translations TEXT,
+    part_of_speech TEXT,
+    rating INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_public INTEGER DEFAULT 0, -- BOOLEAN as INTEGER
+    FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (language_id) REFERENCES languages(id)
+);
+
+-- Flashcard Sets
+CREATE TABLE flashcard_sets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    language_id INTEGER,
+    language_level_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_by INTEGER,
+    is_public INTEGER DEFAULT 0, -- BOOLEAN as INTEGER
+    FOREIGN KEY (language_id) REFERENCES languages(id),
+    FOREIGN KEY (language_level_id) REFERENCES language_levels(id),
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Link Flashcards to Sets
+CREATE TABLE link_flashcard_sets (
+    flashcard_id INTEGER,
+    set_id INTEGER,
+    PRIMARY KEY (flashcard_id, set_id),
+    FOREIGN KEY (flashcard_id) REFERENCES flashcards(id) ON DELETE CASCADE,
+    FOREIGN KEY (set_id) REFERENCES flashcard_sets(id) ON DELETE CASCADE
+);
+
+-- User Flashcard Progress
+CREATE TABLE user_flashcard_progress (
+    user_id INTEGER,
+    flashcard_id INTEGER,
+    ease_factor REAL DEFAULT 2.5, -- FLOAT as REAL
+    interval INTEGER DEFAULT 24,
+    last_reviewed DATETIME,
+    next_review_date DATETIME,
+    PRIMARY KEY (user_id, flashcard_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (flashcard_id) REFERENCES flashcards(id)
+);
+
+-- Daily Stats
+CREATE TABLE user_daily_stats (
+    user_id INTEGER,
+    language_id INTEGER,
+    stat_date DATE NOT NULL,
+    correct_answers INTEGER DEFAULT 0,
+    incorrect_answers INTEGER DEFAULT 0,
+    new_words INTEGER DEFAULT 0,
+    total_count INTEGER DEFAULT 0,
+    PRIMARY KEY (user_id, language_id, stat_date),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (language_id) REFERENCES languages(id) ON DELETE CASCADE
+);
+
+-- Overall Statistics
+CREATE TABLE user_statistics (
+    user_id INTEGER,
+    language_id INTEGER,
+    total_time_seconds INTEGER DEFAULT 0, -- BIGINT as INTEGER (SQLite uses 64-bit INTEGER)
+    total_words_learned INTEGER DEFAULT 0,
+    PRIMARY KEY (user_id, language_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (language_id) REFERENCES languages(id) ON DELETE CASCADE
+);
+
+-- AI Conversations
+CREATE TABLE ai_conversations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, -- Changed from UUID to INTEGER
+    user_id INTEGER,
+    language_id INTEGER,
+    title TEXT NOT NULL,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (language_id) REFERENCES languages(id) ON DELETE CASCADE
+);
+
+-- AI Conversation Messages
+CREATE TABLE conversation_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER, -- Changed to INTEGER to match ai_conversations.id
+    user_id INTEGER,
+    content TEXT NOT NULL,
+    sequence INT NOT NULL,
+    is_user INT NOT NULL DEFAULT 0, -- BOOLEAN as INTEGER
+    FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
