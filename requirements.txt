@@ -1,0 +1,30 @@
+Initial Tech Stack
+
+### **Frontend (Web App)**
+
+- **HTML, CSS, JavaScript** – for structure, design, and interactivity.
+- **Frontend Framework:**
+    - **React.js** (recommended for interactive UI)  
+        Optional: **Next.js** (React framework for SSR & routing)
+- **State Management**
+    - **Redux Toolkit** or React Context API
+- **Styling Libraries**:
+    - **Tailwind CSS** or **Material UI**
+- **Authentication UI**:
+    - **Firebase Auth UI** (for Google login)
+        
+### **Backend**
+
+- **Framework**:
+    - **FastAPI** (Python-based, great for building APIs fast and easily)
+- **Authentication**:
+    - **OAuth 2.0 & JWT** (for secure login with tokens)
+- **Database**:
+    - **PostgreSQL** (powerful relational database)
+    - **SQLAlchemy**
+- **User Data Management**:
+    - Store progress, settings, flashcards, etc.
+- **AI Integration**:
+    - Use **OpenAI GPT API** or **Hugging Face Transformers** (for chat assistant, grammar checking, writing help)
+    - Optionally fine-tune smaller models or use open-source ones for lower cost
+        
