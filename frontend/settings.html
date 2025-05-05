@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LingvoPal - Ustawienia</title>
+    <style>
+        :root {
+            --primary-color: #4a89dc;
+            --primary-light: #6fa5ff;
+            --primary-dark: #3a6ab8;
+            --secondary-color: #f5f7fa;
+            --text-color: #333;
+            --text-light: #666;
+            --success: #5cb85c;
+            --danger: #d9534f;
+            --border-radius: 8px;
+            --box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+            --transition: all 0.3s ease;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #f5f7fa 0%, #eef2f7 100%);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 30px;
+            background-color: white;
+            box-shadow: var(--box-shadow);
+            border-radius: var(--border-radius);
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+        }
+
+        .logo img {
+            height: 40px;
+            margin-right: 10px;
+        }
+
+        .logo h1 {
+            font-size: 1.8rem;
+            margin: 0;
+            background: linear-gradient(90deg, var(--primary-color), var(--primary-light));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--primary-light);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .settings-container {
+            display: flex;
+            background-color: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            overflow: hidden;
+        }
+
+        .settings-sidebar {
+            width: 250px;
+            background-color: var(--secondary-color);
+            padding: 20px 0;
+        }
+
+        .settings-menu {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .settings-menu li {
+            padding: 15px 25px;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+        }
+
+        .settings-menu li:hover {
+            background-color: rgba(74, 137, 220, 0.1);
+        }
+
+        .settings-menu li.active {
+            background-color: rgba(74, 137, 220, 0.2);
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .settings-menu li.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background-color: var(--primary-color);
+        }
+
+        .settings-menu i {
+            margin-right: 10px;
+            width: 20px;
+            text-align: center;
+        }
+
+        .settings-content {
+            flex: 1;
+            padding: 30px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .settings-section {
+            display: none;
+        }
+
+        .settings-section.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .settings-section h2 {
+            margin-top: 0;
+            margin-bottom: 25px;
+            color: var(--primary-color);
+            font-size: 1.8rem;
+            font-weight: 600;
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--text-color);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+            font-size: 1rem;
+            transition: var(--transition);
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-light);
+            box-shadow: 0 0 0 3px rgba(74, 137, 220, 0.2);
+        }
+
+        select.form-control {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 8.825L1.175 4 2.238 2.938 6 6.7 9.763 2.938 10.825 4z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 30px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--primary-color);
+        }
+
+        input:focus + .slider {
+            box-shadow: 0 0 1px var(--primary-color);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        .toggle-group {
+            display: flex;
+            align-items: center;
+        }
+
+        .toggle-group label {
+            margin-right: 10px;
+            margin-bottom: 0;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: var(--transition);
+        }
+
+        .btn:hover {
+            background-color: var(--primary-dark);
+        }
+
+        .btn-danger {
+            background-color: var(--danger);
+        }
+
+        .btn-danger:hover {
+            background-color: #c9302c;
+        }
+
+        .actions {
+            margin-top: 30px;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .actions .btn {
+            margin-left: 10px;
+        }
+
+        .goal-input {
+            display: flex;
+            align-items: center;
+        }
+
+        .goal-input input {
+            width: 80px;
+            margin-right: 10px;
+        }
+
+        .goal-input select {
+            width: auto;
+        }
+
+        .time-picker {
+            display: flex;
+            align-items: center;
+        }
+
+        .time-picker select {
+            width: auto;
+            margin-right: 5px;
+        }
+
+        .checkbox-group {
+            margin-top: 10px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            margin-right: 10px;
+        }
+
+        .radio-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .radio-item {
+            display: flex;
+            align-items: center;
+        }
+
+        .radio-item input[type="radio"] {
+            margin-right: 8px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            background-color: var(--primary-light);
+            color: white;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            margin-left: 10px;
+        }
+
+        .badge-premium {
+            background-color: #ffc107;
+            color: #333;
+        }
+
+        @media (max-width: 768px) {
+            .settings-container {
+                flex-direction: column;
+            }
+
+            .settings-sidebar {
+                width: 100%;
+                padding: 10px 0;
+            }
+
+            .settings-menu {
+                display: flex;
+                overflow-x: auto;
+                white-space: nowrap;
+                padding: 0 10px;
+            }
+
+            .settings-menu li {
+                padding: 10px 15px;
+            }
+
+            .settings-menu li.active::before {
+                width: 100%;
+                height: 3px;
+                top: auto;
+                bottom: 0;
+                left: 0;
+            }
+            
+            .settings-content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <h1>Lingv<span><img class="globe"src="/home/asus/Documents/LingvoPal/templates/img/earth-americas-solid.svg" alt=""></span><span>Pal</span></h1>
+                
+            </div>
+            <div class="user-profile">
+                <div class="user-avatar">JP</div>
+                <span>Jan Kowalski</span>
+            </div>
+        </header>
+
+        <div class="settings-container">
+            <div class="settings-sidebar">
+                <ul class="settings-menu">
+                    <li class="active" data-target="language-settings">
+                        <i>🌐</i> Ustawienia językowe i nauki
+                    </li>
+                    <li data-target="appearance">
+                        <i>🎨</i> Wygląd
+                    </li>
+                    <li data-target="notifications">
+                        <i>🔔</i> Powiadomienia
+                    </li>
+                    <li data-target="account">
+                        <i>👤</i> Konto i prywatność
+                    </li>
+                    <li data-target="ai-preferences">
+                        <i>🤖</i> Preferencje AI Asystenta
+                    </li>
+                    <li data-target="integrations">
+                        <i>🔄</i> Integracje i API
+                    </li>
+                    <li data-target="support">
+                        <i>🛟</i> Wsparcie i bezpieczeństwo
+                    </li>
+                </ul>
+            </div>
+
+            <div class="settings-content">
+                <!-- Ustawienia językowe i nauki -->
+                <div class="settings-section active" id="language-settings">
+                    <h2>Ustawienia językowe i nauki</h2>
+                    
+                    <div class="form-group">
+                        <label for="interface-language">Język interfejsu</label>
+                        <select id="interface-language" class="form-control">
+                            <option value="pl" selected>Polski</option>
+                            <option value="en">English</option>
+                            <option value="de">Deutsch</option>
+                            <option value="es">Español</option>
+                            <option value="fr">Français</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="target-language">Język docelowy nauki</label>
+                        <select id="target-language" class="form-control">
+                            <option value="en" selected>Angielski</option>
+                            <option value="de">Niemiecki</option>
+                            <option value="es">Hiszpański</option>
+                            <option value="fr">Francuski</option>
+                            <option value="it">Włoski</option>
+                            <option value="ru">Rosyjski</option>
+                            <option value="ja">Japoński</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="proficiency-level">Poziom biegłości</label>
+                        <select id="proficiency-level" class="form-control">
+                            <option value="A1">A1 (Początkujący)</option>
+                            <option value="A2">A2 (Podstawowy)</option>
+                            <option value="B1" selected>B1 (Średnio zaawansowany)</option>
+                            <option value="B2">B2 (Wyższy średnio zaawansowany)</option>
+                            <option value="C1">C1 (Zaawansowany)</option>
+                            <option value="C2">C2 (Biegły)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group toggle-group">
+                        <label for="immersion-mode">Tryb immersji językowej</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="immersion-mode">
+                            <span class="slider"></span>
+                        </label>
+                        <small>Cały interfejs będzie w języku docelowym</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="daily-goal">Cel dzienny nauki</label>
+                        <div class="goal-input">
+                            <input type="number" id="daily-goal" class="form-control" value="20" min="1">
+                            <select id="goal-type" class="form-control">
+                                <option value="words">słówek</option>
+                                <option value="minutes" selected>minut</option>
+                                <option value="sessions">sesji</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Osobiste ścieżki nauki</label>
+                        <div class="checkbox-group">
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="path-work" checked>
+                                <label for="path-work">Dla pracy</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="path-education">
+                                <label for="path-education">Dla edukacji</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="path-travel" checked>
+                                <label for="path-travel">Dla podróży</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="path-migration">
+                                <label for="path-migration">Dla migracji</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="custom-reason">Własny powód nauki języka</label>
+                        <input type="text" id="custom-reason" class="form-control" placeholder="np. Przygotowanie do egzaminu, nawiązanie kontaktów...">
+                    </div>
+                    
+                    <div class="actions">
+                        <button class="btn">Zapisz zmiany</button>
+                    </div>
+                </div>
+                
+                <!-- Wygląd -->
+                <div class="settings-section" id="appearance">
+                    <h2>Wygląd</h2>
+                    
+                    <div class="form-group">
+                        <label>Motyw</label>
+                        <div class="radio-group">
+                            <div class="radio-item">
+                                <input type="radio" id="theme-light" name="theme" checked>
+                                <label for="theme-light">Jasny</label>
+                            </div>
+                            <div class="radio-item">
+                                <input type="radio" id="theme-dark" name="theme">
+                                <label for="theme-dark">Ciemny</label>
+                            </div>
+                            <div class="radio-item">
+                                <input type="radio" id="theme-system" name="theme">
+                                <label for="theme-system">Systemowy</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="actions">
+                        <button class="btn">Zapisz zmiany</button>
+                    </div>
+                </div>
+                
+                <!-- Powiadomienia -->
+                <div class="settings-section" id="notifications">
+                    <h2>Powiadomienia</h2>
+                    
+                    <div class="form-group toggle-group">
+                        <label for="daily-reminder">Codzienne przypomnienia o nauce</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="daily-reminder" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Metoda powiadomień</label>
+                        <div class="checkbox-group">
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="notification-email" checked>
+                                <label for="notification-email">E-mail</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="notification-push" checked>
+                                <label for="notification-push">Powiadomienia push</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="notification-sms">
+                                <label for="notification-sms">SMS</label>
+                                <span class="badge badge-premium">Premium</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reminder-time">Godzina przypomnienia</label>
+                        <div class="time-picker">
+                            <select id="reminder-hour" class="form-control">
+                                <option value="6">6</option>
+                                <option value="7">7</option>
+                                <option value="8">8</option>
+                                <option value="9">9</option>
+                                <option value="10">10</option>
+                                <option value="11">11</option>
+                                <option value="12">12</option>
+                                <option value="13">13</option>
+                                <option value="14">14</option>
+                                <option value="15">15</option>
+                                <option value="16">16</option>
+                                <option value="17">17</option>
+                                <option value="18" selected>18</option>
+                                <option value="19">19</option>
+                                <option value="20">20</option>
+                                <option value="21">21</option>
+                                <option value="22">22</option>
+                            </select>
+                            <span>:</span>
+                            <select id="reminder-minute" class="form-control">
+                                <option value="00" selected>00</option>
+                                <option value="15">15</option>
+                                <option value="30">30</option>
+                                <option value="45">45</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group toggle-group">
+                        <label for="weekly-report">Tygodniowe raporty postępów</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="weekly-report" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="form-group toggle-group">
+                        <label for="motivational-quotes">Powiadomienia motywacyjne</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="motivational-quotes">
+                            <span class="slider"></span>
+                        </label>
+                        <small>Cytaty, osiągnięcia, nagrody</small>
+                    </div>
+                    
+                    <div class="actions">
+                        <button class="btn">Zapisz zmiany</button>
+                    </div>
+                </div>
+                
+                <!-- Konto i prywatność -->
+                <div class="settings-section" id="account">
+                    <h2>Konto i prywatność</h2>
+                    
+                    <div class="form-group">
+                        <label for="nickname">Zmiana nicku</label>
+                        <input type="text" id="nickname" class="form-control" value="Jan Kowalski">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="email">Adres e-mail</label>
+                        <input type="email" id="email" class="form-control" value="jan.kowalski@example.com">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="current-password">Obecne hasło</label>
+                        <input type="password" id="current-password" class="form-control">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="new-password">Nowe hasło</label>
+                        <input type="password" id="new-password" class="form-control">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="confirm-password">Potwierdź nowe hasło</label>
+                        <input type="password" id="confirm-password" class="form-control">
+                    </div>
+                    
+                    <div class="form-group toggle-group">
+                        <label for="google-auth">Autoryzacja przez Google</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="google-auth">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Zarządzanie danymi</label>
+                        <div class="actions" style="justify-content: flex-start; margin-top: 10px;">
+                            <button class="btn btn-danger">Reset postępów</button>
+                            <button class="btn btn-danger">Usuń konto</button>
+                        </div>
+                    </div>
+                    
+                    <div class="actions">
+                        <button class="btn">Zapisz zmiany</button>
+                    </div>
+                </div>
+                
+                <!-- Preferencje AI Asystenta -->
+                <div class="settings-section" id="ai-preferences">
+                    <h2>Preferencje AI Asystenta</h2>
+                    
+                    <div class="form-group">
+                        <label>Preferowany styl rozmowy AI</label>
+                        <div class="radio-group">
+                            <div class="radio-item">
+                                <input type="radio" id="ai-style-formal" name="ai-style">
+                                <label for="ai-style-formal">Formalny</label>
+                            </div>
+                            <div class="radio-item">
+                                <input type="radio" id="ai-style-casual" name="ai-style" checked>
+                                <label for="ai-style-casual">Swobodny</label>
+                            </div>
+                            <div class="radio-item">
+                                <input type="radio" id="ai-style-educational" name="ai-style">
+                                <label for="ai-style-educational">Edukacyjny</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Tematy rozmów preferowane</label>
+                        <select id="ai-topics" class="form-control" multiple>
+                            <option value="daily" selected>Codzienne</option>
+                            <option value="business">Biznesowe</option>
+                            <option value="technical">Techniczne</option>
+                            <option value="travel" selected>Podróżnicze</option>
+                            <option value="cultural">Kulturowe</option>
+                            <option value="academic">Akademickie</option>
+                        </select>
+                        <small>Przytrzymaj Ctrl (Cmd na Mac) aby wybrać wiele opcji</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Korekta błędów</label>
+                        <div class="radio-group">
+                            <div class="radio-item">
+                                <input type="radio" id="error-correction-immediate" name="error-correction" checked>
+                                <label for="error-correction-immediate">Natychmiast</label>
+                            </div>
+                            <div class="radio-item">
+                                <input type="radio" id="error-correction-after" name="error-correction">
+                                <label for="error-correction-after">Po rozmowie</label>
+                            </div>
+                            <div class="radio-item">
+                                <input type="radio" id="error-correction-never" name="error-correction">
+                                <label for="error-correction-never">Nigdy</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group toggle-group">
+                        <label for="export-pdf">Eksport wyników do PDF</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="export-pdf">
+                            <span class="slider"></span>
+                        </label>
+                        <small>Dla nauczyciela lub CV</small>
+                    </div>
+                    
+                    <div class="actions">
+                        <button class="btn">Zapisz zmiany</button>
+                    </div>
+                </div>
+                
+                <!-- Integracje i API -->
+                <div class="settings-section" id="integrations">
+                    <h2>Integracje i API</h2>
+                    
+                    <div class="form-group toggle-group">
+                        <label for="google-calendar">Integracja z Google Calendar</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="google-calendar">
+                            <span class="slider"></span>
+                        </label>
+                        <small>Automatyczne dodawanie sesji nauki</small>
+                    </div>
+                    
+                    <div class="form-group toggle-group">
+                        <label for="chatgpt-integration">Integracja z ChatGPT</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="chatgpt-integration">
+                            <span class="slider"></span>
+                        </label>
+                        <span class="badge badge-premium">Premium</span>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="ai-model">Wybór modelu AI</label>
+                        <select id="ai-model" class="form-control" disabled>
+                            <option>GPT-4</option>
+                            <option selected>GPT-3.5</option>
+                            <option>Custom</option>
+                        </select>
+                        <small>Dostępne tylko z integracją ChatGPT</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="api-key">Klucz API (dla zaawansowanych)</label>
+                        <input type="text" id="api-key" class="form-control" placeholder="sk-...">
+                        <small>Zachowaj ten klucz w tajemnicy</small>
+                    </div>
+                    
+                    <div class="actions">
+                        <button class="btn">Zapisz zmiany</button>
+                    </div>
+                </div>
+                
+                <!-- Wsparcie i bezpieczeństwo -->
+                <div class="settings-section" id="support">
+                    <h2>Wsparcie i bezpieczeństwo</h2>
+                    
+                    <div class="form-group toggle-group">
+                        <label for="private-mode">Tryb prywatny</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="private-mode">
+                            <span class="slider"></span>
+                        </label>
+                        <small>Wyłączenie zapisywania konwersacji z AI</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Zgłaszanie błędów / feedback</label>
+                        <textarea class="form-control" rows="4" placeholder="Opisz napotkany problem lub sugestię..."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Kontakt z supportem</label>
+                        <div class="actions" style="justify-content: flex-start; margin-top: 10px;">
+                            <button class="btn">Wyślij zgłoszenie</button>
+                            <button class="btn">Czat na żywo</button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Bezpieczeństwo konta</label>
+                        <div class="checkbox-group">
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="two-factor" checked>
+                                <label for="two-factor">Weryfikacja dwuetapowa</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="session-logout">
+                                <label for="session-logout">Automatyczne wylogowanie po 30 minutach</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="actions">
+                        <button class="btn">Zapisz zmiany</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const menuItems = document.querySelectorAll('.settings-menu li');
+            const sections = document.querySelectorAll('.settings-section');
+
+            menuItems.forEach(item => {
+                item.addEventListener('click', () => {
+                    // Remove active class from all menu items
+                    menuItems.forEach(i => i.classList.remove('active'));
+                    // Add active class to clicked item
+                    item.classList.add('active');
+
+                    // Hide all sections
+                    sections.forEach(section => section.classList.remove('active'));
+                    // Show target section
+                    const target = item.getAttribute('data-target');
+                    document.getElementById(target).classList.add('active');
+                });
+            });
+        });
+    </script>
+</body>
+</html>
