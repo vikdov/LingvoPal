@@ -1,8 +1,9 @@
 :root {
     /* --primary: #1aa471; */
-    --primary: #3a86ff;
+    --primary: #0e72ed;
     --secondary: #8338ec;
-    --background: #3a405b;
+    /* --background: #3a405b; */
+    --background: #f7f7f9;
     --dark: #212529;
     --hovergreen: #0e5349;
     --hoverdark: #343a40;
