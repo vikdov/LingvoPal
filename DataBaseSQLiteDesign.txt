@@ -93,7 +93,7 @@ CREATE TABLE flashcard_sets (
     language_id INTEGER,
     language_level_id INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    created_by INTEGER,
+    creator_id INTEGER,
     is_public INTEGER DEFAULT 0, -- BOOLEAN as INTEGER
     FOREIGN KEY (language_id) REFERENCES languages(id),
     FOREIGN KEY (language_level_id) REFERENCES language_levels(id),
