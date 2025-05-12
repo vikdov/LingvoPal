@@ -1,133 +1,27 @@
-# LingvoPal - Language Learning Platform
+MVP Projekt Web Platformy do wspomagania nauki językowej LingvoPal
+_**Logowanie&Rejestracja:**_ logowanie standardowe (login hasło), przez google, możliwość rejestracji -wypełnienie formularza rejestracyjnego (język ojczysty, język docelowy, poziom języka, cel nauki, ilość czasu dziennie, zgody marketingowe) i potwierdzenie adresu przez skrzynkę. Reset hasła.
 
-LingvoPal is a modern language learning platform that combines AI-powered learning with social interaction to make language learning more effective and engaging.
+_**Main Page(landing page):**_ opis projektu, dlaczego warto, funkcjonalności i tak dalej.
 
-## Tech Stack
+_**Settings**_:  
+Ustawienia językowe i nauki:• Język interfejsu (np. polski, angielski, niemiecki) • Język docelowy nauki (np. angielski, hiszpański, niemiecki ) • Poziom biegłości (A1–C2) • Tryb immersji językowej (tak/nie – cały interfejs w języku docelowym)• Tryb ciemny/jasny• Cel dzienny nauki (np. 10 słówek, 20 min, 3 sesje) • osobiste ścieżki nauki: dla pracy, edukacji, migracji i td. Możliwość dodania własnego powodu nauki języka
 
-### Frontend
-- React.js with Next.js
-- Redux Toolkit for state management
-- Firebase Auth UI for authentication
-- TailwindCSS for styling
-- TypeScript for type safety
+Powiadomienia: • Codzienne przypomnienia o nauce (e-mail / push / SMS) • Godzina przypomnienia • Tygodniowe raporty postępów • Cele i motywacyjne powiadomienia (cytaty, nagrody itp.)
 
-### Backend
-- FastAPI (Python)
-- PostgreSQL with SQLAlchemy ORM
-- JWT & OAuth 2.0 for authentication
-- OpenAI GPT API integration
+Konto i prywatność Zmiana Nicku: • Zarządzanie kontem: • Zmiana hasła • Zmiana e-maila • Autoryzacja przez Google • Reset postępów (opcjonalne, z potwierdzeniem) • Usuwanie konta
 
-## Project Structure
+Językowe preferencje treści AI Asystenta: • Preferowany styl rozmowy AI: formalny / swobodny / edukacyjny • Tematy rozmów preferowane: codzienne, biznesowe, techniczne itd. • Dostosowanie błędów – AI ma korygować błędy natychmiast / po rozmowie / nigdy • Eksport wyników do PDF (np. dla nauczyciela lub CV)
 
-```
-lingvopal/
-├── frontend/                 # Next.js frontend application
-│   ├── src/
-│   │   ├── app/             # Next.js 13+ app directory
-│   │   │   ├── components/      # Reusable React components
-│   │   │   ├── store/          # Redux store configuration
-│   │   │   ├── styles/         # Global styles and Tailwind config
-│   │   │   └── types/          # TypeScript type definitions
-│   │   ├── public/             # Static assets
-│   │   └── package.json
-│   │
-│   ├── backend/                 # FastAPI backend application
-│   │   ├── app/
-│   │   │   ├── api/            # API routes
-│   │   │   ├── core/           # Core functionality
-│   │   │   ├── models/         # SQLAlchemy models
-│   │   │   ├── schemas/        # Pydantic schemas
-│   │   │   └── services/       # Business logic
-│   │   ├── tests/              # Backend tests
-│   │   └── requirements.txt
-│   │
-│   ├── database/               # Database migrations and seeds
-│   │   ├── migrations/
-│   │   └── seeds/
-│   │
-│   └── docker/                 # Docker configuration files
-│       ├── frontend/
-│       ├── backend/
-│       └── database/
-```
+Integracje i API: • Integracja z Google Calendar – automatyczne dodawanie sesji nauki • Integracja z ChatGPT (dla zaawansowanych użytkowników) – wybór modelu, poziomu AI
 
-## Getting Started
+Wsparcie i bezpieczeństwo: • Tryb prywatny – wyłączenie zapisywania konwersacji z AI • Zgłaszanie błędów / feedback – szybki formularz wewnątrz aplikacji • FAQ i Centrum Pomocy – opcja bezpośrednio w ustawieniach • Zgłaszanie problematycznych treści (np. AI wygenerowało coś nieodpowiedniego
 
-### Prerequisites
-- Node.js 18+
-- Python 3.9+
-- PostgreSQL 14+
-- Docker and Docker Compose
+_**Flash card game:**_ wykorzystanie zdań i obrazów dla lepszego zapamiętywania. Użytkownik musi pisać słowa w określonym miejscu w zdaniu. System powtórek opartych na krzywej zapomnienia (spaced repetition), używając binarnych danych treningu (prawidłowo lub nie). Dostępne wyszukiwanie zbiorów słów, tworzenie własnych. Wyszukiwanie słów, tworzenie swoich żeby dodać do zbioru lub eksport/import gotowych zbiorów z anki i td.
 
-### Development Setup
+_**Chat with AI assistant:**_ podstawowa funkcjonalność (pisanie i otrzymywanie odpowiedzi od API). Dodanie na początku powiadomień użytkowników prostych wskazówek, promptów (aby spersonalizować, umieścić kontekst, żeby zrealizować poniższe funkcje).Użytkownicy mogą zadawać pytania, ćwiczyć pismo za pomocą interaktywnych dialogów z botem, który symuluje rozmowy w języku obcym, daje wskazówki i ocenia poprawność daje sugestie stylistyczne. Trenowanie pisania krótkich odpowiedzi i ich sprawdzenie z botem (opisz obrazek, pisanie maili (formalnych/nieformalnych), listów motywacyjnych, opowiadań, essajów). Czytanie gotowych lub wygenerowanych treści i odpowiedzi na pytania dotyczące ich od bota. 
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/lingvopal.git
-cd lingvopal
-```
+Asystent automatycznie dostosowuje poziom trudności w zależności od postępów użytkownika. Z czasem, kiedy użytkownik poprawia swoje umiejętności, bot zacznie dostarczać trudniejsze treści i bardziej zaawansowane ćwiczenia.
 
-2. Set up the frontend:
-```bash
-cd frontend
-npm install
-npm run dev
-```
+Personalizacja celów nauki - uczenie się do pracy, podróży, nauki, czy jakiś inny powód (wskazany w ustawieniach, lub konwersacji). Przybliżone wyznaczenie poziomu użytkownika poprzez testy i progres uczenia się na platformie.
 
-3. Set up the backend:
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # On Windows: .\venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-4. Set up the database:
-```bash
-# Using Docker
-docker-compose up -d db
-```
-
-### Environment Variables
-
-Create `.env` files in both frontend and backend directories:
-
-Frontend (.env):
-```
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_FIREBASE_CONFIG={your_firebase_config}
-```
-
-Backend (.env):
-```
-DATABASE_URL=postgresql://user:password@localhost:5432/lingvopal
-SECRET_KEY=your_secret_key
-OPENAI_API_KEY=your_openai_api_key
-```
-
-## Features
-
-- User authentication with social login
-- AI-powered language learning exercises
-- Progress tracking and analytics
-- Social features for language exchange
-- Real-time chat and voice calls
-- Customizable learning paths
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- OpenAI for providing the GPT API
-- The open-source community for various tools and libraries used in this project
+_**Progress page:**_ Zaawansowane statystyki – wykresy postępów, najczęściej popełniane błędy, czas nauki, ilość nauczonych słówek, ilość nauczonych słów w poszczególnych dniach.
