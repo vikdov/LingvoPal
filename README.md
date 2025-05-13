@@ -32,32 +32,33 @@ _**Progress page:**_ Zaawansowane statystyki – wykresy postępów, najczęści
 
 - **Framework:** `React.js` 
     
-- **State Management:** `Redux Toolkit`
+- **State Management:** `Zustand`
 	    
-- **Authentication UI:**  own UI using **Firebase Authentication SDK**
+- **Authentication UI:**  `own UI using Supabase Auth`
 
-- **UI Components:** Material-UI
+- **UI Components:** `Material-UI`
 
+- **Rendering**:  `Next.js` SSG dla Landing Page, CSR lub potencjalnie SSR dla bardziej dynamicznych części (gra, czat, ustawienia, panel użytkownika)
 
 ### 🧠 **AI Assistant**
 
-- **API:** `OpenAI GPT-4` or `GPT-3.5` via [OpenAI API](https://platform.openai.com/)
+- **API:** `OpenAI GPT-4` or `GPT-3.5` via OpenAI API
     
 - **Dynamic prompting:** Customize based on user language level & topic
-    
-- **Optional:** Fine-tune prompts using context from user profile
     
 
 ### 🌐 **Backend**
 
 - **Framework:** `FastAPI` (Python)
         
-- **Authentication:** JWT-based (with OAuth2 for Google)
+- **Authentication:** `JWT-based auth with Supabase`
     
 - **Email confirmation/reset:** `FastAPI + SendGrid` or `SMTP`
     
-- **Scheduling reminders:** `Celery` + `Redis` or `APScheduler` for periodic tasks
-    
+- **Scheduling reminders:** `APScheduler`
+
+-  **Spaced repetition logic:** `SM2 algorithm`
+     
 
 ### 🗃️ **Database**
 
@@ -65,26 +66,20 @@ _**Progress page:**_ Zaawansowane statystyki – wykresy postępów, najczęści
     
 - **ORM:** `SQLAlchemy`
     
-- **Spaced repetition logic:** Track card success/failure timestamps
-    
 
 ### 🗂️ **Storage / Files**
 
-- **Image uploads (e.g., flashcard images):** local for MVP
+- **Image uploads (e.g., flashcard images):** local for development, Supabase Storage for MVP
     
 
 ### 📊 **Analytics / Progress Tracking**
 
-- Visualizations via `Chart.js` or `Recharts` in React
+- Visualizations via `Chart.js` in React
     
 
 ### 📱 **Notifications** (optional)
 
-- **Email:** SendGrid or Mailgun
-    
-- **Push:** Firebase Cloud Messaging (FCM)
-    
-- **SMS:** Twilio (optional)
+- **Email:**  Resend
     
 
 ### 🔒 **Security**
@@ -98,8 +93,8 @@ _**Progress page:**_ Zaawansowane statystyki – wykresy postępów, najczęści
 
 ### 🌍 **Deployment**
 
-- **Backend + DB:** `Railway`, `Render`, `DigitalOcean`, or `Heroku`
+- **Backend + DB:** `Railway` and `Supabase` for PostgreSQL
     
-- **Frontend:** `Vercel`, `Netlify`, or `Firebase Hosting`
+- **Frontend:** `Vercel`
     
 - **Docker:** For containerization (optional but recommended for prod)
