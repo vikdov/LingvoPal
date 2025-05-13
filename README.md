@@ -25,3 +25,81 @@ Asystent automatycznie dostosowuje poziom trudności w zależności od postępó
 Personalizacja celów nauki - uczenie się do pracy, podróży, nauki, czy jakiś inny powód (wskazany w ustawieniach, lub konwersacji). Przybliżone wyznaczenie poziomu użytkownika poprzez testy i progres uczenia się na platformie.
 
 _**Progress page:**_ Zaawansowane statystyki – wykresy postępów, najczęściej popełniane błędy, czas nauki, ilość nauczonych słówek, ilość nauczonych słów w poszczególnych dniach.
+
+## Tech Stack for LingvoPal (MVP)
+
+### 🖥️**Frontend**
+
+- **Framework:** `React.js` 
+    
+- **State Management:** `Redux Toolkit`
+	    
+- **Authentication UI:**  own UI using **Firebase Authentication SDK**
+
+- **UI Components:** Material-UI
+
+
+### 🧠 **AI Assistant**
+
+- **API:** `OpenAI GPT-4` or `GPT-3.5` via [OpenAI API](https://platform.openai.com/)
+    
+- **Dynamic prompting:** Customize based on user language level & topic
+    
+- **Optional:** Fine-tune prompts using context from user profile
+    
+
+### 🌐 **Backend**
+
+- **Framework:** `FastAPI` (Python)
+        
+- **Authentication:** JWT-based (with OAuth2 for Google)
+    
+- **Email confirmation/reset:** `FastAPI + SendGrid` or `SMTP`
+    
+- **Scheduling reminders:** `Celery` + `Redis` or `APScheduler` for periodic tasks
+    
+
+### 🗃️ **Database**
+
+- **Relational DB:** `PostgreSQL` (recommended) or `SQLite` (dev)
+    
+- **ORM:** `SQLAlchemy`
+    
+- **Spaced repetition logic:** Track card success/failure timestamps
+    
+
+### 🗂️ **Storage / Files**
+
+- **Image uploads (e.g., flashcard images):** local for MVP
+    
+
+### 📊 **Analytics / Progress Tracking**
+
+- Visualizations via `Chart.js` or `Recharts` in React
+    
+
+### 📱 **Notifications** (optional)
+
+- **Email:** SendGrid or Mailgun
+    
+- **Push:** Firebase Cloud Messaging (FCM)
+    
+- **SMS:** Twilio (optional)
+    
+
+### 🔒 **Security**
+
+- OAuth2 + HTTPS
+    
+- Rate limiting (e.g., `SlowAPI`)
+    
+- CSRF/XSS protections (handled by React/FastAPI)
+    
+
+### 🌍 **Deployment**
+
+- **Backend + DB:** `Railway`, `Render`, `DigitalOcean`, or `Heroku`
+    
+- **Frontend:** `Vercel`, `Netlify`, or `Firebase Hosting`
+    
+- **Docker:** For containerization (optional but recommended for prod)
