@@ -1,0 +1,12 @@
+
+{
+  "name": "lingvopal-monorepo",
+  "version": "1.0.0",
+  "scripts": {
+    "frontend": "cd frontend && npm run dev",
+    "backend": "cd backend && uvicorn main:app --reload",
+    "lint": "cd frontend && npm run lint",
+    "test": "echo 'Add tests later'"
+  },
+  "devDependencies": {}
+}
