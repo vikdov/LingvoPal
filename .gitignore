@@ -54,3 +54,4 @@ Desktop.ini            # Windows specific files
 .coverage              # Coverage analysis file
 htmlcov/               # Coverage analysis HTML report directory
 .venv/
+.venv/
