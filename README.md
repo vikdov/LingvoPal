@@ -62,8 +62,6 @@ or
 
 - **UI Components:** `Material-UI`
 
-- **Rendering**:  `Next.js` SSG dla Landing Page, CSR lub potencjalnie SSR dla bardziej dynamicznych części (gra, czat, ustawienia, panel użytkownika)
-
 ### 🧠 **AI Assistant**
 
 - **API:** `OpenAI GPT-4` or `GPT-3.5` via OpenAI API

@@ -1,12 +1,55 @@
-node_modules/
-dist/
-.env
-.env.local
-*.log
-venv/
-__pycache__/
-*.pyc
-.DS_Store
-.vscode/
-backend/.venv/
+# Existing entries (good to keep)
+node_modules/          # Frontend JavaScript dependencies
+dist/                  # Frontend build output (Vite default)
+.env                   # Environment variables
+.env.local             # Local environment variable overrides
+*.log                  # Log files
+venv/                  # Common Python virtual environment name
+__pycache__/           # Python compiled bytecode cache
+*.pyc                  # Compiled Python files
+.DS_Store              # macOS specific files
+.vscode/               # VS Code specific settings (optional, but often ignored)
+backend/.venv/         # Your specific backend virtual environment
 
+# Frontend (React, Vite, Zustand, Material-UI)
+# Assuming frontend is in a 'frontend' directory at the root
+frontend/node_modules/ # Frontend dependencies (if not at root)
+frontend/dist/         # Frontend build output (if not at root)
+frontend/build/        # Another common frontend build output directory
+.vite/                 # Vite cache directory
+
+# Backend (FastAPI, Python, SQLAlchemy, APScheduler)
+# Assuming backend is in a 'backend' directory at the root
+backend/venv/          # Another common Python virtual environment name inside backend
+backend/__pycache__/   # Python cache inside backend
+backend/*.pyc          # Compiled Python inside backend
+backend/alembic/versions/ # SQLAlchemy Alembic migration versions (if generated automatically)
+
+# Database (PostgreSQL, SQLite)
+*.sqlite               # SQLite database file (if used for development)
+*.sql                  # Database dump files (be cautious, only if not needed for migration)
+
+# Storage / Files (Image uploads)
+# Assuming local uploads go into a specific directory
+uploads/               # Example directory for local file uploads
+backend/uploads/       # Example for backend-specific local uploads
+
+# Deployment (Railway, Vercel, Docker)
+.railway/              # Railway specific files
+.vercel/              # Vercel specific files
+Dockerfile.build       # Intermediate Dockerfile often used for multi-stage builds
+!.dockerignore         # Don't ignore .dockerignore itself if present
+target/                # Common build output directory for various tools
+
+# Operating System / Editor Specific
+*~                     # Backup files created by some editors (e.g., Vim)
+.#* # Lock files created by some editors
+*.swp                  # Swap files created by Vim
+Thumbs.db              # Windows thumbnail cache
+Desktop.ini            # Windows specific files
+
+# Miscellaneous
+.pytest_cache/         # pytest cache directory
+.mypy_cache/           # MyPy static analysis cache
+.coverage              # Coverage analysis file
+htmlcov/               # Coverage analysis HTML report directory
