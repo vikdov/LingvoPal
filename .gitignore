@@ -53,3 +53,4 @@ Desktop.ini            # Windows specific files
 .mypy_cache/           # MyPy static analysis cache
 .coverage              # Coverage analysis file
 htmlcov/               # Coverage analysis HTML report directory
+.venv/
