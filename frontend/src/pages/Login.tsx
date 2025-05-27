@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import '../styles/login-signup.css'
+import './login-signup.module.css'
 import Logo from '../components/Logo'
 import LanguageSelector from '../components/LanguageSelector'
 import SocialLogin from '../components/SocialLogin'
