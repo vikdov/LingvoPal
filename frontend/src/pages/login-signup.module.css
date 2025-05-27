@@ -12,16 +12,6 @@
 }
 
 
-body {
-  font-family: Verdana, sans-serif;
-  background-color: var(--background);
-  margin: 0;
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-}
 
 .container {
   width: 100%;
@@ -53,16 +43,7 @@ body {
   font-size: 14px;
 }
 
-h1 {
-  margin: 0;
-}
 
-h2 {
-  font-size: 24px;
-  margin-bottom: 25px;
-  color: var(--dark);
-  text-align: center;
-}
 
 .form-group {
   margin-bottom: 15px;
