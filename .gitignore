@@ -17,6 +17,7 @@ frontend/node_modules/ # Frontend dependencies (if not at root)
 frontend/dist/         # Frontend build output (if not at root)
 frontend/build/        # Another common frontend build output directory
 .vite/                 # Vite cache directory
+frontend/.env
 
 # Backend (FastAPI, Python, SQLAlchemy, APScheduler)
 # Assuming backend is in a 'backend' directory at the root
