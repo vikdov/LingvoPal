@@ -10,6 +10,8 @@ __pycache__/           # Python compiled bytecode cache
 .DS_Store              # macOS specific files
 .vscode/               # VS Code specific settings (optional, but often ignored)
 backend/.venv/         # Your specific backend virtual environment
+**/.env
+frontend/node_modules/
 
 # Frontend (React, Vite, Zustand, Material-UI)
 # Assuming frontend is in a 'frontend' directory at the root
