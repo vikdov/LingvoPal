@@ -7,7 +7,7 @@ import Step1Account from './SignupSteps/Step1Account'
 import Step2Language from './SignupSteps/Step2Language'
 import Step3Goals from './SignupSteps/Step3Goals'
 import SignupSuccess from './SignupSteps/SignupSuccess'
-import { useAuth } from '../context/AuthContext'
+import { useAuthStore } from '../state/authStore'
 
 // Define the step names
 const stepNames = ['Account Setup', 'Language Selection', 'Learning Goals']
@@ -27,7 +27,7 @@ const Signup: React.FC = () => {
         dailyTime: 15
     })
 
-    const { signup } = useAuth()
+    const { signUp, loading, error } = useAuthStore()
     const navigate = useNavigate()
 
     // Calculate progress percentage
@@ -51,7 +51,7 @@ const Signup: React.FC = () => {
     // Handle final submission
     const handleSubmit = async () => {
         try {
-            await signup({
+            await signUp({
                 name: formData.name,
                 email: formData.email,
                 password: formData.password,
@@ -61,7 +61,7 @@ const Signup: React.FC = () => {
             nextStep() // Show success page
         } catch (err) {
             console.error('Signup failed:', err)
-            // Handle error
+            // Error is handled by the auth store
         }
     }
 
@@ -94,6 +94,8 @@ const Signup: React.FC = () => {
         </div>
         </div>
 
+        {error && <div className="error-message">{error}</div>}
+
         {/* Render the current step */}
         {currentStep === 1 && (
             <Step1Account
@@ -118,6 +120,7 @@ const Signup: React.FC = () => {
             updateFormData={updateFormData}
             onPrev={prevStep}
             onSubmit={handleSubmit}
+            loading={loading}
             />
         )}
 

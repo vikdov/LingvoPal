@@ -8,13 +8,15 @@ interface Step3Props {
     updateFormData: (data: Partial<Step3Props['formData']>) => void
     onPrev: () => void
     onSubmit: () => void
+    loading?: boolean
 }
 
 const Step3Goals: React.FC<Step3Props> = ({
     formData,
         updateFormData,
         onPrev,
-        onSubmit
+        onSubmit,
+        loading = false
 }) => {
     const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -82,11 +84,11 @@ const Step3Goals: React.FC<Step3Props> = ({
         </div>
 
         <div className="button-group">
-        <button type="button" className="btn-prev" onClick={onPrev}>
+        <button type="button" className="btn-prev" onClick={onPrev} disabled={loading}>
         Back
         </button>
-        <button type="button" className="btn-next" onClick={handleSubmit}>
-        Create Account & Start Learning
+        <button type="button" className="btn-next" onClick={handleSubmit} disabled={loading}>
+        {loading ? 'Creating Account...' : 'Create Account & Start Learning'}
         </button>
         </div>
         </div>
