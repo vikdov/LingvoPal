@@ -1,0 +1,196 @@
+PRAGMA foreign_keys = ON;
+PRAGMA journal_mode = WAL;
+
+-- 1. REFERENCE DATA
+CREATE TABLE languages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT UNIQUE NOT NULL, -- e.g., 'en', 'es'
+    name TEXT NOT NULL         -- e.g., 'English', 'Spanish'
+) STRICT;
+
+-- 2. USER MANAGEMENT
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    email_verified INTEGER DEFAULT 0 CHECK (email_verified IN (0,1)),
+    password_hash TEXT NOT NULL,
+    username TEXT UNIQUE,
+    join_date TEXT DEFAULT CURRENT_TIMESTAMP
+) STRICT;
+
+CREATE TABLE user_settings (
+    user_id INTEGER PRIMARY KEY,
+    native_lang_id INTEGER,
+    interface_lang_id INTEGER,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (native_lang_id) REFERENCES languages(id) ON DELETE RESTRICT,
+    FOREIGN KEY (interface_lang_id) REFERENCES languages(id) ON DELETE RESTRICT
+) STRICT;
+
+-- 3. CONTENT (The "Learning Items")
+CREATE TABLE items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    creator_id INTEGER,
+    language_id INTEGER NOT NULL,
+    term TEXT NOT NULL,         -- Formerly 'prompt' or 'word'
+    context TEXT,               -- Example sentence or usage note
+    image_url TEXT,
+    part_of_speech TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TEXT DEFAULT NULL,
+    visibility TEXT CHECK (visibility IN ('private', 'pending', 'public')) DEFAULT 'private',
+    FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (language_id) REFERENCES languages(id) ON DELETE RESTRICT
+) STRICT;
+
+CREATE TABLE translations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id INTEGER NOT NULL,
+    language_id INTEGER NOT NULL,
+    term_trans TEXT NOT NULL,      -- The translated word
+    context_trans TEXT,            -- The translated context sentence
+    FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
+    FOREIGN KEY (language_id) REFERENCES languages(id) ON DELETE RESTRICT
+) STRICT;
+
+-- 4. RELATIONSHIPS (Synonyms & Sets)
+CREATE TABLE item_synonyms (
+    item_a_id INTEGER,
+    item_b_id INTEGER,
+    PRIMARY KEY (item_a_id, item_b_id),
+    CHECK (item_a_id < item_b_id),
+    FOREIGN KEY (item_a_id) REFERENCES items(id) ON DELETE CASCADE,
+    FOREIGN KEY (item_b_id) REFERENCES items(id) ON DELETE CASCADE
+) STRICT;
+
+CREATE TABLE sets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    source_lang_id INTEGER,
+    target_lang_id INTEGER,
+    creator_id INTEGER,
+    visibility TEXT CHECK (visibility IN ('private', 'pending', 'public')) DEFAULT 'private',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TEXT DEFAULT NULL,
+    FOREIGN KEY (source_lang_id) REFERENCES languages(id) ON DELETE RESTRICT,
+    FOREIGN KEY (target_lang_id) REFERENCES languages(id) ON DELETE RESTRICT,
+    FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE SET NULL
+) STRICT;
+
+-- Junction table for Set Items (linking specific translations)
+CREATE TABLE set_items (
+    set_id INTEGER,
+    translation_id INTEGER,
+    PRIMARY KEY (set_id, translation_id),
+    FOREIGN KEY (set_id) REFERENCES sets(id) ON DELETE CASCADE,
+    FOREIGN KEY (translation_id) REFERENCES translations(id) ON DELETE CASCADE
+) STRICT;
+
+-- 5. PROGRESS & STATS
+CREATE TABLE user_set_library (
+    user_id INTEGER,
+    set_id INTEGER,
+    added_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    is_favorite INTEGER DEFAULT 0 CHECK (is_favorite IN (0,1)),
+    PRIMARY KEY (user_id, set_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (set_id) REFERENCES sets(id) ON DELETE CASCADE
+) STRICT;
+
+CREATE TABLE user_progress (
+    user_id INTEGER,
+    translation_id INTEGER,
+    ease_factor REAL DEFAULT 2.5 CHECK (ease_factor >= 1.3),
+    interval INTEGER NOT NULL DEFAULT 0,
+    repetitions INTEGER NOT NULL DEFAULT 0,
+    last_reviewed TEXT DEFAULT NULL,
+    next_review TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, translation_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (translation_id) REFERENCES translations(id) ON DELETE CASCADE
+) STRICT;
+
+CREATE TABLE user_daily_stats (
+    user_id INTEGER,
+    language_id INTEGER,
+    stat_date TEXT NOT NULL CHECK (stat_date = date(stat_date)),
+    correct_count INTEGER DEFAULT 0,
+    incorrect_count INTEGER DEFAULT 0,
+    new_words_count INTEGER DEFAULT 0,
+    seconds_spent INTEGER DEFAULT 0,
+    PRIMARY KEY (user_id, language_id, stat_date),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (language_id) REFERENCES languages(id) ON DELETE RESTRICT
+) STRICT;
+
+-- Aggregated for fast profile loading
+CREATE TABLE user_stats_total (
+    user_id INTEGER,
+    language_id INTEGER,
+    total_seconds INTEGER DEFAULT 0,
+    total_words INTEGER DEFAULT 0,
+    PRIMARY KEY (user_id, language_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (language_id) REFERENCES languages(id) ON DELETE RESTRICT
+) STRICT;
+
+---
+-- INDEXES FOR PERFORMANCE
+---
+-- Quick due-card lookup
+CREATE INDEX idx_progress_review ON user_progress (user_id, next_review);
+
+-- Efficient search for public sets by language
+CREATE INDEX idx_sets_discovery ON sets (visibility, target_lang_id) WHERE deleted_at IS NULL;
+
+-- Fast vocabulary lookup
+CREATE INDEX idx_items_lookup ON items (language_id, term) WHERE deleted_at IS NULL;
+
+---
+-- LOGIC ENFORCEMENT (TRIGGERS)
+---
+-- Ensure items added to a set match the set's target language
+CREATE TRIGGER validate_set_item_lang
+BEFORE INSERT ON set_items
+FOR EACH ROW
+BEGIN
+    SELECT RAISE(ABORT, 'Translation language mismatch for this set')
+    FROM sets s, translations t
+    WHERE s.id = NEW.set_id 
+      AND t.id = NEW.translation_id 
+      AND s.target_lang_id != t.language_id;
+END;
+
+-- Sync Daily Stats to Total Stats (Incremental Update)
+CREATE TRIGGER sync_stats_insert AFTER INSERT ON user_daily_stats
+BEGIN
+    INSERT INTO user_stats_total (user_id, language_id, total_seconds, total_words)
+    VALUES (NEW.user_id, NEW.language_id, NEW.seconds_spent, NEW.new_words_count)
+    ON CONFLICT(user_id, language_id) DO UPDATE SET
+        total_seconds = total_seconds + excluded.total_seconds,
+        total_words = total_words + excluded.total_words;
+END;
+
+CREATE TRIGGER sync_stats_update
+AFTER UPDATE ON user_daily_stats
+FOR EACH ROW
+WHEN (NEW.seconds_spent != OLD.seconds_spent OR NEW.new_words_count != OLD.new_words_count)
+BEGIN
+    UPDATE user_stats_total
+    SET
+        total_seconds = total_seconds + (NEW.seconds_spent - OLD.seconds_spent),
+        total_words    = total_words    + (NEW.new_words_count - OLD.new_words_count)
+    WHERE user_id = NEW.user_id AND language_id = NEW.language_id;
+END;
+
+CREATE TRIGGER sync_stats_delete
+AFTER DELETE ON user_daily_stats
+FOR EACH ROW
+BEGIN
+    UPDATE user_stats_total
+    SET
+        total_seconds = total_seconds - OLD.seconds_spent,
+        total_words    = total_words    - OLD.new_words_count
+    WHERE user_id = OLD.user_id AND language_id = OLD.language_id;
+END;
