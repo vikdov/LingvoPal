@@ -51,6 +51,7 @@ env/
 *.db
 *.db-shm
 *.db-wal
+backend/dev 
 
 # =====================================
 # Build & Dependency directories
