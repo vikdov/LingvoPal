@@ -194,8 +194,8 @@ npm run dev
 
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate  # Unix
+python -m venv venv ; or uv venv; then uv sync;  if no lockfile - uv lock
+source .venv/bin/activate  # Unix
 venv\Scripts\activate     # Windows
 pip install -r requirements.txt
 uvicorn main:app --reload
