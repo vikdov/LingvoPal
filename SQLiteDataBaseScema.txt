@@ -11,6 +11,7 @@ CREATE TABLE languages (
 -- 2. USER MANAGEMENT
 CREATE TABLE users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    is_admin INTEGER DEFAULT 0 CHECK (is_admin IN (0,1)),
     email TEXT UNIQUE NOT NULL,
     email_verified INTEGER DEFAULT 0 CHECK (email_verified IN (0,1)),
     password_hash TEXT NOT NULL,
@@ -24,7 +25,7 @@ CREATE TABLE user_settings (
     interface_lang_id INTEGER,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (native_lang_id) REFERENCES languages(id) ON DELETE RESTRICT,
-    FOREIGN KEY (interface_lang_id) REFERENCES languages(id) ON DELETE RESTRICT
+    FOREIGN KEY (interface_lang_id)  REFERENCES languages(id) ON DELETE RESTRICT
 ) STRICT;
 
 -- 3. CONTENT (The "Learning Items")
@@ -37,6 +38,7 @@ CREATE TABLE items (
     image_url TEXT,
     part_of_speech TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT NULL,
     deleted_at TEXT DEFAULT NULL,
     visibility TEXT CHECK (visibility IN ('private', 'pending', 'public')) DEFAULT 'private',
     FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE SET NULL,
@@ -72,6 +74,7 @@ CREATE TABLE sets (
     creator_id INTEGER,
     visibility TEXT CHECK (visibility IN ('private', 'pending', 'public')) DEFAULT 'private',
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT NULL,
     deleted_at TEXT DEFAULT NULL,
     FOREIGN KEY (source_lang_id) REFERENCES languages(id) ON DELETE RESTRICT,
     FOREIGN KEY (target_lang_id) REFERENCES languages(id) ON DELETE RESTRICT,
