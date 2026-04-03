@@ -1,22 +1,15 @@
-import os
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, scoped_session
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.orm import sessionmaker
+from app.core.config import settings
 
-# 1. Path Setup
-basedir = os.path.abspath(os.path.dirname(__file__))
-DATABASE_URL = f"sqlite:///{os.path.join(basedir, 'db.sqlite')}"
-
-# 2. Engine & Connection Pooling
-# For SQLite, we often use StaticPool if using in-memory,
-# but for a file, the default QueuePool is fine.
 engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False},  # Needed for SQLite + Multi-threading
-    pool_size=5,  # Max connections in pool
-    max_overflow=10,  # Extra connections if pool is full
+    settings.DATABASE_URL,
+    echo=settings.DEBUG,
+    pool_pre_ping=True,  # ← detects stale connections automatically
 )
 
-# 3. Session Management
-# sessionmaker is a factory for Session objects
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(
+    bind=engine,
+    autocommit=False,
+    autoflush=False,
+)

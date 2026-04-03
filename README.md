@@ -48,7 +48,7 @@ into one focused workflow.
 
 ---
 
-### Content Model - Words with sentences
+### Content Model - Words with sentences - Learning item
 Visible properties while practicing:
   * Sentence (optional)
   * Target word
@@ -66,7 +66,7 @@ Additional attributes of words:
 
 ---
 
-### Sets & Content Organization
+### Sets of Learning items & Content Organization
 
 * Predefined thematic sets by it's title (e.g. Work, Travel, Daily Life)
 * Description for each set
@@ -126,8 +126,7 @@ Additional attributes of words:
 
   * Correct language usage
   * Proper sentence structure
-  * Appropriate difficulty classification
-* Prevents low-quality or misleading content
+  * Prevents low-quality or misleading content
 
 ---
 
@@ -137,6 +136,7 @@ Additional attributes of words:
 * **Writing over tapping**
 * **Quality over quantity**
 * **Focus over feature sprawl**
+* Soft deletes for all
 
 LingvoPal intentionally limits flexibility in favor of a method that reliably improves long-term retention.
 
@@ -150,7 +150,7 @@ LingvoPal intentionally limits flexibility in favor of a method that reliably im
 * TypeScript
 * Zustand
 * Material UI
-* Chart.js
+* Recharts
 
 ### Backend
 
@@ -161,8 +161,11 @@ LingvoPal intentionally limits flexibility in favor of a method that reliably im
 
 ### Database
 
-* PostgreSQL (production)
-* SQLite (development)
+* PostgreSQL (Core data) + Redis (Session caching & SRS queue)
+
+### Task Queue:
+
+* Celery/Arq (For background tasks)
 
 ### Infrastructure
 
@@ -194,8 +197,8 @@ npm run dev
 
 ```bash
 cd backend
-python -m venv venv ; or uv venv; then uv sync;  if no lockfile - uv lock
-source .venv/bin/activate  # Unix
+python -m venv venv
+source venv/bin/activate  # Unix
 venv\Scripts\activate     # Windows
 pip install -r requirements.txt
 uvicorn main:app --reload
@@ -209,3 +212,9 @@ LingvoPal is an **actively developed MVP** focused on validating a sentence-base
 
 The project is also intended as a **public learning and portfolio project**, demonstrating full-stack development, clean architecture, and educational product design.
 
+
+
+Alembic migrations
+Docker Compose
+Minimal testing
+Logging & error handling
