@@ -7,7 +7,7 @@ Extracted to prevent repetition and ensure consistency across all models.
 
 from datetime import datetime
 
-from sqlalchemy import FetchedValue
+from sqlalchemy import DateTime, FetchedValue
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -27,12 +27,14 @@ class TimestampMixin:
     """
 
     created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
         default=func.now(),
         nullable=False,
         comment="When this record was created (UTC, database time)",
     )
 
     updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
         server_onupdate=FetchedValue(),  # ✅ Tells SQLAlchemy: DB manages this, fetch after UPDATE
         nullable=True,
         comment="When this record was last updated (UTC, set by trigger)",
@@ -50,6 +52,7 @@ class SoftDeleteMixin:
     """
 
     deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
         nullable=True,
         index=True,
         comment="When this record was soft-deleted (NULL = active)",

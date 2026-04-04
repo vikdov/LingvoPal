@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Any, TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, Index, text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ENUM as pgEnum, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -21,7 +21,10 @@ class PendingModeration(Base):
     __tablename__ = "pending_moderation"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    target_type: Mapped[ModerationTargetType] = mapped_column(nullable=False)
+    target_type: Mapped[ModerationTargetType] = mapped_column(
+        pgEnum(ModerationTargetType, name="moderation_target_type", create_type=False),
+        nullable=False,
+    )
     target_id: Mapped[int] = mapped_column(nullable=False)
     creator_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False

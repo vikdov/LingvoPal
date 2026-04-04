@@ -3,7 +3,8 @@
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, UniqueConstraint, text
+from sqlalchemy import ForeignKey, Index, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import ENUM as pgEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base, TimestampMixin, SoftDeleteMixin
@@ -36,9 +37,10 @@ class Translation(Base, TimestampMixin, SoftDeleteMixin):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     status: Mapped[ContentStatus] = mapped_column(
-        default=ContentStatus.DRAFT, nullable=False
+        pgEnum(ContentStatus, name="content_status", create_type=False),
+        default=ContentStatus.DRAFT,
+        nullable=False,
     )
-
     item: Mapped["Item"] = relationship(back_populates="translations")
     language: Mapped["Language"] = relationship(foreign_keys=[language_id])
     creator: Mapped["User"] = relationship(
