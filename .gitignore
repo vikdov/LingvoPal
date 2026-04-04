@@ -45,6 +45,10 @@ htmlcov/
 venv/
 env/
 data/
+*.egg-info/
+*.pyc
+
+
 
 # SQLite database files
 *.sqlite3

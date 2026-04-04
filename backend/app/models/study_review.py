@@ -42,7 +42,7 @@ class StudyReview(Base):
         ForeignKey("sets.id", ondelete="CASCADE"), nullable=False
     )
     session_id: Mapped[int] = mapped_column(
-        ForeignKey("study_sessions.id", ondelete="CASCADE"), nullable=False
+        BigInteger, ForeignKey("study_sessions.id", ondelete="CASCADE"), nullable=False
     )
     was_correct: Mapped[bool] = mapped_column(nullable=False)
     user_answer: Mapped[str | None] = mapped_column(nullable=True)

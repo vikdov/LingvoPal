@@ -4,6 +4,7 @@
 from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, ForeignKey, Index, text
+from sqlalchemy.dialects.postgresql import ENUM as pgEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base, TimestampMixin, SoftDeleteMixin
@@ -31,7 +32,10 @@ class Item(Base, TimestampMixin, SoftDeleteMixin):
     context: Mapped[str | None] = mapped_column(nullable=True)
     image_url: Mapped[str | None] = mapped_column(nullable=True)
     audio_url: Mapped[str | None] = mapped_column(nullable=True)
-    part_of_speech: Mapped[PartOfSpeech | None] = mapped_column(nullable=True)
+    part_of_speech: Mapped[PartOfSpeech | None] = mapped_column(
+        pgEnum(PartOfSpeech, name="part_of_speech_type", create_type=False),
+        nullable=True,
+    )
     lemma: Mapped[str | None] = mapped_column(nullable=True, comment="Base word form")
     creator_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -40,7 +44,9 @@ class Item(Base, TimestampMixin, SoftDeleteMixin):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     status: Mapped[ContentStatus] = mapped_column(
-        default=ContentStatus.DRAFT, nullable=False
+        pgEnum(ContentStatus, name="content_status", create_type=False),
+        default=ContentStatus.DRAFT,
+        nullable=False,
     )
 
     language: Mapped["Language"] = relationship(foreign_keys=[language_id])
