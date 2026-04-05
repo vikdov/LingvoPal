@@ -6,13 +6,13 @@ from typing import TYPE_CHECKING
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base, TimestampMixin, SoftDeleteMixin
+from app.database import Base, SoftDeleteTimestampMixin
 
 if TYPE_CHECKING:
     from app.models.language import Language
 
 
-class User(Base, TimestampMixin, SoftDeleteMixin):
+class User(Base, SoftDeleteTimestampMixin):
     """User account"""
 
     __tablename__ = "users"

@@ -1,21 +1,21 @@
 # backend/app/models/pending_moderation.py
 """PendingModeration model"""
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, Index, text
 from sqlalchemy.dialects.postgresql import ENUM as pgEnum, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base
+from app.database import Base, CreatedAtMixin
 from app.models.enums import ModerationTargetType
 
 if TYPE_CHECKING:
     from app.models.user import User
 
 
-class PendingModeration(Base):
+class PendingModeration(Base, CreatedAtMixin):
     """Content pending moderator review"""
 
     __tablename__ = "pending_moderation"
@@ -31,9 +31,6 @@ class PendingModeration(Base):
     )
     feedback: Mapped[str | None] = mapped_column(nullable=True)
     patch_data: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc), nullable=False
-    )
     resolved_at: Mapped[datetime | None] = mapped_column(nullable=True)
     moderator_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
