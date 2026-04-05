@@ -25,7 +25,7 @@ import { useAuthStore } from '@/features/auth/model/auth.store'; // Direct store
  */
 const ProtectedRoute = () => {
   // We use the selector pattern to avoid unnecessary re-renders
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated ?? false);
 
   if (!isAuthenticated) {
     return <Navigate to="/auth/login" replace />;
@@ -40,7 +40,7 @@ const ProtectedRoute = () => {
  * and sends them straight to the dashboard.
  */
 const PublicOnlyRoute = () => {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated ?? false);
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
