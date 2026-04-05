@@ -26,6 +26,7 @@ class UserProgress(Base):
         ForeignKey("items.id", ondelete="CASCADE"), primary_key=True
     )
     ease_factor: Mapped[float] = mapped_column(
+        default=2.5,
         nullable=False,
         comment="SM-2 ease factor, starts at 2.5",
     )
