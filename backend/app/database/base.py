@@ -9,10 +9,11 @@ ARCHITECTURE:
 - Conservative connection pooling (scale with metrics)
 """
 
-from sqlalchemy import MetaData, create_engine
-from sqlalchemy.dialects.postgresql import JSONB
+from datetime import datetime
+from sqlalchemy import MetaData, create_engine, DateTime, event
+from sqlalchemy.dialects.postgresql import JSONB, TEXT
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, Mapper
 # ============================================================================
 # PostgreSQL Metadata Setup
 # ============================================================================
@@ -39,7 +40,22 @@ class Base(DeclarativeBase):
     metadata = metadata
     type_annotation_map = {
         dict: JSONB,
+        datetime: DateTime(timezone=True),
+        str: TEXT,
     }
+
+
+@event.listens_for(Mapper, "mapper_configured")
+def _set_global_async_lazy_loading(mapper: Mapper, _class: type) -> None:
+    """
+    Automatically sets lazy='raise_on_sql' for ALL relationships globally.
+    Prevents synchronous lazy-loading and 'MissingGreenlet' crashes in asyncpg.
+    """
+    for relationship_property in mapper.relationships:
+        # If the developer didn't explicitly define a lazy strategy,
+        # it defaults to "select". We change that default to "raise_on_sql".
+        if relationship_property.lazy == "select":
+            relationship_property.lazy = "raise_on_sql"
 
 
 # ============================================================================

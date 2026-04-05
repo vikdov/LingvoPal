@@ -7,7 +7,7 @@ from sqlalchemy import CheckConstraint, ForeignKey, Index, text
 from sqlalchemy.dialects.postgresql import ENUM as pgEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base, TimestampMixin, SoftDeleteMixin
+from app.database import Base, SoftDeleteTimestampMixin
 from app.models.enums import ContentStatus, PartOfSpeech
 
 if TYPE_CHECKING:
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from app.models.translation import Translation
 
 
-class Item(Base, TimestampMixin, SoftDeleteMixin):
+class Item(Base, SoftDeleteTimestampMixin):
     """Learning item (vocabulary word or phrase)"""
 
     __tablename__ = "items"
@@ -71,7 +71,7 @@ class Item(Base, TimestampMixin, SoftDeleteMixin):
             "created_at",
             postgresql_where=text(
                 "deleted_at IS NULL AND verified_by IS NULL"
-                " AND status = 'pending_review'"
+                " AND status = 'PENDING_REVIEW'"
             ),
         ),
         Index(

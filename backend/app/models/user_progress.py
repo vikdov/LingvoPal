@@ -4,7 +4,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Index
+from sqlalchemy import ForeignKey, Index, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -35,8 +35,12 @@ class UserProgress(Base):
     repetitions: Mapped[int] = mapped_column(
         default=0, nullable=False, comment="Successful repetitions"
     )
-    last_reviewed: Mapped[datetime | None] = mapped_column(nullable=True)
-    next_review: Mapped[datetime] = mapped_column(nullable=False)
+    last_reviewed: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    next_review: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
 
     user: Mapped["User"] = relationship()
     item: Mapped["Item"] = relationship()

@@ -1,10 +1,10 @@
 # backend/app/models/study_session.py
 """StudySession model"""
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, ForeignKey
+from sqlalchemy import BigInteger, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -28,7 +28,7 @@ class StudySession(Base):
         ForeignKey("sets.id", ondelete="CASCADE"), nullable=False
     )
     started_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc), nullable=False
+        server_default=func.now(), nullable=False
     )
     ended_at: Mapped[datetime | None] = mapped_column(nullable=True)
     correct_count: Mapped[int] = mapped_column(default=0, nullable=False)

@@ -7,7 +7,7 @@ from sqlalchemy import CheckConstraint, ForeignKey, Index, text
 from sqlalchemy.dialects.postgresql import ENUM as pgEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base, TimestampMixin, SoftDeleteMixin
+from app.database import Base, SoftDeleteTimestampMixin
 from app.models.enums import ContentStatus
 
 if TYPE_CHECKING:
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from app.models.item import Item
 
 
-class Set(Base, TimestampMixin, SoftDeleteMixin):
+class Set(Base, SoftDeleteTimestampMixin):
     """Collection of items to study together"""
 
     __tablename__ = "sets"
@@ -74,7 +74,7 @@ class Set(Base, TimestampMixin, SoftDeleteMixin):
             "target_lang_id",
             "difficulty",
             postgresql_where=text(
-                "deleted_at IS NULL AND status IN ('approved', 'official')"
+                "deleted_at IS NULL AND status IN ('APPROVED', 'OFFICIAL')"
             ),
         ),
     )

@@ -7,8 +7,9 @@ from app.database.base import (
     create_sync_db_engine,
 )
 from app.database.mixins import (
+    CreatedAtMixin,
     TimestampMixin,
-    SoftDeleteMixin,
+    SoftDeleteTimestampMixin,
 )
 from app.database.session import (
     AsyncSession,
@@ -23,8 +24,9 @@ __all__ = [
     # Base
     "Base",
     # Mixins
+    "CreatedAtMixin",
     "TimestampMixin",
-    "SoftDeleteMixin",
+    "SoftDeleteTimestampMixin",
     # Engine
     "create_async_db_engine",
     "create_sync_db_engine",

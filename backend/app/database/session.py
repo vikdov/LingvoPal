@@ -205,14 +205,14 @@ async def create_all_tables(database_url: str) -> None:
     """
     Create all tables in the database.
 
-    ⚠️ WARNING: DO NOT use in production!
+    WARNING: DO NOT use in production!
 
     This function is for:
-    ✅ Development setup
-    ✅ Testing
-    ✅ Local environment initialization
+    Development setup
+    Testing
+    Local environment initialization
 
-    ❌ NEVER use in production → use Alembic migrations instead
+    NEVER use in production → use Alembic migrations instead
 
     Alembic provides:
     - Version control

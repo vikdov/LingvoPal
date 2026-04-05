@@ -1,20 +1,19 @@
 # backend/app/models/content_audit_log.py
 """ContentAuditLog model"""
 
-from datetime import datetime, timezone
 from typing import Any, TYPE_CHECKING
 
 from sqlalchemy import BigInteger, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base
+from app.database import Base, CreatedAtMixin
 
 if TYPE_CHECKING:
     from app.models.user import User
 
 
-class ContentAuditLog(Base):
+class ContentAuditLog(Base, CreatedAtMixin):
     """Comprehensive audit trail of all content changes"""
 
     __tablename__ = "content_audit_log"
@@ -29,9 +28,6 @@ class ContentAuditLog(Base):
     new_values: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc), nullable=False
     )
 
     user: Mapped["User"] = relationship()

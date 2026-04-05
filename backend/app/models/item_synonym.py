@@ -7,7 +7,7 @@ from sqlalchemy import CheckConstraint, ForeignKey, Index, text
 from sqlalchemy.dialects.postgresql import ENUM as pgEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base, TimestampMixin, SoftDeleteMixin
+from app.database import Base, SoftDeleteTimestampMixin
 from app.models.enums import ContentStatus
 
 if TYPE_CHECKING:
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
-class ItemSynonym(Base, TimestampMixin, SoftDeleteMixin):
+class ItemSynonym(Base, SoftDeleteTimestampMixin):
     """Relationship between synonym items"""
 
     __tablename__ = "item_synonyms"

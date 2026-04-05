@@ -9,7 +9,7 @@ Dependency injection for:
 - Settings
 """
 
-from typing import Annotated
+from typing import Annotated, AsyncGenerator
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings, Settings
 from app.core.security import decode_access_token
 from app.database.session import get_db
+from app.database.session_utils import set_db_current_user
 from app.models.user import User
 
 # ============================================================================
@@ -33,7 +34,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 # ============================================================================
 
 
-async def get_database() -> AsyncSession:
+async def get_database() -> AsyncGenerator[AsyncSession, None]:
     """
     FastAPI dependency: Get async database session.
 
@@ -46,7 +47,7 @@ async def get_database() -> AsyncSession:
     Note: This is an alias to app.database.session.get_db()
     but defined here for clarity and centralization.
     """
-    async with get_db() as session:
+    async for session in get_db():
         yield session
 
 
@@ -79,9 +80,9 @@ async def get_current_user(
     """
     FastAPI dependency: Get current authenticated user.
 
-    ✅ Async: Uses async ORM queries
-    ✅ Validates JWT token
-    ✅ Looks up user in database
+    Async: Uses async ORM queries
+    Validates JWT token
+    Looks up user in database
 
     Raises:
         HTTPException 401: Invalid or missing token
@@ -107,7 +108,7 @@ async def get_current_user(
     if user_id is None:
         raise credentials_exception
 
-    # ✅ ASYNC: Use select() + execute()
+    # ASYNC: Use select() + execute()
     stmt = select(User).where(User.id == user_id)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
@@ -124,7 +125,7 @@ async def get_current_verified_user(
     """
     FastAPI dependency: Get current user with verified email.
 
-    ✅ Requires: User is authenticated + email verified
+    Requires: User is authenticated + email verified
 
     Raises:
         HTTPException 403: Email not verified
@@ -149,7 +150,7 @@ async def get_current_admin(
     """
     FastAPI dependency: Get current admin user.
 
-    ✅ Requires: User is authenticated + verified + is_admin
+    Requires: User is authenticated + verified + is_admin
 
     Raises:
         HTTPException 403: Not an admin
@@ -168,12 +169,25 @@ async def get_current_admin(
     return current_user
 
 
+async def get_db_for_writes(
+    db: AsyncSession = Depends(get_database),
+    current_user: User = Depends(get_current_user),
+) -> AsyncSession:
+    """
+    A specialized DB dependency for routes that mutate data (INSERT/UPDATE/DELETE).
+    Automatically injects the audit user ID into the PostgreSQL transaction.
+    """
+    await set_db_current_user(db, current_user.id)
+    return db
+
+
 # ============================================================================
 # Type Aliases (Modern FastAPI Pattern)
 # ============================================================================
 
 # Database
 DBSession = Annotated[AsyncSession, Depends(get_database)]
+WriteDBSession = Annotated[AsyncSession, Depends(get_db_for_writes)]
 
 # Authentication (increasing privilege levels)
 CurrentUser = Annotated[User, Depends(get_current_user)]
@@ -187,12 +201,14 @@ CurrentSettings = Annotated[Settings, Depends(get_current_settings)]
 __all__ = [
     "oauth2_scheme",
     "get_database",
+    "get_db_for_writes",
     "get_current_settings",
     "get_current_user",
     "get_current_verified_user",
     "get_current_admin",
     # Type aliases
     "DBSession",
+    "WriteDBSession",
     "CurrentUser",
     "VerifiedUser",
     "AdminUser",

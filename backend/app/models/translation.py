@@ -3,11 +3,11 @@
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Index, UniqueConstraint, text
+from sqlalchemy import ForeignKey, Index, text
 from sqlalchemy.dialects.postgresql import ENUM as pgEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base, TimestampMixin, SoftDeleteMixin
+from app.database import Base, SoftDeleteTimestampMixin
 from app.models.enums import ContentStatus
 
 if TYPE_CHECKING:
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
-class Translation(Base, TimestampMixin, SoftDeleteMixin):
+class Translation(Base, SoftDeleteTimestampMixin):
     """Translation of an item into another language"""
 
     __tablename__ = "translations"
@@ -53,11 +53,12 @@ class Translation(Base, TimestampMixin, SoftDeleteMixin):
     )
 
     __table_args__ = (
-        UniqueConstraint(
+        Index(
+            "uq_translation_active",
             "item_id",
             "language_id",
-            name="uq_translation_active",
-            postgresql_where=text("deleted_at IS NULL"),
+            unique=True,  # ← Makes it unique
+            postgresql_where=text("deleted_at IS NULL"),  # ← Now valid
         ),
         Index(
             "idx_translations_item",
@@ -87,7 +88,7 @@ class Translation(Base, TimestampMixin, SoftDeleteMixin):
             "created_at",
             postgresql_where=text(
                 "deleted_at IS NULL AND verified_by IS NULL"
-                " AND status = 'pending_review'"
+                " AND status = 'PENDING_REVIEW'"
             ),
         ),
     )
