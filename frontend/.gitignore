@@ -1,24 +1,91 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# ============================================================================
+# Environment Variables (NEVER commit secrets)
+# ============================================================================
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+backend/.env
+backend/.env.local
+backend/.env.production
+backend/.env.staging
+frontend/.env.local
 
-node_modules
-dist
-dist-ssr
-*.local
+# ============================================================================
+# EXCEPT: These .env files should be committed (no secrets)
+# ============================================================================
+!.env.example
+!.env.development
+!backend/.env.example
+!backend/.env.development
+!backend/.env.staging
+!backend/.env.production.template
+!frontend/.env.example
+!frontend/.env.development
+!frontend/.env.production
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# ============================================================================
+# Python
+# ============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+ENV/
+env/
+.venv
+
+# ============================================================================
+# IDE
+# ============================================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+
+# ============================================================================
+# Testing
+# ============================================================================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ============================================================================
+# Node/Frontend
+# ============================================================================
+frontend/node_modules/
+frontend/dist/
+
+# ============================================================================
+# Logs
+# ============================================================================
+*.log
+logs/
+
+# ============================================================================
+# Database
+# ============================================================================
+*.db
+*.sqlite
+*.sqlite3
