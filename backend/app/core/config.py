@@ -10,6 +10,7 @@
 # 6. DATABASE_URL is URL-encoded to handle special characters safely
 # 7. Production settings are strictly validated (CORS, SECRET_KEY entropy)
 
+import logging
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -70,9 +71,11 @@ def _get_env_variable() -> str:
             # Use 'or' to catch both None and empty strings ""
             env_value = env_dict.get("ENV") or "development"
             return env_value.lower()
-    except RuntimeError:
-        # Project structure is broken, fall back to system environment
-        pass
+    except RuntimeError as e:
+        # Project structure is broken (docker-compose.yml not found); fall back to system environment
+        logging.getLogger(__name__).warning(
+            "Could not resolve project root: %s. Falling back to system environment.", e
+        )
 
     # Fallback to system environment (less reliable, but works in CI/CD)
     sys_env = os.getenv("ENV") or "development"

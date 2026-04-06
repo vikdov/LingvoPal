@@ -72,8 +72,12 @@ async def set_db_current_user(session: AsyncSession, user_id: int | str) -> None
 
     Must be called within the active transaction before modifying data.
     """
-    # SET LOCAL scopes the variable to the current transaction only
-    await session.execute(text(f"SET LOCAL app.current_user_id = '{user_id}'"))
+    # set_config() with is_local=true scopes the variable to the current transaction only.
+    # Using a parameterized query avoids SQL injection from unsanitized user_id values.
+    await session.execute(
+        text("SELECT set_config('app.current_user_id', :user_id, true)"),
+        {"user_id": str(user_id)},
+    )
 
 
 __all__ = [
