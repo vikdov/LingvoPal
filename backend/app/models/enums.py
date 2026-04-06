@@ -7,34 +7,34 @@ from enum import Enum
 class ContentStatus(str, Enum):
     """Status of user-generated content in the review workflow"""
 
-    DRAFT = "draft"
-    PENDING_REVIEW = "pending_review"
-    APPROVED = "approved"
-    OFFICIAL = "official"
+    DRAFT = "DRAFT"
+    PENDING_REVIEW = "PENDING_REVIEW"
+    APPROVED = "APPROVED"
+    OFFICIAL = "OFFICIAL"
 
 
 class PartOfSpeech(str, Enum):
     """Grammatical part of speech classification"""
 
-    NOUN = "noun"
-    VERB = "verb"
-    ADJECTIVE = "adjective"
-    ADVERB = "adverb"
-    PRONOUN = "pronoun"
-    PREPOSITION = "preposition"
-    CONJUNCTION = "conjunction"
-    INTERJECTION = "interjection"
-    ARTICLE = "article"
-    OTHER = "other"
+    NOUN = "NOUN"
+    VERB = "VERB"
+    ADJECTIVE = "ADJECTIVE"
+    ADVERB = "ADVERB"
+    PRONOUN = "PRONOUN"
+    PREPOSITION = "PREPOSITION"
+    CONJUNCTION = "CONJUNCTION"
+    INTERJECTION = "INTERJECTION"
+    ARTICLE = "ARTICLE"
+    OTHER = "OTHER"
 
 
 class ModerationTargetType(str, Enum):
     """Type of content being moderated (polymorphic moderation table)"""
 
-    ITEM = "item"
-    TRANSLATION = "translation"
-    SET = "set"
-    MIXED = "mixed"
+    ITEM = "ITEM"
+    TRANSLATION = "TRANSLATION"
+    SET = "SET"
+    MIXED = "MIXED"
 
 
 __all__ = [
