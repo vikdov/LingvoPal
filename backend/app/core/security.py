@@ -65,6 +65,9 @@ def decode_access_token(token: str) -> dict[str, Any] | None:
 # Password Validation
 # ---
 
+# Special characters accepted in passwords — must match the Pydantic schema validator
+PASSWORD_SPECIAL_CHARS = "!@#$%^&*"
+
 
 def validate_password_strength(password: str) -> list[str]:
     """
@@ -81,5 +84,7 @@ def validate_password_strength(password: str) -> list[str]:
         errors.append("Password must contain at least one lowercase letter")
     if not any(c.isdigit() for c in password):
         errors.append("Password must contain at least one digit")
+    if not any(c in PASSWORD_SPECIAL_CHARS for c in password):
+        errors.append("Password must contain at least one special character")
 
     return errors

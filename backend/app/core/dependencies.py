@@ -9,6 +9,7 @@ Dependency injection for:
 - Settings
 """
 
+import logging
 from typing import Annotated, AsyncGenerator
 
 from fastapi import Depends, HTTPException, status
@@ -21,6 +22,8 @@ from app.core.security import decode_access_token
 from app.database.session import get_db
 from app.database.session_utils import set_db_current_user
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # OAuth2 Scheme
@@ -104,8 +107,14 @@ async def get_current_user(
     if payload is None:
         raise credentials_exception
 
-    user_id: int | None = payload.get("sub")
-    if user_id is None:
+    user_id_str: str | None = payload.get("sub")
+    if user_id_str is None:
+        raise credentials_exception
+
+    try:
+        user_id = int(user_id_str)
+    except (ValueError, TypeError) as exc:
+        logger.warning("Malformed JWT sub claim (expected integer string): %s", exc)
         raise credentials_exception
 
     # ASYNC: Use select() + execute()

@@ -8,6 +8,7 @@ Response: What API returns (token + user info)
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from app.schemas.user import UserPrivateResponse
+from app.core.security import PASSWORD_SPECIAL_CHARS
 
 
 # ============================================================================
@@ -21,7 +22,7 @@ def _validate_password_strength(password: str) -> str:
         raise ValueError("Password must contain uppercase")
     if not any(c.isdigit() for c in password):
         raise ValueError("Password must contain digit")
-    if not any(c in "!@#$%^&*" for c in password):
+    if not any(c in PASSWORD_SPECIAL_CHARS for c in password):
         raise ValueError("Password must contain special character")
     return password
 
