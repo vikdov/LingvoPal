@@ -33,7 +33,7 @@ class Item(Base, SoftDeleteTimestampMixin):
     image_url: Mapped[str | None] = mapped_column(nullable=True)
     audio_url: Mapped[str | None] = mapped_column(nullable=True)
     part_of_speech: Mapped[PartOfSpeech | None] = mapped_column(
-        pgEnum(PartOfSpeech, name="part_of_speech_type", create_type=False),
+        pgEnum(PartOfSpeech, name="part_of_speech_type", create_type=False, values_callable=lambda obj: [e.value for e in obj]),
         nullable=True,
     )
     lemma: Mapped[str | None] = mapped_column(nullable=True, comment="Base word form")
@@ -44,7 +44,7 @@ class Item(Base, SoftDeleteTimestampMixin):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     status: Mapped[ContentStatus] = mapped_column(
-        pgEnum(ContentStatus, name="content_status", create_type=False),
+        pgEnum(ContentStatus, name="content_status", create_type=False, values_callable=lambda obj: [e.value for e in obj]),
         default=ContentStatus.DRAFT,
         nullable=False,
     )
@@ -71,7 +71,7 @@ class Item(Base, SoftDeleteTimestampMixin):
             "created_at",
             postgresql_where=text(
                 "deleted_at IS NULL AND verified_by IS NULL"
-                " AND status = 'PENDING_REVIEW'"
+                " AND status = 'pending_review'"
             ),
         ),
         Index(

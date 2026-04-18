@@ -33,7 +33,7 @@ class ItemSynonym(Base, SoftDeleteTimestampMixin):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     status: Mapped[ContentStatus] = mapped_column(
-        pgEnum(ContentStatus, name="content_status", create_type=False),
+        pgEnum(ContentStatus, name="content_status", create_type=False, values_callable=lambda obj: [e.value for e in obj]),
         default=ContentStatus.DRAFT,
         nullable=False,
     )

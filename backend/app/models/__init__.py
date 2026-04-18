@@ -5,6 +5,7 @@ from app.models.enums import (
     ContentStatus,
     PartOfSpeech,
     ModerationTargetType,
+    SessionStatus,
 )
 from app.models.language import Language
 from app.models.user import User, UserSettings
@@ -20,6 +21,7 @@ from app.models.user_progress import UserProgress
 from app.models.user_daily_stats import UserDailyStats
 from app.models.user_stats_total import UserStatsTotal
 from app.models.pending_moderation import PendingModeration
+from app.models.pending_session import PendingSession
 from app.models.content_audit_log import ContentAuditLog
 
 __all__ = [
@@ -27,6 +29,7 @@ __all__ = [
     "ContentStatus",
     "PartOfSpeech",
     "ModerationTargetType",
+    "SessionStatus",
     # Reference
     "Language",
     # User
@@ -49,4 +52,6 @@ __all__ = [
     # Moderation
     "PendingModeration",
     "ContentAuditLog",
+    # Safety valve
+    "PendingSession",
 ]

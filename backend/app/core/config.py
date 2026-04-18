@@ -189,11 +189,11 @@ class Settings(BaseSettings):
     )
 
     # =====================================================================
-    # Redis (Optional)
+    # Redis
     # =====================================================================
 
-    REDIS_URL: str = "redis://redis:6379/0"
-
+    REDIS_HOST: str = "redis"
+    REDIS_PORT: int = 6379
     # =====================================================================
     # Pydantic Configuration
     # =====================================================================
@@ -362,6 +362,12 @@ class Settings(BaseSettings):
             f"@{self.DATABASE_HOST}:{self.DATABASE_PORT}"
             f"/{self.DATABASE_NAME}"
         )
+
+    @computed_field
+    @property
+    def REDIS_URL(self) -> str:
+        """Constructs the Redis DSN dynamically."""
+        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/0"
 
     @computed_field
     @property

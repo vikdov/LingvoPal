@@ -1,104 +1,117 @@
 # backend/app/schemas/item.py
-"""Item schemas — Python 3.10+ union syntax"""
+"""Item schemas — request/response only, no business logic."""
 
-from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict, computed_field
+from typing import Optional
 
-from app.models.enums import PartOfSpeech, ContentStatus
+from pydantic import BaseModel, ConfigDict, Field, computed_field
+
+from app.models.enums import ContentStatus, PartOfSpeech
 from app.schemas.common import BaseResponseWithDeleted
 
 
-class ItemBase(BaseModel):
-    """Common fields for Item"""
+# ============================================================================
+# REQUEST SCHEMAS
+# ============================================================================
+
+
+class ItemCreateRequest(BaseModel):
+    """POST /api/v1/sets/{set_id}/items"""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
 
     term: str = Field(..., min_length=1, max_length=500)
     language_id: int = Field(..., gt=0)
-    difficulty: int | None = Field(None, ge=1, le=7)  # ← Pure 3.10+
-    context: str | None = Field(None, max_length=1000)
-    part_of_speech: PartOfSpeech | None = None
-    lemma: str | None = Field(None, max_length=500)
-
-
-class ItemCreateRequest(ItemBase):
-    """POST /api/v1/items"""
-
-    pass
-
-
-class TranslationCreateRequest(BaseModel):
-    """Nested translation creation"""
-
-    language_id: int = Field(..., gt=0)
-    term_trans: str = Field(..., min_length=1, max_length=500)
-    context_trans: str | None = Field(None, max_length=1000)
-
-
-# Add this at the bottom of the file
-class ItemListQueryParams(BaseModel):
-    """GET /api/v1/items query parameters"""
-
-    page: int = Field(default=1, ge=1)
-    page_size: int = Field(default=20, ge=1, le=100)
-    language_id: int | None = Field(None, gt=0)
-    status: ContentStatus | None = None
-    difficulty_min: int | None = Field(None, ge=1, le=7)
-    difficulty_max: int | None = Field(None, ge=1, le=7)
-    part_of_speech: PartOfSpeech | None = None
-    search: str | None = Field(None, min_length=1, max_length=100)
-    sort_by: str | None = None
+    context: Optional[str] = Field(None, max_length=1000)
+    difficulty: Optional[int] = Field(None, ge=1, le=7)
+    part_of_speech: Optional[PartOfSpeech] = None
+    lemma: Optional[str] = Field(None, max_length=500)
+    image_url: Optional[str] = Field(None, max_length=2048)
+    audio_url: Optional[str] = Field(None, max_length=2048)
 
 
 class ItemUpdateRequest(BaseModel):
     """PATCH /api/v1/items/{item_id}"""
 
-    term: str | None = Field(None, min_length=1, max_length=500)
-    difficulty: int | None = Field(None, ge=1, le=7)
-    context: str | None = Field(None, max_length=1000)
-    part_of_speech: PartOfSpeech | None = None
-    lemma: str | None = Field(None, max_length=500)
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    term: Optional[str] = Field(None, min_length=1, max_length=500)
+    context: Optional[str] = Field(None, max_length=1000)
+    difficulty: Optional[int] = Field(None, ge=1, le=7)
+    part_of_speech: Optional[PartOfSpeech] = None
+    lemma: Optional[str] = Field(None, max_length=500)
+    image_url: Optional[str] = Field(None, max_length=2048)
+    audio_url: Optional[str] = Field(None, max_length=2048)
 
 
-class ItemListResponse(ItemBase):
-    """GET /api/v1/items (list view)"""
+class AddExistingItemRequest(BaseModel):
+    """Body for POST /api/v1/sets/{set_id}/items/{item_id} — add existing item to set."""
 
-    id: int
-    status: ContentStatus
-    creator_id: int | None = None
+    sort_order: int = Field(default=0, ge=0)
+
+
+class TranslationCreateRequest(BaseModel):
+    """POST /api/v1/items/{item_id}/translations"""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    language_id: int = Field(..., gt=0)
+    term_trans: str = Field(..., min_length=1, max_length=500)
+    context_trans: Optional[str] = Field(None, max_length=1000)
+
+
+class TranslationUpdateRequest(BaseModel):
+    """PATCH /api/v1/items/{item_id}/translations/{trans_id}"""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    term_trans: Optional[str] = Field(None, min_length=1, max_length=500)
+    context_trans: Optional[str] = Field(None, max_length=1000)
+
+
+# ============================================================================
+# RESPONSE SCHEMAS
+# ============================================================================
+
+
+class ItemResponse(BaseResponseWithDeleted):
+    """Standard item response."""
 
     model_config = ConfigDict(from_attributes=True)
 
-
-class ItemResponse(ItemBase):
-    """GET /api/v1/items/{id} (standard detail)"""
-
-    id: int
-    status: ContentStatus
-    created_at: datetime
-    updated_at: datetime
-    deleted_at: datetime | None = None
     term: str
-    creator_id: int | None = None
-    verified_by: int | None = None
+    language_id: int
+    context: Optional[str]
+    difficulty: Optional[int]
+    part_of_speech: Optional[PartOfSpeech]
+    lemma: Optional[str]
+    image_url: Optional[str]
+    audio_url: Optional[str]
+    status: ContentStatus
+    creator_id: Optional[int]
+    verified_by: Optional[int]
 
-    model_config = ConfigDict(from_attributes=True)
+    @computed_field
+    @property
+    def is_public(self) -> bool:
+        return self.status in (ContentStatus.APPROVED, ContentStatus.OFFICIAL)
 
 
 class TranslationResponse(BaseResponseWithDeleted):
-    """Translation of an item"""
+    """Translation of an item."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     item_id: int
     language_id: int
     term_trans: str
-    context_trans: str | None = None
+    context_trans: Optional[str]
     status: ContentStatus
-    creator_id: int | None = None
-    verified_by: int | None = None
-
-    model_config = ConfigDict(from_attributes=True)
+    creator_id: Optional[int]
+    verified_by: Optional[int]
 
 
 class ItemDetailResponse(ItemResponse):
-    """GET /api/v1/items/{id} (with translations)"""
+    """Item with its translations loaded."""
 
     translations: list[TranslationResponse] = Field(default_factory=list)
 
@@ -108,14 +121,25 @@ class ItemDetailResponse(ItemResponse):
         return len(self.translations)
 
 
+class SetItemResponse(BaseModel):
+    """An item as it appears within a set, including sort order and translations."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    set_id: int
+    item_id: int
+    sort_order: int
+    item: ItemDetailResponse
+
+
 __all__ = [
-    "ItemBase",
     "ItemCreateRequest",
     "ItemUpdateRequest",
-    "ItemListResponse",
-    "ItemResponse",
-    "ItemDetailResponse",
-    "TranslationResponse",
+    "AddExistingItemRequest",
     "TranslationCreateRequest",
-    "ItemListQueryParams",
+    "TranslationUpdateRequest",
+    "ItemResponse",
+    "SetItemResponse",
+    "TranslationResponse",
+    "ItemDetailResponse",
 ]

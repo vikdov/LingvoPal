@@ -3,11 +3,15 @@
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
-from app.core.config import settings
+from app.core.config import get_settings
+
+settings = get_settings()
 from app.database import (
     init_async_session_factory,
     shutdown_db_engine,
@@ -32,44 +36,81 @@ async def lifespan(app: FastAPI):
     Startup:
     - Initialize async session factory
     - Create database tables (dev only)
+    - Start background session sweeper
 
     Shutdown:
-    - Dispose of all database connections cleanly
+    - Flush all active practice sessions (best-effort)
+    - Stop sweeper
+    - Dispose DB and Redis connections
     """
     # STARTUP
-    logger.info("🚀 Starting LingvoPal...")
+    logger.info("Starting LingvoPal...")
 
     try:
-        # Initialize async session factory
         await init_async_session_factory(
             settings.DATABASE_URL,
             pool_size=settings.DB_POOL_SIZE,
             max_overflow=settings.DB_MAX_OVERFLOW,
         )
-        logger.info("✅ Async session factory initialized")
-
-        # Create tables (development only)
-        # In production: use Alembic migrations
+        logger.info("Async session factory initialized")
         if settings.DEBUG:
-            logger.warning("⚠️  Running in DEBUG mode - creating tables")
+            logger.warning("Running in DEBUG mode - creating tables")
             await create_all_tables(settings.DATABASE_URL)
-            logger.info("✅ Database tables created/verified")
+            logger.info("Database tables created/verified")
         else:
-            logger.info("ℹ️  Production mode - using Alembic migrations")
+            logger.info("Production mode - using Alembic migrations")
+
+        logger.info("Schema managed by Alembic migrations")
 
     except Exception as e:
-        logger.error(f"❌ Startup failed: {e}")
+        logger.error(f"Startup failed: {e}")
         raise
+
+    # Start session sweeper
+    sweeper = None
+    try:
+        from app.core.redis import get_redis
+        from app.database.session import get_session
+        from app.services.session_sweeper import SessionSweeper
+
+        async def _get_redis():
+            async for client in get_redis():
+                yield client
+
+        async for redis_client in _get_redis():
+            sweeper = SessionSweeper(db_factory=get_session, redis=redis_client)
+            sweeper.start()
+            break
+        logger.info("Session sweeper started")
+    except Exception as e:
+        logger.warning(f"Session sweeper failed to start: {e}")
 
     yield  # Application runs here
 
     # SHUTDOWN
-    logger.info("🛑 Shutting down LingvoPal...")
+    logger.info("Shutting down LingvoPal...")
+
+    # Flush active practice sessions before closing connections
+    if sweeper is not None:
+        try:
+            await sweeper.flush_all_active()
+        except Exception as e:
+            logger.warning(f"Shutdown session flush error: {e}")
+        await sweeper.stop()
+
     try:
         await shutdown_db_engine()
-        logger.info("✅ Database engine disposed cleanly")
+        logger.info("Database engine disposed cleanly")
     except Exception as e:
-        logger.error(f"❌ Shutdown error: {e}")
+        logger.error(f"Shutdown error: {e}")
+
+    try:
+        from app.core.redis import close_redis
+
+        await close_redis()
+        logger.info("Redis client closed cleanly")
+    except Exception as e:
+        logger.error(f"Redis shutdown error: {e}")
 
 
 # ============================================================================
@@ -93,7 +134,7 @@ def create_app() -> FastAPI:
     # ========================================================================
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"] if settings.DEBUG else ["https://lingvopal.com"],
+        allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -113,12 +154,35 @@ def create_app() -> FastAPI:
         }
 
     # ========================================================================
-    # Include Routers (add as you build them)
+    # Include Routers
     # ========================================================================
-    # from app.routes import auth_router, items_router, practice_router
-    # app.include_router(auth_router, prefix="/api/v1")
-    # app.include_router(items_router, prefix="/api/v1")
-    # app.include_router(practice_router, prefix="/api/v1")
+    from app.routes.admin import router as admin_router
+    from app.routes.auth import router as auth_router
+    from app.routes.items import items_router, set_items_router
+    from app.routes.languages import router as languages_router
+    from app.routes.moderation import router as moderation_router
+    from app.routes.practice import router as practice_router
+    from app.routes.sets import router as sets_router
+    from app.routes.stats import router as stats_router
+    from app.routes.user_settings import router as user_settings_router
+    from app.routes.users import router as users_router
+
+    app.include_router(auth_router, prefix="/api/v1")
+    app.include_router(users_router, prefix="/api/v1")
+    app.include_router(languages_router, prefix="/api/v1")
+    app.include_router(sets_router, prefix="/api/v1")
+    app.include_router(items_router, prefix="/api/v1")
+    app.include_router(set_items_router, prefix="/api/v1")
+    app.include_router(moderation_router, prefix="/api/v1")
+    app.include_router(admin_router, prefix="/api/v1")
+    app.include_router(user_settings_router, prefix="/api/v1")
+    app.include_router(stats_router, prefix="/api/v1")
+    app.include_router(practice_router, prefix="/api/v1")
+
+    # Serve uploaded images
+    upload_dir = Path("static/uploads")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
     return app
 

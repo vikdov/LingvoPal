@@ -39,7 +39,7 @@ class Set(Base, SoftDeleteTimestampMixin):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     status: Mapped[ContentStatus] = mapped_column(
-        pgEnum(ContentStatus, name="content_status", create_type=False),
+        pgEnum(ContentStatus, name="content_status", create_type=False, values_callable=lambda obj: [e.value for e in obj]),
         default=ContentStatus.DRAFT,
         nullable=False,
     )
@@ -74,7 +74,7 @@ class Set(Base, SoftDeleteTimestampMixin):
             "target_lang_id",
             "difficulty",
             postgresql_where=text(
-                "deleted_at IS NULL AND status IN ('APPROVED', 'OFFICIAL')"
+                "deleted_at IS NULL AND status IN ('approved', 'official')"
             ),
         ),
     )

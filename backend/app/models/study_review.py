@@ -72,6 +72,12 @@ class StudyReview(Base):
             "reviewed_at",
             postgresql_where=text("was_correct = FALSE"),
         ),
+        Index(
+            "uq_study_reviews_session_item",
+            "session_id",
+            "item_id",
+            unique=True,
+        ),
     )
 
     def __repr__(self) -> str:

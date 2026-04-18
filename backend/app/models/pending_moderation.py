@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import ENUM as pgEnum, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base, CreatedAtMixin
-from app.models.enums import ModerationTargetType
+from app.models.enums import ModerationTargetType, ModerationStatus
 
 if TYPE_CHECKING:
     from app.models.user import User
@@ -22,12 +22,17 @@ class PendingModeration(Base, CreatedAtMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     target_type: Mapped[ModerationTargetType] = mapped_column(
-        pgEnum(ModerationTargetType, name="moderation_target_type", create_type=False),
+        pgEnum(ModerationTargetType, name="moderation_target_type", create_type=False, values_callable=lambda obj: [e.value for e in obj]),
         nullable=False,
     )
     target_id: Mapped[int] = mapped_column(nullable=False)
     creator_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    status: Mapped[ModerationStatus] = mapped_column(
+        pgEnum(ModerationStatus, name="moderation_status", create_type=False, values_callable=lambda obj: [e.value for e in obj]),
+        default=ModerationStatus.PENDING,
+        nullable=False,
     )
     feedback: Mapped[str | None] = mapped_column(nullable=True)
     patch_data: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)

@@ -63,25 +63,62 @@ services:
       - lingvopal_network
 
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine                    # Updated to current stable (2026)
     container_name: lingvopal_redis
     restart: unless-stopped
-
     ports:
       - "${REDIS_PORT}:6379"
-
+    command: redis-server 
+      --save 60 1 
+      --loglevel warning 
+      --maxmemory 512mb 
+      --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
-
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
-      timeout: 5s
+      timeout: 3s
       retries: 5
-
     networks:
       - lingvopal_network
 
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: lingvopal_redisinsight
+    restart: unless-stopped
+    ports:
+      - "5540:5540"
+    networks:
+      - lingvopal_network
+
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lingvopal_app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app                  # Hot reload for development
+      - /app/.venv
+      - ./docker-compose.yml:/docker-compose.yml:ro
+      - ./.env:/.env:ro
+      - ./scripts:/app/scripts
+    environment:
+      # Override the host-based DATABASE_HOST from .env so the container
+      # connects via the Docker network instead of localhost.
+      DATABASE_HOST: lingvopal_postgres
+      REDIS_HOST: lingvopal_redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - lingvopal_network
+    command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 networks:
   lingvopal_network:
     driver: bridge

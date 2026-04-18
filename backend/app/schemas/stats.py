@@ -127,10 +127,19 @@ class DailyStatsQueryParams(BaseModel):
     page_size: int = Field(default=30, ge=1, le=365)
 
 
+class HardestItemResponse(BaseModel):
+    item_id: int
+    term: str
+    language_id: int
+    total_reviews: int
+    failure_rate: float
+
+
 __all__ = [
     "DailyStatsResponse",
     "TotalStatsResponse",
     "StatsRangeResponse",
     "StatsRangeQueryParams",
     "DailyStatsQueryParams",
+    "HardestItemResponse",
 ]

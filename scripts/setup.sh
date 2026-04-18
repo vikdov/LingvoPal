@@ -1,208 +1,155 @@
-#!/bin/bash
-# scripts/setup.sh
-# Complete setup with proper shell variable handling and idempotent seeding
+#!/usr/bin/env bash
+# scripts/setup.sh — LingvoPal development environment setup
+# Run from the project root: ./scripts/setup.sh
 
-set -e
+set -euo pipefail
 
-echo "Setting up LingvoPal development environment..."
+# ── Output helpers ────────────────────────────────────────────────────────────
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
+ok()   { echo -e "  ${GREEN}✓${NC} $*"; }
+info() { echo -e "  ${CYAN}→${NC} $*"; }
+warn() { echo -e "  ${YELLOW}⚠${NC} $*"; }
+die()  { echo -e "\n  ${RED}✗ ERROR:${NC} $*\n" >&2; exit 1; }
+step() { echo -e "\n${BOLD}${CYAN}──${NC} $*"; }
 
-# ============================================================================
-# 1. Verify root .env exists
-# ============================================================================
+# ── Verify project root ───────────────────────────────────────────────────────
+[[ -f docker-compose.yml ]] || die "Run this script from the project root (where docker-compose.yml lives)."
 
-if [ ! -f .env ]; then
-  echo "Creating .env from .env.example..."
+# ── Prerequisites ─────────────────────────────────────────────────────────────
+step "Checking prerequisites..."
+command -v docker >/dev/null 2>&1 || die "docker not found — install Docker Desktop."
+command -v uv     >/dev/null 2>&1 || die "uv not found — install: curl -LsSf https://astral.sh/uv/install.sh | sh"
+command -v npm    >/dev/null 2>&1 || die "npm not found — install Node.js from https://nodejs.org"
+ok "docker, uv, npm found"
+
+# ── Environment file ──────────────────────────────────────────────────────────
+step "Checking environment file..."
+if [[ ! -f .env ]]; then
   cp .env.example .env
+  info "Created .env from .env.example — review credentials before first use"
 else
-  echo "Existing .env found"
+  ok ".env exists"
 fi
 
-# ============================================================================
-# 2. Load environment variables safely
-# ============================================================================
-# Use set -a / set +a to export all variables
-# Use sed to strip carriage returns (handles Windows CRLF line endings)
-
-echo "Loading environment variables..."
+# Load vars: strip CR (Windows CRLF), skip comments and blank lines
 set -a
-source <(sed 's/\r$//' .env)
+# shellcheck disable=SC1090
+source <(grep -v '^\s*#' .env | grep -v '^\s*$' | sed 's/\r$//')
 set +a
 
-# ============================================================================
-# 3. Verify critical variables
-# ============================================================================
-
-echo "Verifying environment variables..."
-
-required_vars=(
-  "DATABASE_USER"
-  "DATABASE_PASSWORD"
-  "DATABASE_HOST"
-  "DATABASE_PORT"
-  "DATABASE_NAME"
-  "ENV"
-)
-
+# ── Verify required variables ─────────────────────────────────────────────────
+step "Verifying required environment variables..."
+required_vars=(DATABASE_USER DATABASE_PASSWORD DATABASE_HOST DATABASE_PORT DATABASE_NAME REDIS_PORT ENV)
 for var in "${required_vars[@]}"; do
-  if [ -z "${!var}" ]; then
-    echo "ERROR: $var is not set in .env"
-    exit 1
-  fi
+  [[ -n "${!var:-}" ]] || die "$var is not set in .env"
 done
+ok "All required variables set  (ENV=${ENV})"
 
-echo "All required variables are set"
+# ── Docker services ───────────────────────────────────────────────────────────
+step "Starting infrastructure services..."
+info "Bringing up postgres + redis (waiting for healthchecks)..."
 
-# ============================================================================
-# 4. Start Docker services
-# ============================================================================
+# --wait blocks until all started services pass their built-in healthchecks.
+# No manual polling loop needed — both services declare healthchecks in docker-compose.yml.
+docker compose up -d --wait postgres redis
 
-echo "Starting Docker services..."
-docker compose up -d postgres
+ok "postgres healthy  (port ${DATABASE_PORT})"
+ok "redis healthy     (port ${REDIS_PORT})"
 
-echo "Waiting for PostgreSQL to be ready..."
-attempt=0
-max_attempts=30
+# Optional monitoring UIs — not started by default to keep things lightweight
+if [[ "${LINGVOPAL_TOOLS:-false}" == "true" ]]; then
+  info "Starting pgadmin + redisinsight..."
+  docker compose up -d pgadmin redisinsight
+  ok "pgadmin      → http://localhost:${PGADMIN_PORT:-5050}"
+  ok "redisinsight → http://localhost:5540"
+fi
 
-until docker compose exec -T postgres pg_isready -U "$DATABASE_USER" -d "$DATABASE_NAME" >/dev/null 2>&1; do
-  attempt=$((attempt + 1))
-  if [ $attempt -ge $max_attempts ]; then
-    echo "ERROR: PostgreSQL failed to start after $max_attempts attempts"
-    docker compose logs postgres
-    exit 1
-  fi
-  echo "  Waiting... (attempt $attempt/$max_attempts)"
-  sleep 2
-done
+# ── Sanity-check DATABASE_HOST ────────────────────────────────────────────────
+# Migrations run on the host, not inside Docker. If DATABASE_HOST is set to a
+# Docker service/container name it won't resolve here. Catch this early.
+case "${DATABASE_HOST}" in
+  localhost|127.0.0.1|0.0.0.0) ;;
+  *)
+    warn "DATABASE_HOST='${DATABASE_HOST}' looks like a Docker hostname."
+    warn "For host-based migrations this must be 'localhost' (Docker exposes postgres on the host port)."
+    warn "Set DATABASE_HOST=localhost in .env — docker-compose.yml overrides it inside containers."
+    die "Fix DATABASE_HOST in .env then re-run."
+    ;;
+esac
 
-echo "PostgreSQL is ready"
-
-# ============================================================================
-# 5. Backend setup
-# ============================================================================
-
-echo "Setting up backend..."
-
+# ── Backend setup ─────────────────────────────────────────────────────────────
+step "Setting up backend..."
 cd backend
 
-# Create virtual environment if needed
-if [ ! -d .venv ]; then
-  echo "  Creating virtual environment..."
+if [[ ! -d .venv ]]; then
+  info "Creating virtual environment..."
   uv venv
 fi
 
-# Activate virtual environment for this script
-. .venv/bin/activate
+info "Syncing dependencies..."
+uv sync --quiet
+ok "Dependencies synced"
 
-echo "  Syncing dependencies..."
-uv sync
-
-# ============================================================================
-# 6. Database migrations
-# ============================================================================
-
-echo "Running database migrations..."
-
-# Migrations use config.py which reads from ../.env
-# docker-compose.yml anchor ensures reliable root detection
+# ── Database migrations ───────────────────────────────────────────────────────
+step "Running database migrations..."
+# Run alembic locally — config.py reads DATABASE_URL from .env via the
+# docker-compose.yml anchor. Do NOT use `docker compose exec app` here:
+# the app container is not started for local dev; uvicorn runs on the host.
 uv run alembic upgrade head
+ok "Migrations applied"
 
-if [ $? -ne 0 ]; then
-  echo "ERROR: Database migrations failed"
-  exit 1
-fi
-
-# ============================================================================
-# 7. Seed initial data (idempotent)
-# ============================================================================
-
-echo "Seeding database with initial data..."
-
-# Set SEED_DB=false to skip seeding (useful in CI/CD after first run)
-if [ "${SEED_DB:-true}" = "true" ]; then
-  uv run python ../scripts/seed_db.py
-
-  if [ $? -ne 0 ]; then
-    echo "WARNING: Database seeding failed (this is non-critical)"
-  fi
+# ── Seed initial data ─────────────────────────────────────────────────────────
+if [[ "${SEED_DB:-true}" == "true" ]]; then
+  step "Seeding database..."
+  # PYTHONPATH=. ensures `app` is importable from backend/ without a package install.
+  # seed_db.py was written for Docker (where backend/ is mounted at /app/);
+  # PYTHONPATH=. replicates that mapping for local execution.
+  PYTHONPATH=. uv run python ../scripts/seed_db.py \
+    || warn "Seeding reported errors — data likely already exists, safe to ignore"
 else
-  echo "  Skipping seed (SEED_DB=false)"
+  step "Skipping seed  (SEED_DB=false)"
 fi
 
 cd ..
 
-# ============================================================================
-# 8. Frontend setup
-# ============================================================================
-
-echo "Setting up frontend..."
-
+# ── Frontend setup ────────────────────────────────────────────────────────────
+step "Setting up frontend..."
 cd frontend
 
-# Create .env if it doesn't exist
-if [ ! -f .env ]; then
-  echo "  Creating frontend/.env..."
-  cat >.env <<'EOF'
+if [[ ! -f .env ]]; then
+  cat > .env <<EOF
 VITE_API_URL=http://localhost:8000/api/v1
-VITE_APP_TITLE=LingvoPal (Development)
-VITE_ENABLE_ANALYTICS=false
-VITE_ENABLE_DEBUG_PANEL=true
+VITE_APP_TITLE=LingvoPal (dev)
 EOF
+  ok "Created frontend/.env"
+else
+  ok "frontend/.env exists"
 fi
 
-# Install dependencies if needed
-if [ ! -d node_modules ]; then
-  echo "  Installing frontend dependencies..."
-  npm install
+if [[ ! -d node_modules ]]; then
+  info "Installing npm dependencies..."
+  npm install --silent
+  ok "npm install complete"
+else
+  ok "node_modules present"
 fi
 
 cd ..
 
-# ============================================================================
-# 9. Final information
-# ============================================================================
-
+# ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
-echo "Setup completed successfully"
+echo -e "${BOLD}${GREEN}  ✓ Setup complete${NC}   ENV=${CYAN}${ENV}${NC}   DB=${CYAN}${DATABASE_NAME}${NC}"
 echo ""
-echo "Environment Configuration:"
-echo "  ENV: $ENV"
-echo "  Database User: $DATABASE_USER"
-echo "  Database Host: $DATABASE_HOST (Docker Compose)"
-echo "  Database Port: $DATABASE_PORT"
-echo "  Database Name: $DATABASE_NAME"
+echo -e "  ${BOLD}Terminal 1${NC} — Backend"
+echo -e "    ${CYAN}cd backend && uv run uvicorn app.main:app --reload${NC}"
 echo ""
-echo "IMPORTANT - For local development:"
-echo "  Backend will automatically use localhost (from .env.development)"
-echo "  This allows uvicorn to connect to PostgreSQL running in Docker"
+echo -e "  ${BOLD}Terminal 2${NC} — Frontend"
+echo -e "    ${CYAN}cd frontend && npm run dev${NC}"
 echo ""
-echo "Service URLs:"
-echo "  Backend API: http://localhost:8000"
-echo "  API Documentation: http://localhost:8000/docs"
-echo "  Frontend: http://localhost:5173"
-echo "  pgAdmin (if enabled): http://localhost:5050"
+echo -e "  API docs  http://localhost:8000/docs"
+echo -e "  Frontend  http://localhost:5173"
 echo ""
-echo "To start development:"
-echo ""
-echo "  Terminal 1 - Backend:"
-echo "    cd backend"
-echo "    . .venv/bin/activate"
-echo "    uvicorn app.main:app --reload"
-echo ""
-echo "  Terminal 2 - Frontend:"
-echo "    cd frontend"
-echo "    npm run dev"
-echo ""
-echo "To run tests:"
-echo "  cd backend"
-echo "  . .venv/bin/activate"
-echo "  pytest -v"
-echo ""
-echo "To see database in psql:"
-echo "  psql postgresql://lingvopal_user:***@localhost:5432/lingvopal_db"
-echo ""
-echo "To reset everything:"
-echo "  docker compose down -v && ./scripts/setup.sh"
-echo ""
-echo "To run setup without seeding (e.g., on existing database):"
-echo "  SEED_DB=false ./scripts/setup.sh"
+echo -e "  Teardown:    docker compose down -v && ./scripts/setup.sh"
+echo -e "  No seed:     SEED_DB=false ./scripts/setup.sh"
+echo -e "  With UIs:    LINGVOPAL_TOOLS=true ./scripts/setup.sh"
 echo ""
