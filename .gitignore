@@ -89,3 +89,4 @@ docker-compose.override.yml
 .ruff_cache/
 .dmypy.json
 dmypy.json
+CLAUDE.md   

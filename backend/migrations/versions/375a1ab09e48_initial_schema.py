@@ -1,8 +1,8 @@
-"""initial: create tables and model-defined indexes
+"""initial_schema
 
-Revision ID: 31041260b64b
+Revision ID: 375a1ab09e48
 Revises: 
-Create Date: 2026-04-05 21:27:17.952267
+Create Date: 2026-04-17 18:19:53.872818
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '31041260b64b'
+revision: str = '375a1ab09e48'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -30,7 +30,7 @@ def upgrade() -> None:
     )
     op.create_table('users',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('is_admin', sa.Boolean(), nullable=False, comment='User is administrator'),
+    sa.Column('user_status', sa.Enum('user', 'admin', name='user_role'), nullable=False),
     sa.Column('email', sa.TEXT(), nullable=False, comment='User email (unique, used for login)'),
     sa.Column('email_verified', sa.Boolean(), nullable=False, comment='User has verified their email'),
     sa.Column('password_hash', sa.TEXT(), nullable=False, comment='Hashed password (never plain text)'),
@@ -64,11 +64,11 @@ def upgrade() -> None:
     sa.Column('context', sa.TEXT(), nullable=True),
     sa.Column('image_url', sa.TEXT(), nullable=True),
     sa.Column('audio_url', sa.TEXT(), nullable=True),
-    sa.Column('part_of_speech', postgresql.ENUM('NOUN', 'VERB', 'ADJECTIVE', 'ADVERB', 'PRONOUN', 'PREPOSITION', 'CONJUNCTION', 'INTERJECTION', 'ARTICLE', 'OTHER', name='part_of_speech_type'), nullable=True),
+    sa.Column('part_of_speech', postgresql.ENUM('noun', 'verb', 'adjective', 'adverb', 'pronoun', 'preposition', 'conjunction', 'interjection', 'article', 'other', name='part_of_speech_type'), nullable=True),
     sa.Column('lemma', sa.TEXT(), nullable=True, comment='Base word form'),
     sa.Column('creator_id', sa.Integer(), nullable=True),
     sa.Column('verified_by', sa.Integer(), nullable=True),
-    sa.Column('status', postgresql.ENUM('DRAFT', 'PENDING_REVIEW', 'APPROVED', 'OFFICIAL', name='content_status'), nullable=False),
+    sa.Column('status', postgresql.ENUM('draft', 'pending_review', 'approved', 'official', name='content_status'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True, comment='When this record was soft-deleted (NULL = active)'),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True, comment='When this record was last updated (UTC, set by trigger)'),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False, comment='When this record was created (UTC, database time)'),
@@ -80,13 +80,14 @@ def upgrade() -> None:
     )
     op.create_index('idx_items_by_creator', 'items', ['creator_id', 'status', 'created_at'], unique=False, postgresql_where=sa.text('deleted_at IS NULL'))
     op.create_index('idx_items_lookup', 'items', ['language_id', 'term'], unique=False)
-    op.create_index('idx_items_unverified', 'items', ['created_at'], unique=False, postgresql_where=sa.text("deleted_at IS NULL AND verified_by IS NULL AND status = 'PENDING_REVIEW'"))
+    op.create_index('idx_items_unverified', 'items', ['created_at'], unique=False, postgresql_where=sa.text("deleted_at IS NULL AND verified_by IS NULL AND status = 'pending_review'"))
     op.create_index(op.f('ix_items_deleted_at'), 'items', ['deleted_at'], unique=False)
     op.create_table('pending_moderation',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-    sa.Column('target_type', postgresql.ENUM('ITEM', 'TRANSLATION', 'SET', 'MIXED', name='moderation_target_type'), nullable=False),
+    sa.Column('target_type', postgresql.ENUM('item', 'translation', 'set', 'mixed', name='moderation_target_type'), nullable=False),
     sa.Column('target_id', sa.Integer(), nullable=False),
     sa.Column('creator_id', sa.Integer(), nullable=False),
+    sa.Column('status', postgresql.ENUM('pending', 'approved', 'rejected', name='moderation_status'), nullable=False),
     sa.Column('feedback', sa.TEXT(), nullable=True),
     sa.Column('patch_data', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
     sa.Column('resolved_at', sa.DateTime(timezone=True), nullable=True),
@@ -108,7 +109,7 @@ def upgrade() -> None:
     sa.Column('target_lang_id', sa.Integer(), nullable=False),
     sa.Column('creator_id', sa.Integer(), nullable=True),
     sa.Column('verified_by', sa.Integer(), nullable=True),
-    sa.Column('status', postgresql.ENUM('DRAFT', 'PENDING_REVIEW', 'APPROVED', 'OFFICIAL', name='content_status'), nullable=False),
+    sa.Column('status', postgresql.ENUM('draft', 'pending_review', 'approved', 'official', name='content_status'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True, comment='When this record was soft-deleted (NULL = active)'),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True, comment='When this record was last updated (UTC, set by trigger)'),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False, comment='When this record was created (UTC, database time)'),
@@ -120,7 +121,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['verified_by'], ['users.id'], name=op.f('fk_sets_verified_by_users'), ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_sets'))
     )
-    op.create_index('idx_sets_discovery', 'sets', ['status', 'target_lang_id', 'difficulty'], unique=False, postgresql_where=sa.text("deleted_at IS NULL AND status IN ('APPROVED', 'OFFICIAL')"))
+    op.create_index('idx_sets_discovery', 'sets', ['status', 'target_lang_id', 'difficulty'], unique=False, postgresql_where=sa.text("deleted_at IS NULL AND status IN ('approved', 'official')"))
     op.create_index(op.f('ix_sets_deleted_at'), 'sets', ['deleted_at'], unique=False)
     op.create_table('user_daily_stats',
     sa.Column('user_id', sa.Integer(), nullable=False),
@@ -144,6 +145,23 @@ def upgrade() -> None:
     sa.Column('user_id', sa.Integer(), nullable=False, comment='User this settings belongs to'),
     sa.Column('native_lang_id', sa.Integer(), nullable=False, comment="User's native language"),
     sa.Column('interface_lang_id', sa.Integer(), nullable=False, comment='Language for app interface'),
+    sa.Column('learning_intensity', sa.Enum('light', 'balanced', 'intensive', name='learning_intensity'), nullable=False, comment='Pace at which new material is introduced'),
+    sa.Column('evaluation_mode', sa.Enum('strict', 'normal', 'forgiving', name='evaluation_mode'), nullable=False, comment='How strictly typed answers are graded'),
+    sa.Column('show_hints_on_fails', sa.Boolean(), nullable=False, comment='Show a hint after a wrong answer'),
+    sa.Column('daily_study_goal', sa.Integer(), nullable=False, comment='Target number of items to study per day'),
+    sa.Column('reminder_time', sa.Time(), nullable=True, comment='Local time of day for study reminder (NULL = disabled)'),
+    sa.Column('streak_reminders_enabled', sa.Boolean(), nullable=False, comment='Send reminders to maintain study streak'),
+    sa.Column('show_translations', sa.Boolean(), nullable=False),
+    sa.Column('show_images', sa.Boolean(), nullable=False),
+    sa.Column('show_synonyms', sa.Boolean(), nullable=False),
+    sa.Column('show_part_of_speech', sa.Boolean(), nullable=False),
+    sa.Column('auto_play_audio', sa.Boolean(), nullable=False),
+    sa.Column('new_items_per_day_limit', sa.Integer(), nullable=False, comment='Hard cap on new vocabulary introduced per day'),
+    sa.Column('new_items_per_session', sa.Integer(), nullable=False, comment='Max new items introduced in a single practice session'),
+    sa.Column('retention_priority', sa.Enum('speed_learning', 'balanced', 'long_term_mastery', name='retention_priority'), nullable=False, comment='Speed vs. long-term mastery trade-off'),
+    sa.Column('max_review_load_per_day', sa.Integer(), nullable=True, comment='Cap on total reviews per day (NULL = unlimited)'),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True, comment='When this record was last updated (UTC, set by trigger)'),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False, comment='When this record was created (UTC, database time)'),
     sa.ForeignKeyConstraint(['interface_lang_id'], ['languages.id'], name=op.f('fk_user_settings_interface_lang_id_languages'), ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['native_lang_id'], ['languages.id'], name=op.f('fk_user_settings_native_lang_id_languages'), ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], name=op.f('fk_user_settings_user_id_users'), ondelete='CASCADE'),
@@ -166,7 +184,7 @@ def upgrade() -> None:
     sa.Column('item_b_id', sa.Integer(), nullable=False),
     sa.Column('creator_id', sa.Integer(), nullable=True),
     sa.Column('verified_by', sa.Integer(), nullable=True),
-    sa.Column('status', postgresql.ENUM('DRAFT', 'PENDING_REVIEW', 'APPROVED', 'OFFICIAL', name='content_status'), nullable=False),
+    sa.Column('status', postgresql.ENUM('draft', 'pending_review', 'approved', 'official', name='content_status'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True, comment='When this record was soft-deleted (NULL = active)'),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True, comment='When this record was last updated (UTC, set by trigger)'),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False, comment='When this record was created (UTC, database time)'),
@@ -180,22 +198,13 @@ def upgrade() -> None:
     op.create_index('idx_item_synonyms_item_b_id', 'item_synonyms', ['item_b_id'], unique=False)
     op.create_index('idx_item_synonyms_status', 'item_synonyms', ['status'], unique=False, postgresql_where=sa.text('deleted_at IS NULL'))
     op.create_index(op.f('ix_item_synonyms_deleted_at'), 'item_synonyms', ['deleted_at'], unique=False)
-    op.create_table('set_items',
-    sa.Column('set_id', sa.Integer(), nullable=False),
-    sa.Column('item_id', sa.Integer(), nullable=False),
-    sa.Column('sort_order', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['item_id'], ['items.id'], name=op.f('fk_set_items_item_id_items'), ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['set_id'], ['sets.id'], name=op.f('fk_set_items_set_id_sets'), ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('set_id', 'item_id', name=op.f('pk_set_items'))
-    )
-    op.create_index('idx_set_items_by_item', 'set_items', ['item_id'], unique=False)
-    op.create_index('idx_set_items_by_set', 'set_items', ['set_id', 'sort_order'], unique=False)
     op.create_table('study_sessions',
     sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('set_id', sa.Integer(), nullable=False),
     sa.Column('started_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('ended_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('status', postgresql.ENUM('in_progress', 'completed', 'abandoned', name='session_status_type'), nullable=False),
     sa.Column('correct_count', sa.Integer(), nullable=False),
     sa.Column('incorrect_count', sa.Integer(), nullable=False),
     sa.Column('total_time_ms', sa.Integer(), nullable=False),
@@ -204,6 +213,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], name=op.f('fk_study_sessions_user_id_users'), ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_study_sessions'))
     )
+    op.create_index('idx_study_sessions_active', 'study_sessions', ['user_id', 'status'], unique=False)
+    op.create_index('idx_study_sessions_user', 'study_sessions', ['user_id', 'started_at'], unique=False)
     op.create_table('translations',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('item_id', sa.Integer(), nullable=False),
@@ -212,7 +223,7 @@ def upgrade() -> None:
     sa.Column('context_trans', sa.TEXT(), nullable=True),
     sa.Column('creator_id', sa.Integer(), nullable=True),
     sa.Column('verified_by', sa.Integer(), nullable=True),
-    sa.Column('status', postgresql.ENUM('DRAFT', 'PENDING_REVIEW', 'APPROVED', 'OFFICIAL', name='content_status'), nullable=False),
+    sa.Column('status', postgresql.ENUM('draft', 'pending_review', 'approved', 'official', name='content_status'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True, comment='When this record was soft-deleted (NULL = active)'),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True, comment='When this record was last updated (UTC, set by trigger)'),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False, comment='When this record was created (UTC, database time)'),
@@ -226,7 +237,7 @@ def upgrade() -> None:
     op.create_index('idx_translations_item', 'translations', ['item_id'], unique=False, postgresql_where=sa.text('deleted_at IS NULL'))
     op.create_index('idx_translations_item_status', 'translations', ['item_id', 'status'], unique=False, postgresql_where=sa.text('deleted_at IS NULL'))
     op.create_index('idx_translations_status_lang', 'translations', ['status', 'language_id'], unique=False, postgresql_where=sa.text('deleted_at IS NULL'))
-    op.create_index('idx_translations_unverified', 'translations', ['created_at'], unique=False, postgresql_where=sa.text("deleted_at IS NULL AND verified_by IS NULL AND status = 'PENDING_REVIEW'"))
+    op.create_index('idx_translations_unverified', 'translations', ['created_at'], unique=False, postgresql_where=sa.text("deleted_at IS NULL AND verified_by IS NULL AND status = 'pending_review'"))
     op.create_index(op.f('ix_translations_deleted_at'), 'translations', ['deleted_at'], unique=False)
     op.create_index('uq_translation_active', 'translations', ['item_id', 'language_id'], unique=True, postgresql_where=sa.text('deleted_at IS NULL'))
     op.create_table('user_progress',
@@ -235,6 +246,7 @@ def upgrade() -> None:
     sa.Column('ease_factor', sa.Float(), nullable=False, comment='SM-2 ease factor, starts at 2.5'),
     sa.Column('interval', sa.Integer(), nullable=False, comment='Days until next review'),
     sa.Column('repetitions', sa.Integer(), nullable=False, comment='Successful repetitions'),
+    sa.Column('lapsed_attempts', sa.Integer(), nullable=False, comment='Consecutive SM-2 failures since last success (lapse recovery counter)'),
     sa.Column('last_reviewed', sa.DateTime(timezone=True), nullable=True),
     sa.Column('next_review', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['item_id'], ['items.id'], name=op.f('fk_user_progress_item_id_items'), ondelete='CASCADE'),
@@ -254,6 +266,33 @@ def upgrade() -> None:
     )
     op.create_index('idx_user_set_library_pinned', 'user_set_library', ['user_id', 'is_pinned', 'added_at'], unique=False)
     op.create_index('idx_user_set_library_recent', 'user_set_library', ['user_id', 'last_opened_at'], unique=False, postgresql_where=sa.text('last_opened_at IS NOT NULL'))
+    op.create_table('pending_sessions',
+    sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
+    sa.Column('session_id', sa.BigInteger(), nullable=False, comment='One pending-session record per study session'),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('raw_events_json', sa.Text(), nullable=False, comment='JSON array of RawAnswerEvent — buffered per-answer data'),
+    sa.Column('session_state_json', sa.Text(), nullable=False, comment='Snapshot of SessionState metadata (item_order, current_index, config)'),
+    sa.Column('saved_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('recovered', sa.Boolean(), nullable=False, comment='True once finalise_session has processed this record'),
+    sa.ForeignKeyConstraint(['session_id'], ['study_sessions.id'], name=op.f('fk_pending_sessions_session_id_study_sessions'), ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], name=op.f('fk_pending_sessions_user_id_users'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_pending_sessions')),
+    sa.UniqueConstraint('session_id', name=op.f('uq_pending_sessions_session_id'))
+    )
+    op.create_index('idx_pending_sessions_user', 'pending_sessions', ['user_id', 'recovered'], unique=False)
+    op.create_table('set_items',
+    sa.Column('set_id', sa.Integer(), nullable=False),
+    sa.Column('item_id', sa.Integer(), nullable=False),
+    sa.Column('sort_order', sa.Integer(), nullable=False),
+    sa.Column('translation_id', sa.Integer(), nullable=True, comment='Pinned translation shown as prompt when practicing this set-item'),
+    sa.ForeignKeyConstraint(['item_id'], ['items.id'], name=op.f('fk_set_items_item_id_items'), ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['set_id'], ['sets.id'], name=op.f('fk_set_items_set_id_sets'), ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['translation_id'], ['translations.id'], name=op.f('fk_set_items_translation_id_translations'), ondelete='SET NULL'),
+    sa.PrimaryKeyConstraint('set_id', 'item_id', name=op.f('pk_set_items'))
+    )
+    op.create_index('idx_set_items_by_item', 'set_items', ['item_id'], unique=False)
+    op.create_index('idx_set_items_by_set', 'set_items', ['set_id', 'sort_order'], unique=False)
+    op.create_index('idx_set_items_translation', 'set_items', ['translation_id'], unique=False)
     op.create_table('study_reviews',
     sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
@@ -282,17 +321,25 @@ def upgrade() -> None:
     op.create_index('idx_study_reviews_reviewed_at', 'study_reviews', ['reviewed_at'], unique=False)
     op.create_index('idx_study_reviews_set_user', 'study_reviews', ['set_id', 'user_id', 'reviewed_at'], unique=False)
     op.create_index('idx_study_reviews_user_item', 'study_reviews', ['user_id', 'item_id', 'reviewed_at'], unique=False)
+    op.create_index('uq_study_reviews_session_item', 'study_reviews', ['session_id', 'item_id'], unique=True)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index('uq_study_reviews_session_item', table_name='study_reviews')
     op.drop_index('idx_study_reviews_user_item', table_name='study_reviews')
     op.drop_index('idx_study_reviews_set_user', table_name='study_reviews')
     op.drop_index('idx_study_reviews_reviewed_at', table_name='study_reviews')
     op.drop_index('idx_study_reviews_incorrect', table_name='study_reviews', postgresql_where=sa.text('was_correct = FALSE'))
     op.drop_table('study_reviews')
+    op.drop_index('idx_set_items_translation', table_name='set_items')
+    op.drop_index('idx_set_items_by_set', table_name='set_items')
+    op.drop_index('idx_set_items_by_item', table_name='set_items')
+    op.drop_table('set_items')
+    op.drop_index('idx_pending_sessions_user', table_name='pending_sessions')
+    op.drop_table('pending_sessions')
     op.drop_index('idx_user_set_library_recent', table_name='user_set_library', postgresql_where=sa.text('last_opened_at IS NOT NULL'))
     op.drop_index('idx_user_set_library_pinned', table_name='user_set_library')
     op.drop_table('user_set_library')
@@ -300,16 +347,15 @@ def downgrade() -> None:
     op.drop_table('user_progress')
     op.drop_index('uq_translation_active', table_name='translations', postgresql_where=sa.text('deleted_at IS NULL'))
     op.drop_index(op.f('ix_translations_deleted_at'), table_name='translations')
-    op.drop_index('idx_translations_unverified', table_name='translations', postgresql_where=sa.text("deleted_at IS NULL AND verified_by IS NULL AND status = 'PENDING_REVIEW'"))
+    op.drop_index('idx_translations_unverified', table_name='translations', postgresql_where=sa.text("deleted_at IS NULL AND verified_by IS NULL AND status = 'pending_review'"))
     op.drop_index('idx_translations_status_lang', table_name='translations', postgresql_where=sa.text('deleted_at IS NULL'))
     op.drop_index('idx_translations_item_status', table_name='translations', postgresql_where=sa.text('deleted_at IS NULL'))
     op.drop_index('idx_translations_item', table_name='translations', postgresql_where=sa.text('deleted_at IS NULL'))
     op.drop_index('idx_translations_creator_status', table_name='translations', postgresql_where=sa.text('deleted_at IS NULL'))
     op.drop_table('translations')
+    op.drop_index('idx_study_sessions_user', table_name='study_sessions')
+    op.drop_index('idx_study_sessions_active', table_name='study_sessions')
     op.drop_table('study_sessions')
-    op.drop_index('idx_set_items_by_set', table_name='set_items')
-    op.drop_index('idx_set_items_by_item', table_name='set_items')
-    op.drop_table('set_items')
     op.drop_index(op.f('ix_item_synonyms_deleted_at'), table_name='item_synonyms')
     op.drop_index('idx_item_synonyms_status', table_name='item_synonyms', postgresql_where=sa.text('deleted_at IS NULL'))
     op.drop_index('idx_item_synonyms_item_b_id', table_name='item_synonyms')
@@ -320,13 +366,13 @@ def downgrade() -> None:
     op.drop_index('idx_daily_stats_date', table_name='user_daily_stats')
     op.drop_table('user_daily_stats')
     op.drop_index(op.f('ix_sets_deleted_at'), table_name='sets')
-    op.drop_index('idx_sets_discovery', table_name='sets', postgresql_where=sa.text("deleted_at IS NULL AND status IN ('APPROVED', 'OFFICIAL')"))
+    op.drop_index('idx_sets_discovery', table_name='sets', postgresql_where=sa.text("deleted_at IS NULL AND status IN ('approved', 'official')"))
     op.drop_table('sets')
     op.drop_index('idx_pending_mod_unresolved', table_name='pending_moderation', postgresql_where=sa.text('resolved_at IS NULL'))
     op.drop_index('idx_pending_mod_creator_unresolved', table_name='pending_moderation', postgresql_where=sa.text('resolved_at IS NULL'))
     op.drop_table('pending_moderation')
     op.drop_index(op.f('ix_items_deleted_at'), table_name='items')
-    op.drop_index('idx_items_unverified', table_name='items', postgresql_where=sa.text("deleted_at IS NULL AND verified_by IS NULL AND status = 'PENDING_REVIEW'"))
+    op.drop_index('idx_items_unverified', table_name='items', postgresql_where=sa.text("deleted_at IS NULL AND verified_by IS NULL AND status = 'pending_review'"))
     op.drop_index('idx_items_lookup', table_name='items')
     op.drop_index('idx_items_by_creator', table_name='items', postgresql_where=sa.text('deleted_at IS NULL'))
     op.drop_table('items')

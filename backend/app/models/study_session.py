@@ -4,10 +4,12 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, ForeignKey, func
+from sqlalchemy import BigInteger, ForeignKey, func, Index
+from sqlalchemy.dialects.postgresql import ENUM as pgEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.enums import SessionStatus
 
 if TYPE_CHECKING:
     from app.models.user import User
@@ -31,6 +33,11 @@ class StudySession(Base):
         server_default=func.now(), nullable=False
     )
     ended_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    status: Mapped[SessionStatus] = mapped_column(
+        pgEnum(SessionStatus, name="session_status_type", create_type=False, values_callable=lambda obj: [e.value for e in obj]),
+        default=SessionStatus.IN_PROGRESS,
+        nullable=False,
+    )
     correct_count: Mapped[int] = mapped_column(default=0, nullable=False)
     incorrect_count: Mapped[int] = mapped_column(default=0, nullable=False)
     total_time_ms: Mapped[int] = mapped_column(default=0, nullable=False)
@@ -41,6 +48,10 @@ class StudySession(Base):
     reviews: Mapped[list["StudyReview"]] = relationship(
         back_populates="session",
         cascade="all, delete-orphan",
+    )
+    __table_args__ = (
+        Index("idx_study_sessions_user", "user_id", "started_at"),
+        Index("idx_study_sessions_active", "user_id", "status"),
     )
 
     def __repr__(self) -> str:
