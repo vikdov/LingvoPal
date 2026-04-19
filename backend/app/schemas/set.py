@@ -2,7 +2,6 @@
 """Set schemas — request/response only, no business logic."""
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
@@ -22,8 +21,8 @@ class SetCreateRequest(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
     title: str = Field(..., min_length=1, max_length=200)
-    description: Optional[str] = Field(None, max_length=2000)
-    difficulty: Optional[int] = Field(None, ge=1, le=7)
+    description: str | None = Field(None, max_length=2000)
+    difficulty: int | None = Field(None, ge=1, le=7)
     source_lang_id: int = Field(..., gt=0, description="Language to learn FROM")
     target_lang_id: int = Field(..., gt=0, description="Language to learn TO")
 
@@ -40,9 +39,9 @@ class SetUpdateRequest(BaseModel):
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    title: Optional[str] = Field(None, min_length=1, max_length=200)
-    description: Optional[str] = Field(None, max_length=2000)
-    difficulty: Optional[int] = Field(None, ge=1, le=7)
+    title: str | None = Field(None, min_length=1, max_length=200)
+    description: str | None = Field(None, max_length=2000)
+    difficulty: int | None = Field(None, ge=1, le=7)
 
 
 # ============================================================================
@@ -56,10 +55,10 @@ class SetResponse(BaseResponseWithDeleted):
     model_config = ConfigDict(from_attributes=True)
 
     title: str
-    description: Optional[str]
-    difficulty: Optional[int]
+    description: str | None
+    difficulty: int | None
     status: ContentStatus
-    creator_id: Optional[int]
+    creator_id: int | None
     source_lang_id: int
     target_lang_id: int
     item_count: int = Field(default=0, description="Number of active items in the set")
@@ -73,8 +72,8 @@ class SetResponse(BaseResponseWithDeleted):
 class SetDetailResponse(SetResponse):
     """Set with resolved language objects."""
 
-    source_language: Optional[LanguageResponse] = None
-    target_language: Optional[LanguageResponse] = None
+    source_language: LanguageResponse | None = None
+    target_language: LanguageResponse | None = None
 
 
 class SetLibraryEntryResponse(BaseModel):
@@ -84,7 +83,7 @@ class SetLibraryEntryResponse(BaseModel):
 
     set_id: int
     added_at: datetime
-    last_opened_at: Optional[datetime]
+    last_opened_at: datetime | None
     is_pinned: bool
     set: SetResponse
 

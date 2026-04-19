@@ -8,17 +8,14 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.core.config import get_settings
+from app.database import init_async_session_factory, shutdown_db_engine
 
 settings = get_settings()
-from app.database import (
-    init_async_session_factory,
-    shutdown_db_engine,
-    create_all_tables,
-)
 
-# Configure logging
 logging.basicConfig(level=settings.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
@@ -54,13 +51,13 @@ async def lifespan(app: FastAPI):
         )
         logger.info("Async session factory initialized")
         if settings.DEBUG:
+            from app.database import create_all_tables
+
             logger.warning("Running in DEBUG mode - creating tables")
             await create_all_tables(settings.DATABASE_URL)
             logger.info("Database tables created/verified")
         else:
             logger.info("Production mode - using Alembic migrations")
-
-        logger.info("Schema managed by Alembic migrations")
 
     except Exception as e:
         logger.error(f"Startup failed: {e}")
@@ -69,18 +66,12 @@ async def lifespan(app: FastAPI):
     # Start session sweeper
     sweeper = None
     try:
-        from app.core.redis import get_redis
+        from app.core.redis import get_redis_client
         from app.database.session import get_session
         from app.services.session_sweeper import SessionSweeper
 
-        async def _get_redis():
-            async for client in get_redis():
-                yield client
-
-        async for redis_client in _get_redis():
-            sweeper = SessionSweeper(db_factory=get_session, redis=redis_client)
-            sweeper.start()
-            break
+        sweeper = SessionSweeper(db_factory=get_session, redis=get_redis_client())
+        sweeper.start()
         logger.info("Session sweeper started")
     except Exception as e:
         logger.warning(f"Session sweeper failed to start: {e}")
@@ -90,7 +81,6 @@ async def lifespan(app: FastAPI):
     # SHUTDOWN
     logger.info("Shutting down LingvoPal...")
 
-    # Flush active practice sessions before closing connections
     if sweeper is not None:
         try:
             await sweeper.flush_all_active()
@@ -128,6 +118,14 @@ def create_app() -> FastAPI:
         debug=settings.DEBUG,
         lifespan=lifespan,
     )
+
+    # ========================================================================
+    # Rate Limiting
+    # ========================================================================
+    from app.core.limiter import limiter
+
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     # ========================================================================
     # CORS Middleware

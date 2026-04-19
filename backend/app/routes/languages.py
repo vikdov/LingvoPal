@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from app.core.dependencies import DBSession
 from app.models.language import Language
-from app.schemas.user import LanguageRefResponse
+from app.schemas.language import LanguageResponse as LanguageRefResponse
 
 router = APIRouter(prefix="/languages", tags=["languages"])
 

@@ -32,7 +32,7 @@ class UserStatsTotal(Base):
         nullable=False,
     )
     total_words: Mapped[int] = mapped_column(default=0, nullable=False)
-    last_repaired: Mapped[datetime | None] = mapped_column(nullable=True)
+    last_recalculated_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     user: Mapped["User"] = relationship()
     language: Mapped["Language"] = relationship()

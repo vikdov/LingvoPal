@@ -1,10 +1,11 @@
 # backend/app/models/user_set_library.py
 """UserSetLibrary model"""
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, Index, text
+from sqlalchemy.sql import func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -26,7 +27,7 @@ class UserSetLibrary(Base):
         ForeignKey("sets.id", ondelete="CASCADE"), primary_key=True
     )
     added_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc), nullable=False
+        server_default=func.now(), nullable=False
     )
     last_opened_at: Mapped[datetime | None] = mapped_column(nullable=True)
     is_pinned: Mapped[bool] = mapped_column(default=False, nullable=False)

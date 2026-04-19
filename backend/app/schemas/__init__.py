@@ -29,11 +29,10 @@ from app.schemas.auth import (
 # User
 from app.schemas.user import (
     UserUpdateRequest,
-    UserSettingsUpdateRequest,
     UserPublicResponse,
     UserPrivateResponse,
     UserDetailResponse,
-    UserSettingsResponse,
+    UserSettingsEmbedded,
     LanguageRefResponse,
 )
 
@@ -83,6 +82,12 @@ from app.schemas.stats import (
     HardestItemResponse,
 )
 
+# User settings
+from app.schemas.user_settings import (
+    UserSettingsResponse,
+    UserSettingsPatchRequest,
+)
+
 # Moderation
 from app.schemas.moderation import (
     SubmitForReviewRequest,
@@ -116,11 +121,10 @@ __all__ = [
     "AuthErrorResponse",
     # User
     "UserUpdateRequest",
-    "UserSettingsUpdateRequest",
     "UserPublicResponse",
     "UserPrivateResponse",
     "UserDetailResponse",
-    "UserSettingsResponse",
+    "UserSettingsEmbedded",
     "LanguageRefResponse",
     # Language
     "LanguageResponse",
@@ -155,6 +159,9 @@ __all__ = [
     "StatsRangeQueryParams",
     "DailyStatsQueryParams",
     "HardestItemResponse",
+    # User settings
+    "UserSettingsResponse",
+    "UserSettingsPatchRequest",
     # Moderation
     "SubmitForReviewRequest",
     "ApproveModerationRequest",

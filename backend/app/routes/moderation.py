@@ -13,7 +13,7 @@ from typing import NoReturn
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.core.dependencies import CurrentUser, DBSession
+from app.core.dependencies import CurrentUser, ModerationServiceDep
 from app.core.exceptions import (
     BusinessRuleViolationError,
     InvalidStateTransitionError,
@@ -23,7 +23,6 @@ from app.core.exceptions import (
 )
 from app.schemas.common import PaginatedResponse
 from app.schemas.moderation import ModerationSubmissionResponse, SubmitForReviewRequest
-from app.services.moderation_service import ModerationService
 
 router = APIRouter(prefix="/moderation", tags=["moderation"])
 
@@ -65,9 +64,8 @@ async def submit_set_for_review(
     set_id: int,
     body: SubmitForReviewRequest,
     user: CurrentUser,
-    db: DBSession,
+    svc: ModerationServiceDep,
 ) -> ModerationSubmissionResponse:
-    svc = ModerationService(db)
     try:
         entry = await svc.submit_set(user.id, set_id, feedback=body.feedback)
         return ModerationSubmissionResponse.model_validate(entry)
@@ -85,9 +83,8 @@ async def submit_item_for_review(
     item_id: int,
     body: SubmitForReviewRequest,
     user: CurrentUser,
-    db: DBSession,
+    svc: ModerationServiceDep,
 ) -> ModerationSubmissionResponse:
-    svc = ModerationService(db)
     try:
         entry = await svc.submit_item(user.id, item_id, feedback=body.feedback)
         return ModerationSubmissionResponse.model_validate(entry)
@@ -102,11 +99,10 @@ async def submit_item_for_review(
 )
 async def list_my_submissions(
     user: CurrentUser,
-    db: DBSession,
+    svc: ModerationServiceDep,
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse[ModerationSubmissionResponse]:
-    svc = ModerationService(db)
     entries, total = await svc.get_my_submissions(user.id, skip=skip, limit=limit)
     data = [ModerationSubmissionResponse.model_validate(e) for e in entries]
     page = skip // limit + 1 if limit else 1
@@ -121,9 +117,8 @@ async def list_my_submissions(
 async def get_submission_status(
     moderation_id: int,
     user: CurrentUser,
-    db: DBSession,
+    svc: ModerationServiceDep,
 ) -> ModerationSubmissionResponse:
-    svc = ModerationService(db)
     try:
         entry = await svc.get_my_submission(user.id, moderation_id)
         return ModerationSubmissionResponse.model_validate(entry)

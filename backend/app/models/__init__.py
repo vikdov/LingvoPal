@@ -3,9 +3,14 @@
 
 from app.models.enums import (
     ContentStatus,
-    PartOfSpeech,
+    EvaluationMode,
+    LearningIntensity,
+    ModerationStatus,
     ModerationTargetType,
+    PartOfSpeech,
+    RetentionPriority,
     SessionStatus,
+    UserRole,
 )
 from app.models.language import Language
 from app.models.user import User, UserSettings
@@ -27,9 +32,14 @@ from app.models.content_audit_log import ContentAuditLog
 __all__ = [
     # Enums
     "ContentStatus",
-    "PartOfSpeech",
+    "EvaluationMode",
+    "LearningIntensity",
+    "ModerationStatus",
     "ModerationTargetType",
+    "PartOfSpeech",
+    "RetentionPriority",
     "SessionStatus",
+    "UserRole",
     # Reference
     "Language",
     # User

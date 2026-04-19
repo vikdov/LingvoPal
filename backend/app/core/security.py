@@ -4,7 +4,7 @@ Pure cryptographic utilities — no business logic, no DB, no user concepts.
 
 Responsibilities:
   - Password hashing / verification (via passlib/bcrypt)
-  - JWT encode / decode (via python-jose)
+  - JWT encode / decode (via PyJWT)
   - Password strength validation (reusable rule set)
 
 Hard rule: nothing here ever asks "does this user exist?"
@@ -12,12 +12,11 @@ Hard rule: nothing here ever asks "does this user exist?"
 
 from typing import Any
 
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 from passlib.context import CryptContext
 
 from app.core.config import get_settings
-
-settings = get_settings()
 
 # ============================================================================
 # PASSWORD HASHING
@@ -44,25 +43,42 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 # ============================================================================
 
 
+class TokenExpiredError(Exception):
+    """JWT has a valid signature but the exp claim is in the past."""
+
+
+class TokenInvalidError(Exception):
+    """JWT is malformed, has an invalid signature, or is missing required claims."""
+
+
 def encode_token(payload: dict[str, Any]) -> str:
     """
     Encode a JWT from an arbitrary payload dict.
 
     Caller (auth_service) is responsible for building the payload structure.
-    This function only handles signing.
+    Raises ValueError if 'exp' claim is missing — non-expiring tokens are not allowed.
     """
+    if "exp" not in payload:
+        raise ValueError("JWT payload must include 'exp' claim")
+    settings = get_settings()
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def decode_token(token: str) -> dict[str, Any] | None:
+def decode_token(token: str) -> dict[str, Any]:
     """
     Decode and verify a JWT.
-    Returns the payload dict or None if the token is invalid / expired.
+
+    Raises:
+        TokenExpiredError: signature is valid but the token has expired
+        TokenInvalidError: malformed token, bad signature, or missing claims
     """
+    settings = get_settings()
     try:
         return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-    except JWTError:
-        return None
+    except ExpiredSignatureError as exc:
+        raise TokenExpiredError from exc
+    except InvalidTokenError as exc:
+        raise TokenInvalidError from exc
 
 
 # ============================================================================
@@ -81,7 +97,7 @@ def validate_password_strength(password: str) -> list[str]:
     """
     errors: list[str] = []
     if len(password.encode()) > 72:
-        errors.append("at most 72 characters")
+        errors.append("at most 72 bytes")
     if len(password) < 8:
         errors.append("at least 8 characters")
     if not any(c.isupper() for c in password):
@@ -100,5 +116,7 @@ __all__ = [
     "verify_password",
     "encode_token",
     "decode_token",
+    "TokenExpiredError",
+    "TokenInvalidError",
     "validate_password_strength",
 ]

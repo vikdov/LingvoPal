@@ -21,7 +21,22 @@ Hierarchy:
 Services raise these. Routers catch and translate to HTTP responses.
 """
 
-from app.schemas.auth import AuthErrorCode
+from enum import Enum
+
+
+# ============================================================================
+# AUTH ERROR CODES
+# ============================================================================
+
+
+class AuthErrorCode(str, Enum):
+    INVALID_CREDENTIALS = "invalid_credentials"
+    EMAIL_ALREADY_EXISTS = "email_already_exists"
+    USERNAME_ALREADY_EXISTS = "username_already_exists"
+    ACCOUNT_DISABLED = "account_disabled"
+    TOKEN_EXPIRED = "token_expired"
+    TOKEN_INVALID = "token_invalid"
+    PASSWORD_SAME_AS_CURRENT = "password_same_as_current"
 
 
 # ============================================================================
@@ -125,11 +140,11 @@ class BusinessRuleViolationError(LingvoPalError):
         super().__init__(f"Business rule violated: {rule}")
 
 
-class ConcurrencyError(LingvoPalError):
+class ConcurrencyError(BusinessRuleViolationError):
     def __init__(self, model: str, record_id: int) -> None:
         self.model = model
         self.record_id = record_id
-        super().__init__(f"Concurrent modification of {model} {record_id}")
+        super().__init__(f"concurrent modification of {model} {record_id}")
 
 
 class InvalidStateTransitionError(BusinessRuleViolationError):
@@ -161,6 +176,8 @@ class SettingsValidationError(BusinessRuleViolationError):
 __all__ = [
     # Base
     "LingvoPalError",
+    # Auth codes
+    "AuthErrorCode",
     # Auth
     "AuthError",
     "InvalidCredentialsError",

@@ -12,7 +12,7 @@ Rules:
 
 from typing import NoReturn
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
 from app.core.dependencies import (  # ← single import source, always
     AuthServiceDep,
@@ -25,6 +25,7 @@ from app.core.exceptions import (
     SamePasswordError,
     UsernameAlreadyExistsError,
 )
+from app.core.limiter import auth_rate_limit
 from app.schemas.auth import (
     AuthErrorResponse,
     LoginRequest,
@@ -81,7 +82,9 @@ def _handle_auth_error(exc: AuthError) -> NoReturn:
         },
     },
 )
+@auth_rate_limit("5/minute")
 async def signup(
+    request: Request,
     body: SignupRequest,
     auth: AuthServiceDep,
 ) -> TokenResponse:
@@ -99,7 +102,9 @@ async def signup(
         401: {"model": AuthErrorResponse, "description": "Invalid credentials"},
     },
 )
+@auth_rate_limit("10/minute")
 async def login(
+    request: Request,
     body: LoginRequest,
     auth: AuthServiceDep,
 ) -> TokenResponse:
@@ -121,7 +126,9 @@ async def login(
         },
     },
 )
+@auth_rate_limit("5/minute")
 async def change_password(
+    request: Request,
     body: PasswordChangeRequest,
     auth: AuthServiceDep,
     current_user: CurrentUser,

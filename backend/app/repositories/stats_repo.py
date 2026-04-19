@@ -71,9 +71,26 @@ class StatsRepository:
             select(UserDailyStats).where(
                 UserDailyStats.user_id == user_id,
                 UserDailyStats.language_id == language_id,
-                UserDailyStats.stat_date == date.today(),
+                UserDailyStats.stat_date == datetime.now(timezone.utc).date(),
             )
         )
+
+    async def get_today_stats_batch(
+        self, user_id: int, language_ids: list[int]
+    ) -> dict[int, UserDailyStats | None]:
+        """Today's stats for multiple languages in one query."""
+        if not language_ids:
+            return {}
+        today = datetime.now(timezone.utc).date()
+        result = await self._session.execute(
+            select(UserDailyStats).where(
+                UserDailyStats.user_id == user_id,
+                UserDailyStats.language_id.in_(language_ids),
+                UserDailyStats.stat_date == today,
+            )
+        )
+        rows = {row.language_id: row for row in result.scalars().all()}
+        return {lid: rows.get(lid) for lid in language_ids}
 
     # ── Lifetime totals ──────────────────────────────────────────────────────
 

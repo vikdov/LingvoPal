@@ -45,11 +45,11 @@ class Set(Base, SoftDeleteTimestampMixin):
     )
     source_language: Mapped["Language"] = relationship(foreign_keys=[source_lang_id])
     target_language: Mapped["Language"] = relationship(foreign_keys=[target_lang_id])
-    creator: Mapped["User"] = relationship(
+    creator: Mapped["User | None"] = relationship(
         foreign_keys=[creator_id],
         primaryjoin="Set.creator_id == User.id",
     )
-    verifier: Mapped["User"] = relationship(
+    verifier: Mapped["User | None"] = relationship(
         foreign_keys=[verified_by],
         primaryjoin="Set.verified_by == User.id",
     )

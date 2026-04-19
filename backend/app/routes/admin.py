@@ -15,7 +15,7 @@ from typing import NoReturn
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.core.dependencies import AdminUser, DBSession
+from app.core.dependencies import AdminUser, ModerationServiceDep
 from app.core.exceptions import (
     BusinessRuleViolationError,
     ConcurrencyError,
@@ -29,7 +29,6 @@ from app.schemas.moderation import (
     PendingModerationResponse,
     RejectModerationRequest,
 )
-from app.services.moderation_service import ModerationService
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -65,13 +64,12 @@ def _handle(exc: LingvoPalError) -> NoReturn:
 )
 async def list_moderation(
     admin: AdminUser,
-    db: DBSession,
+    svc: ModerationServiceDep,
     target_type: ModerationTargetType | None = Query(None),
     status_filter: ModerationStatus | None = Query(None, alias="status"),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse[PendingModerationResponse]:
-    svc = ModerationService(db)
     entries, total = await svc.list_submissions(
         target_type=target_type,
         status=status_filter,
@@ -91,9 +89,8 @@ async def list_moderation(
 async def get_moderation_detail(
     moderation_id: int,
     admin: AdminUser,
-    db: DBSession,
+    svc: ModerationServiceDep,
 ) -> PendingModerationResponse:
-    svc = ModerationService(db)
     try:
         entry = await svc.get_submission(moderation_id)
         return PendingModerationResponse.model_validate(entry)
@@ -114,9 +111,8 @@ async def approve_moderation(
     moderation_id: int,
     body: ApproveModerationRequest,
     admin: AdminUser,
-    db: DBSession,
+    svc: ModerationServiceDep,
 ) -> PendingModerationResponse:
-    svc = ModerationService(db)
     try:
         entry = await svc.approve(
             admin.id,
@@ -142,9 +138,8 @@ async def reject_moderation(
     moderation_id: int,
     body: RejectModerationRequest,
     admin: AdminUser,
-    db: DBSession,
+    svc: ModerationServiceDep,
 ) -> PendingModerationResponse:
-    svc = ModerationService(db)
     try:
         entry = await svc.reject(
             admin.id,

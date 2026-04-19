@@ -1,6 +1,5 @@
 """Practice repository — all ORM queries for the practice session flow."""
 
-import json
 import logging
 from datetime import datetime, timezone
 
@@ -316,7 +315,7 @@ class PracticeRepository:
         if pending is None:
             return []
         try:
-            raw_list = json.loads(pending.raw_events_json)
+            raw_list = pending.raw_events_json
             return [e["item_id"] for e in raw_list]
         except Exception:
             return []
@@ -335,8 +334,8 @@ class PracticeRepository:
         self,
         session_id: int,
         user_id: int,
-        raw_events_json: str,
-        session_state_json: str,
+        raw_events_json: list,
+        session_state_json: dict,
     ) -> None:
         now = datetime.now(timezone.utc)
         stmt = (
