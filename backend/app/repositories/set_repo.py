@@ -131,6 +131,19 @@ class SetRepository:
         )
         return result.scalar_one()
 
+    async def count_items_batch(self, set_ids: list[int]) -> dict[int, int]:
+        """Count active items for multiple sets in one query."""
+        if not set_ids:
+            return {}
+        result = await self._session.execute(
+            select(SetItem.set_id, func.count().label("cnt"))
+            .join(Item, SetItem.item_id == Item.id)
+            .where(SetItem.set_id.in_(set_ids), Item.deleted_at.is_(None))
+            .group_by(SetItem.set_id)
+        )
+        counts = {row.set_id: row.cnt for row in result.fetchall()}
+        return {sid: counts.get(sid, 0) for sid in set_ids}
+
     # ------------------------------------------------------------------
     # Writes
     # ------------------------------------------------------------------

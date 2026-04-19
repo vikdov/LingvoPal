@@ -1,10 +1,11 @@
 # backend/app/models/study_review.py
 """StudyReview model"""
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, ForeignKey, Index, text
+from sqlalchemy.sql import func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -52,7 +53,7 @@ class StudyReview(Base):
     ease_after: Mapped[float | None] = mapped_column(nullable=True)
     interval_after: Mapped[int | None] = mapped_column(nullable=True, comment="Days")
     reviewed_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc), nullable=False
+        server_default=func.now(), nullable=False
     )
 
     user: Mapped["User"] = relationship()

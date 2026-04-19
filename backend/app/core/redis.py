@@ -47,9 +47,15 @@ async def get_redis() -> AsyncGenerator[aioredis.Redis, None]:
 
 async def close_redis() -> None:
     """Close the Redis connection pool (call from lifespan shutdown)."""
-    client = _get_redis_client()
-    await client.aclose()
-    _get_redis_client.cache_clear()
+    if _get_redis_client.cache_info().currsize:
+        client = _get_redis_client()
+        await client.aclose()
+        _get_redis_client.cache_clear()
 
 
-__all__ = ["get_redis", "close_redis"]
+def get_redis_client() -> aioredis.Redis:
+    """Return the shared async Redis client (non-generator form for lifespan use)."""
+    return _get_redis_client()
+
+
+__all__ = ["get_redis", "get_redis_client", "close_redis"]

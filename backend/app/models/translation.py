@@ -43,11 +43,11 @@ class Translation(Base, SoftDeleteTimestampMixin):
     )
     item: Mapped["Item"] = relationship(back_populates="translations")
     language: Mapped["Language"] = relationship(foreign_keys=[language_id])
-    creator: Mapped["User"] = relationship(
+    creator: Mapped["User | None"] = relationship(
         foreign_keys=[creator_id],
         primaryjoin="Translation.creator_id == User.id",
     )
-    verifier: Mapped["User"] = relationship(
+    verifier: Mapped["User | None"] = relationship(
         foreign_keys=[verified_by],
         primaryjoin="Translation.verified_by == User.id",
     )

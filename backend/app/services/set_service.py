@@ -84,7 +84,8 @@ class SetService:
         """
         sets = await self._sets.get_owned(user_id, skip=skip, limit=limit)
         total = await self._sets.count_owned(user_id)
-        results = [(s, await self._sets.count_items(s.id)) for s in sets]
+        counts = await self._sets.count_items_batch([s.id for s in sets])
+        results = [(s, counts[s.id]) for s in sets]
         return results, total
 
     async def update_set(
@@ -161,7 +162,8 @@ class SetService:
             target_lang_id=target_lang_id,
             difficulty=difficulty,
         )
-        results = [(s, await self._sets.count_items(s.id)) for s in sets]
+        counts = await self._sets.count_items_batch([s.id for s in sets])
+        results = [(s, counts[s.id]) for s in sets]
         return results, total
 
     # ------------------------------------------------------------------

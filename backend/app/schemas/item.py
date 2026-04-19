@@ -1,8 +1,6 @@
 # backend/app/schemas/item.py
 """Item schemas — request/response only, no business logic."""
 
-from typing import Optional
-
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from app.models.enums import ContentStatus, PartOfSpeech
@@ -21,12 +19,12 @@ class ItemCreateRequest(BaseModel):
 
     term: str = Field(..., min_length=1, max_length=500)
     language_id: int = Field(..., gt=0)
-    context: Optional[str] = Field(None, max_length=1000)
-    difficulty: Optional[int] = Field(None, ge=1, le=7)
-    part_of_speech: Optional[PartOfSpeech] = None
-    lemma: Optional[str] = Field(None, max_length=500)
-    image_url: Optional[str] = Field(None, max_length=2048)
-    audio_url: Optional[str] = Field(None, max_length=2048)
+    context: str | None = Field(None, max_length=1000)
+    difficulty: int | None = Field(None, ge=1, le=7)
+    part_of_speech: PartOfSpeech | None = None
+    lemma: str | None = Field(None, max_length=500)
+    image_url: str | None = Field(None, max_length=2048)
+    audio_url: str | None = Field(None, max_length=2048)
 
 
 class ItemUpdateRequest(BaseModel):
@@ -34,13 +32,13 @@ class ItemUpdateRequest(BaseModel):
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    term: Optional[str] = Field(None, min_length=1, max_length=500)
-    context: Optional[str] = Field(None, max_length=1000)
-    difficulty: Optional[int] = Field(None, ge=1, le=7)
-    part_of_speech: Optional[PartOfSpeech] = None
-    lemma: Optional[str] = Field(None, max_length=500)
-    image_url: Optional[str] = Field(None, max_length=2048)
-    audio_url: Optional[str] = Field(None, max_length=2048)
+    term: str | None = Field(None, min_length=1, max_length=500)
+    context: str | None = Field(None, max_length=1000)
+    difficulty: int | None = Field(None, ge=1, le=7)
+    part_of_speech: PartOfSpeech | None = None
+    lemma: str | None = Field(None, max_length=500)
+    image_url: str | None = Field(None, max_length=2048)
+    audio_url: str | None = Field(None, max_length=2048)
 
 
 class AddExistingItemRequest(BaseModel):
@@ -56,7 +54,7 @@ class TranslationCreateRequest(BaseModel):
 
     language_id: int = Field(..., gt=0)
     term_trans: str = Field(..., min_length=1, max_length=500)
-    context_trans: Optional[str] = Field(None, max_length=1000)
+    context_trans: str | None = Field(None, max_length=1000)
 
 
 class TranslationUpdateRequest(BaseModel):
@@ -64,8 +62,8 @@ class TranslationUpdateRequest(BaseModel):
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    term_trans: Optional[str] = Field(None, min_length=1, max_length=500)
-    context_trans: Optional[str] = Field(None, max_length=1000)
+    term_trans: str | None = Field(None, min_length=1, max_length=500)
+    context_trans: str | None = Field(None, max_length=1000)
 
 
 # ============================================================================
@@ -80,15 +78,15 @@ class ItemResponse(BaseResponseWithDeleted):
 
     term: str
     language_id: int
-    context: Optional[str]
-    difficulty: Optional[int]
-    part_of_speech: Optional[PartOfSpeech]
-    lemma: Optional[str]
-    image_url: Optional[str]
-    audio_url: Optional[str]
+    context: str | None
+    difficulty: int | None
+    part_of_speech: PartOfSpeech | None
+    lemma: str | None
+    image_url: str | None
+    audio_url: str | None
     status: ContentStatus
-    creator_id: Optional[int]
-    verified_by: Optional[int]
+    creator_id: int | None
+    verified_by: int | None
 
     @computed_field
     @property
@@ -104,10 +102,10 @@ class TranslationResponse(BaseResponseWithDeleted):
     item_id: int
     language_id: int
     term_trans: str
-    context_trans: Optional[str]
+    context_trans: str | None
     status: ContentStatus
-    creator_id: Optional[int]
-    verified_by: Optional[int]
+    creator_id: int | None
+    verified_by: int | None
 
 
 class ItemDetailResponse(ItemResponse):

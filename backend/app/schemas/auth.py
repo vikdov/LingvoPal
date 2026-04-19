@@ -6,7 +6,6 @@ Request: What client sends to login/signup
 Response: What API returns (token + user info)
 """
 
-from enum import Enum
 from typing import Annotated
 
 from pydantic import (
@@ -18,6 +17,7 @@ from pydantic import (
     AfterValidator,
 )
 
+from app.core.exceptions import AuthErrorCode
 from app.core.security import validate_password_strength
 from app.schemas.user import UserPrivateResponse
 
@@ -47,26 +47,6 @@ NormalizedEmail = Annotated[
     EmailStr,
     AfterValidator(lambda v: v.lower().strip()),
 ]
-
-
-# ============================================================================
-# AUTH ERROR CODE ENUM
-# ============================================================================
-
-
-class AuthErrorCode(str, Enum):
-    """
-    Exhaustive list of auth-domain error codes.
-    str-mixin ensures JSON serialization produces the string value directly.
-    """
-
-    INVALID_CREDENTIALS = "invalid_credentials"
-    EMAIL_ALREADY_EXISTS = "email_already_exists"
-    USERNAME_ALREADY_EXISTS = "username_already_exists"
-    ACCOUNT_DISABLED = "account_disabled"
-    TOKEN_EXPIRED = "token_expired"
-    TOKEN_INVALID = "token_invalid"
-    PASSWORD_SAME_AS_CURRENT = "password_same_as_current"
 
 
 # ============================================================================

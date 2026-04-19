@@ -50,11 +50,11 @@ class Item(Base, SoftDeleteTimestampMixin):
     )
 
     language: Mapped["Language"] = relationship(foreign_keys=[language_id])
-    creator: Mapped["User"] = relationship(
+    creator: Mapped["User | None"] = relationship(
         foreign_keys=[creator_id],
         primaryjoin="Item.creator_id == User.id",
     )
-    verifier: Mapped["User"] = relationship(
+    verifier: Mapped["User | None"] = relationship(
         foreign_keys=[verified_by],
         primaryjoin="Item.verified_by == User.id",
     )

@@ -29,7 +29,7 @@ SM-2 note:
 """
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -449,7 +449,7 @@ class ProgressUpdater:
         if not language_id:
             return
 
-        today = date.today()
+        today = datetime.now(timezone.utc).date()
         correct = sum(1 for e in raw_events if e.is_correct)
         incorrect = len(raw_events) - correct
         total_seconds = Decimal(

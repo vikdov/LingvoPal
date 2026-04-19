@@ -156,7 +156,7 @@ class ItemService:
 
         _UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
         filename = f"{uuid.uuid4().hex}.{ext}"
-        (  _UPLOAD_DIR / filename).write_bytes(data)
+        (_UPLOAD_DIR / filename).write_bytes(data)
 
         image_url = f"{base_url.rstrip('/')}/static/uploads/{filename}"
         await self._items.update(item_id, image_url=image_url)

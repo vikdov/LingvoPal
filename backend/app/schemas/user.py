@@ -7,7 +7,6 @@ User profile schemas with privacy controls.
 - DetailResponse: Private + settings
 """
 
-from typing import Optional
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.schemas.common import BaseResponseWithDeleted
@@ -27,7 +26,7 @@ class UserPublicReference(BaseModel):
 class UserUpdateRequest(BaseModel):
     """PATCH /api/v1/users/me"""
 
-    username: Optional[str] = Field(
+    username: str | None = Field(
         None,
         min_length=3,
         max_length=50,
@@ -35,13 +34,6 @@ class UserUpdateRequest(BaseModel):
     )
     # No email update (requires verification flow)
     # No password update (separate endpoint)
-
-
-class UserSettingsUpdateRequest(BaseModel):
-    """PATCH /api/v1/users/me/settings"""
-
-    native_language_id: Optional[int] = Field(None, gt=0)
-    interface_language_id: Optional[int] = Field(None, gt=0)
 
 
 # ============================================================================
@@ -88,8 +80,8 @@ class LanguageRefResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class UserSettingsResponse(BaseModel):
-    """User's preferences and configuration"""
+class UserSettingsEmbedded(BaseModel):
+    """Minimal settings embedded inside UserDetailResponse."""
 
     user_id: int
     native_language: LanguageRefResponse
@@ -105,15 +97,14 @@ class UserDetailResponse(UserPrivateResponse):
     Not included: audit logs, full relationship expansion
     """
 
-    settings: Optional[UserSettingsResponse] = None
+    settings: UserSettingsEmbedded | None = None
 
 
 __all__ = [
     "UserUpdateRequest",
-    "UserSettingsUpdateRequest",
     "UserPublicResponse",
     "UserPrivateResponse",
     "UserDetailResponse",
-    "UserSettingsResponse",
+    "UserSettingsEmbedded",
     "LanguageRefResponse",
 ]

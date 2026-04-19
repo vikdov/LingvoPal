@@ -26,21 +26,17 @@ import redis.asyncio as aioredis
 
 from app.services.auth_service import AuthService
 from app.services.item_service import ItemService
+from app.services.moderation_service import ModerationService
 from app.services.practice_service import PracticeService
 from app.services.set_service import SetService
 from app.services.user_settings_service import UserSettingsService
-from app.core.security import decode_token as decode_access_token
+from app.core.security import decode_token as decode_access_token, TokenExpiredError, TokenInvalidError
 
 # ============================================================================
 # OAuth2 Scheme
 # ============================================================================
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
-
-
-# ============================================================================
-# Database
-# ============================================================================
 
 
 # ============================================================================
@@ -91,9 +87,15 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    # Decode JWT token
-    payload = decode_access_token(token)
-    if payload is None:
+    try:
+        payload = decode_access_token(token)
+    except TokenExpiredError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token expired",
+            headers={"WWW-Authenticate": 'Bearer error="invalid_token", error_description="Token expired"'},
+        )
+    except TokenInvalidError:
         raise credentials_exception
 
     user_id_str: str | None = payload.get("sub")
@@ -105,7 +107,7 @@ async def get_current_user(
         raise credentials_exception
 
     # ASYNC: Use select() + execute()
-    stmt = select(User).where(User.id == user_id)
+    stmt = select(User).where(User.id == user_id, User.deleted_at.is_(None))
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
@@ -166,13 +168,10 @@ async def get_current_admin(
 
 
 async def get_db_for_writes(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> AsyncSession:
-    """
-    A specialized DB dependency for routes that mutate data (INSERT/UPDATE/DELETE).
-    Automatically injects the audit user ID into the PostgreSQL transaction.
-    """
+    """DB session with app.current_user_id set — audit trigger reads this."""
     await set_db_current_user(db, current_user.id)
     return db
 
@@ -203,13 +202,11 @@ async def get_auth_service(db: DBSession) -> AuthService:
     return AuthService(db)
 
 
-async def get_set_service(db: DBSession) -> SetService:
-    """FastAPI dependency: Set service, injected with current session."""
+async def get_set_service(db: WriteDBSession) -> SetService:
     return SetService(db)
 
 
-async def get_item_service(db: DBSession) -> ItemService:
-    """FastAPI dependency: Item service, injected with current session."""
+async def get_item_service(db: WriteDBSession) -> ItemService:
     return ItemService(db)
 
 
@@ -245,6 +242,10 @@ async def get_stats_service(
     return StatsService(db, current_user.id)
 
 
+async def get_moderation_service(db: WriteDBSession) -> ModerationService:
+    return ModerationService(db)
+
+
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 StatsServiceDep = Annotated[StatsService, Depends(get_stats_service)]
 SetServiceDep = Annotated[SetService, Depends(get_set_service)]
@@ -253,16 +254,17 @@ UserSettingsServiceDep = Annotated[
     UserSettingsService, Depends(get_user_settings_service)
 ]
 PracticeServiceDep = Annotated[PracticeService, Depends(get_practice_service)]
+ModerationServiceDep = Annotated[ModerationService, Depends(get_moderation_service)]
 
 
 __all__ = [
     "oauth2_scheme",
-    "get_db",
     "get_db_for_writes",
     "get_current_settings",
     "get_current_user",
     "get_current_verified_user",
     "get_current_admin",
+    "get_db_for_writes",
     # Type aliases
     "DBSession",
     "WriteDBSession",
@@ -277,10 +279,12 @@ __all__ = [
     "get_redis_client",
     "get_stats_service",
     "get_practice_service",
+    "get_moderation_service",
     "AuthServiceDep",
     "SetServiceDep",
     "ItemServiceDep",
     "UserSettingsServiceDep",
     "PracticeServiceDep",
     "StatsServiceDep",
+    "ModerationServiceDep",
 ]

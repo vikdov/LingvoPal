@@ -19,7 +19,6 @@ Idempotency:
 """
 
 import asyncio
-import json
 import logging
 from datetime import datetime, timezone
 
@@ -193,8 +192,8 @@ class SessionSweeper:
             await repo.save_pending_session(
                 session_id=session_id,
                 user_id=user_id,
-                raw_events_json=json.dumps([e.to_dict() for e in raw_events]),
-                session_state_json=json.dumps(state.to_dict()),
+                raw_events_json=[e.to_dict() for e in raw_events],
+                session_state_json=state.to_dict(),
             )
             await db.commit()
             # Re-fetch db_session: SQLAlchemy expires ORM objects on commit
@@ -207,12 +206,10 @@ class SessionSweeper:
             pending = await repo.get_pending_session(session_id)
             if pending is not None:
                 try:
-                    state = SessionState.from_dict(
-                        json.loads(pending.session_state_json)
-                    )
+                    state = SessionState.from_dict(pending.session_state_json)
                     raw_events = [
                         RawAnswerEvent.from_dict(e)
-                        for e in json.loads(pending.raw_events_json)
+                        for e in pending.raw_events_json
                     ]
                 except Exception:
                     logger.warning(

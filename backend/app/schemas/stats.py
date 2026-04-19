@@ -46,7 +46,7 @@ class TotalStatsResponse(BaseModel):
     language_id: int
     total_seconds: Decimal = Field(..., ge=0)
     total_words: int = Field(..., ge=0)
-    last_repaired: datetime | None = None
+    last_recalculated_at: datetime | None = None
 
     @computed_field
     @property

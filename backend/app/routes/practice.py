@@ -170,9 +170,6 @@ async def abandon_session(
     return SessionSummaryResponse(**summary)
 
 
-# ── Summary ───────────────────────────────────────────────────────────────────
-
-
 @router.get(
     "/sessions/{session_id}/config",
     response_model=ComparisonConfig,

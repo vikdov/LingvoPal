@@ -8,7 +8,7 @@ Lifecycle:
 """
 
 from datetime import datetime
-from typing import Optional, Any
+from typing import Any
 
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -25,7 +25,7 @@ class SubmitForReviewRequest(BaseModel):
     """POST /api/v1/moderation/sets/{set_id}/submit
        POST /api/v1/moderation/items/{item_id}/submit"""
 
-    feedback: Optional[str] = Field(
+    feedback: str | None = Field(
         None,
         max_length=2000,
         description="Optional note to the reviewer",
@@ -40,7 +40,7 @@ class SubmitForReviewRequest(BaseModel):
 class ApproveModerationRequest(BaseModel):
     """POST /api/v1/admin/moderation/{moderation_id}/approve"""
 
-    resolution_feedback: Optional[str] = Field(
+    resolution_feedback: str | None = Field(
         None, max_length=1000, description="Optional approval note"
     )
 
@@ -59,8 +59,8 @@ class RejectModerationRequest(BaseModel):
 
 
 class ModerationListQueryParams(BaseModel):
-    target_type: Optional[ModerationTargetType] = None
-    status: Optional[ModerationStatus] = None
+    target_type: ModerationTargetType | None = None
+    status: ModerationStatus | None = None
     skip: int = Field(default=0, ge=0)
     limit: int = Field(default=20, ge=1, le=100)
 
@@ -78,9 +78,9 @@ class ModerationSubmissionResponse(BaseResponse):
     target_type: ModerationTargetType
     target_id: int
     status: ModerationStatus
-    feedback: Optional[str] = None
-    resolution_feedback: Optional[str] = None
-    resolved_at: Optional[datetime] = None
+    feedback: str | None = None
+    resolution_feedback: str | None = None
+    resolved_at: datetime | None = None
 
 
 class PendingModerationResponse(BaseResponse):
@@ -94,11 +94,11 @@ class PendingModerationResponse(BaseResponse):
     target_id: int = Field(..., description="ID of content being reviewed")
     creator_id: int
     status: ModerationStatus
-    feedback: Optional[str] = Field(None, description="Creator's note to reviewer")
+    feedback: str | None = Field(None, description="Creator's note to reviewer")
     patch_data: dict[str, Any] = Field(..., description="Content snapshot at submission time")
-    resolved_at: Optional[datetime] = None
-    moderator_id: Optional[int] = None
-    resolution_feedback: Optional[str] = None
+    resolved_at: datetime | None = None
+    moderator_id: int | None = None
+    resolution_feedback: str | None = None
 
 
 __all__ = [

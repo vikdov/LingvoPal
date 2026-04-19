@@ -3,7 +3,7 @@
 
 from typing import Any, TYPE_CHECKING
 
-from sqlalchemy import BigInteger, ForeignKey, Index
+from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -32,7 +32,10 @@ class ContentAuditLog(Base, CreatedAtMixin):
 
     user: Mapped["User"] = relationship()
 
-    __table_args__ = (Index("idx_content_audit_log_target", "table_name", "record_id"),)
+    __table_args__ = (
+        CheckConstraint("action IN ('INSERT', 'UPDATE', 'DELETE')", name="chk_audit_action"),
+        Index("idx_content_audit_log_target", "table_name", "record_id"),
+    )
 
     def __repr__(self) -> str:
         return f"<ContentAuditLog {self.action} {self.table_name}:{self.record_id}>"

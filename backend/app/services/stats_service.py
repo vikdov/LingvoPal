@@ -48,11 +48,12 @@ class StatsService:
             lang_map = {}
 
         streaks = await self._repo.get_streak_batch(self._user_id, lang_ids)
+        today_stats = await self._repo.get_today_stats_batch(self._user_id, lang_ids)
 
         # Per-language: today's stats + streak
         languages_overview = []
         for lang_id in lang_ids:
-            today = await self._repo.get_today_stats(self._user_id, lang_id)
+            today = today_stats.get(lang_id)
             streak = streaks.get(lang_id, 0)
             lang = lang_map.get(lang_id)
             languages_overview.append(
@@ -180,8 +181,8 @@ class StatsService:
                     "total_words_learned": row.total_words,
                     "total_hours": round(float(row.total_seconds) / 3600, 2),
                     "streak_days": streak,
-                    "last_repaired": (
-                        row.last_repaired.isoformat() if row.last_repaired else None
+                    "last_recalculated_at": (
+                        row.last_recalculated_at.isoformat() if row.last_recalculated_at else None
                     ),
                 }
             )

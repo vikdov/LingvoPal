@@ -115,6 +115,7 @@ def create_async_db_engine(
         max_overflow=max_overflow,  # Max additional connections
         pool_recycle=3600,  # Recycle connections after 1 hour
         pool_pre_ping=True,  # Verify connection before use
+        pool_timeout=30,
         # PostgreSQL configuration
         connect_args={
             "server_settings": {

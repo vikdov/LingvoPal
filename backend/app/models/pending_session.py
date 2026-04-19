@@ -4,7 +4,9 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Text
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.sql import func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -39,18 +41,18 @@ class PendingSession(Base):
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    raw_events_json: Mapped[str] = mapped_column(
-        Text,
+    raw_events_json: Mapped[list] = mapped_column(
+        JSONB,
         nullable=False,
-        comment="JSON array of RawAnswerEvent — buffered per-answer data",
+        comment="Array of RawAnswerEvent dicts — buffered per-answer data",
     )
-    session_state_json: Mapped[str] = mapped_column(
-        Text,
+    session_state_json: Mapped[dict] = mapped_column(
+        JSONB,
         nullable=False,
         comment="Snapshot of SessionState metadata (item_order, current_index, config)",
     )
     saved_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     recovered: Mapped[bool] = mapped_column(
         default=False,

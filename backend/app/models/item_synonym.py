@@ -45,11 +45,11 @@ class ItemSynonym(Base, SoftDeleteTimestampMixin):
         foreign_keys=[item_b_id],
         primaryjoin="ItemSynonym.item_b_id == Item.id",
     )
-    creator: Mapped["User"] = relationship(
+    creator: Mapped["User | None"] = relationship(
         foreign_keys=[creator_id],
         primaryjoin="ItemSynonym.creator_id == User.id",
     )
-    verifier: Mapped["User"] = relationship(
+    verifier: Mapped["User | None"] = relationship(
         foreign_keys=[verified_by],
         primaryjoin="ItemSynonym.verified_by == User.id",
     )
