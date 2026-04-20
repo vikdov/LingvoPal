@@ -179,7 +179,7 @@ LingvoPal intentionally limits flexibility in favor of a method that reliably im
 ### Prerequisites
 
 * Node.js 20+
-* Python 3.10+
+* Python 3.13+
 
 ---
 
