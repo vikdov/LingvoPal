@@ -90,3 +90,9 @@ docker-compose.override.yml
 .dmypy.json
 dmypy.json
 CLAUDE.md   
+# Added by code-review-graph
+.code-review-graph/
+.mcp.json
+
+# Git worktrees
+.worktrees/
