@@ -49,6 +49,7 @@ from app.services.answer_evaluator import (
     T_MAX_MS,
     map_quality,
 )
+from app.repositories.quality_repo import QualityRepository
 from app.services.session_manager import RawAnswerEvent, SessionManager, SessionState
 from app.services.sm2_engine import (
     SM2State,
@@ -130,6 +131,10 @@ class ProgressUpdater:
 
         # ── 2. Bulk insert StudyReview rows ───────────────────────────────────
         await self._insert_reviews(state, processed, language_id)
+
+        # ── 2b. Update item quality metrics for reviewed items ────────────────
+        reviewed_item_ids = list({p["item_id"] for p in processed})
+        await QualityRepository(self._db).upsert_item_quality(reviewed_item_ids)
 
         # ── 3. Upsert UserDailyStats + UserStatsTotal ─────────────────────────
         await self._upsert_daily_stats(state, raw_events, language_id, new_words_count)

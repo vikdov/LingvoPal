@@ -8,10 +8,23 @@ Every function is a pure transformation: (state, q) → next_state.
 
 SM-2 algorithm overview:
   - q ≥ 3  → successful recall  → interval grows via ease factor
-  - q < 3  → failure (lapse)    → interval resets, EF decreases
-  - n=1: 6-hour initial interval (sub-day review for brand-new cards)
+  - q < 3  → failure (lapse)    → interval drops proportionally, EF unchanged
+  - n=1 success: 1-day interval (review next day)
+  - n=1 lapse:   1-hour interval (never recalled — show again this session)
   - n=2: short interval based on EF (4–10 days)
   - n>2: interval = prev_interval × EF
+
+Deviations from original SM-2 (intentional):
+  - Lapse interval: proportional drop (interval × 0.33) instead of reset to 1 day.
+    Mature cards (interval > 3 days) set repetitions=1 to skip 6-hour re-learning.
+  - EF unchanged on lapse (original SM-2 behaviour — we do NOT penalise EF).
+  - First interval: 1 day (matches original SM-2; overnight gap aids consolidation).
+  - Second interval: EF-based heuristic (4/6/10 days) instead of flat 6 days.
+  - q=3 (slow-correct): EF treated as neutral (same as q=4). Instead, the computed
+    interval for that cycle is scaled by SLOW_ANSWER_INTERVAL_FACTOR (0.75). This
+    separates "item difficulty" (long-term EF) from "momentary retrieval latency"
+    (one-time interval nudge). Effortful-but-correct recall strengthens memory and
+    should not permanently degrade scheduling.
 
 review_intensity coefficient (from user settings):
   - Scales ALL computed intervals uniformly.
@@ -38,15 +51,21 @@ INITIAL_EF: Final[Decimal] = Decimal("2.5")
 # q ≥ this → success; q < this → lapse
 QUALITY_THRESHOLD: Final[int] = 3
 
-# New-card first-review interval (6 hours expressed as fractional days)
-INITIAL_INTERVAL_HOURS: Final[float] = 6.0
+# Lapse: interval shrinks to this fraction of the previous interval
+LAPSE_INTERVAL_FACTOR: Final[Decimal] = Decimal("0.33")
 
-# Ease factor penalty per lapse
-EF_LAPSE_PENALTY: Final[Decimal] = Decimal("0.3")
+# Minimum recovery interval after any lapse (days)
+MIN_LAPSE_DAYS: Final[int] = 1
 
-# Lapse-recovery intervals (minutes); after each consecutive failure
-_LAPSE_RECOVERY_INTERVALS_MINUTES: Final[tuple[int, ...]] = (1440, 30, 10, 5)
-# index:  0=first failure, 1=second, 2=third, 3+=fourth and beyond
+# Re-show interval for a card never successfully recalled
+NEW_CARD_LAPSE_HOURS: Final[int] = 1
+
+# Cards with interval_days above this are considered mature
+_MATURE_CARD_DAYS: Final[int] = 3
+
+# q=3 (slow-correct): this factor shortens the interval for that cycle only.
+# EF is left neutral — latency shouldn't degrade long-term ease.
+SLOW_ANSWER_INTERVAL_FACTOR: Final[Decimal] = Decimal("0.75")
 
 # Long-absence decay thresholds / rates
 _DECAY_THRESHOLDS = ((90, Decimal("0.98")), (180, Decimal("0.95")))
@@ -77,7 +96,7 @@ class SM2State:
     """Number of consecutive successful recalls (resets on lapse)."""
 
     lapsed_attempts: int = field(default=0)
-    """Consecutive failures since last success (for recovery scheduling)."""
+    """Total lifetime lapse count for this item (never resets)."""
 
 
 @dataclass(frozen=True)
@@ -158,22 +177,38 @@ def _handle_lapse(
     ef: Decimal,
     now: datetime,
 ) -> SM2Result:
-    """Card failed. Decrease EF, schedule short recovery interval."""
-    new_ef = max(MIN_EF, ef - EF_LAPSE_PENALTY)
+    """Card failed. EF unchanged (original SM-2). Interval drops proportionally."""
     new_lapsed = state.lapsed_attempts + 1
 
-    # Determine recovery interval in minutes based on consecutive failures
-    idx = min(new_lapsed - 1, len(_LAPSE_RECOVERY_INTERVALS_MINUTES) - 1)
-    recovery_minutes = _LAPSE_RECOVERY_INTERVALS_MINUTES[idx]
+    if state.repetitions == 0:
+        # Never successfully recalled — show again in 1 hour
+        return SM2Result(
+            new_state=SM2State(
+                interval_days=0,
+                ease_factor=ef,
+                repetitions=0,
+                lapsed_attempts=new_lapsed,
+            ),
+            next_review_at=now + timedelta(hours=NEW_CARD_LAPSE_HOURS),
+            was_lapsed=True,
+        )
+
+    mature = state.interval_days > _MATURE_CARD_DAYS
+    if mature:
+        recovery_days = max(MIN_LAPSE_DAYS, round(state.interval_days * float(LAPSE_INTERVAL_FACTOR)))
+        new_repetitions = 1
+    else:
+        recovery_days = MIN_LAPSE_DAYS
+        new_repetitions = 0
 
     return SM2Result(
         new_state=SM2State(
-            interval_days=0,
-            ease_factor=new_ef,
-            repetitions=0,          # reset streak on lapse
+            interval_days=recovery_days,
+            ease_factor=ef,
+            repetitions=new_repetitions,
             lapsed_attempts=new_lapsed,
         ),
-        next_review_at=now + timedelta(minutes=recovery_minutes),
+        next_review_at=now + timedelta(days=recovery_days),
         was_lapsed=True,
     )
 
@@ -190,21 +225,30 @@ def _handle_success(
     review_intensity: float,
     now: datetime,
 ) -> SM2Result:
-    """Card recalled successfully. Update EF, compute next interval."""
+    """Card recalled successfully. Update EF, compute next interval.
+
+    q=3 (slow-correct): EF updated as if q=4 (neutral). Interval scaled by
+    SLOW_ANSWER_INTERVAL_FACTOR for this cycle only — see module docstring.
+    """
     new_repetitions = state.repetitions + 1
-    new_ef = _update_ef(ef, q)
+
+    # q=3: EF neutral (don't penalise long-term ease for slow-but-correct recall)
+    ef_q = q if q > QUALITY_THRESHOLD else QUALITY_THRESHOLD + 1
+    new_ef = _update_ef(ef, ef_q)
+
+    slow = q == QUALITY_THRESHOLD
 
     if new_repetitions == 1:
-        # Very first successful recall: schedule within the same day
-        hours = INITIAL_INTERVAL_HOURS * review_intensity
+        raw_first = 1 * (float(SLOW_ANSWER_INTERVAL_FACTOR) if slow else 1.0)
+        first_days = max(1, round(raw_first * review_intensity))
         return SM2Result(
             new_state=SM2State(
-                interval_days=1,
+                interval_days=first_days,
                 ease_factor=new_ef,
                 repetitions=new_repetitions,
-                lapsed_attempts=0,
+                lapsed_attempts=state.lapsed_attempts,
             ),
-            next_review_at=now + timedelta(hours=hours),
+            next_review_at=now + timedelta(days=first_days),
             was_lapsed=False,
         )
 
@@ -213,15 +257,15 @@ def _handle_success(
     else:
         raw_days = int(state.interval_days * float(new_ef))
 
-    # Apply review_intensity: < 1.0 shortens intervals, > 1.0 lengthens them
-    final_days = max(1, round(raw_days * review_intensity))
+    slow_scale = float(SLOW_ANSWER_INTERVAL_FACTOR) if slow else 1.0
+    final_days = max(1, round(raw_days * slow_scale * review_intensity))
 
     return SM2Result(
         new_state=SM2State(
             interval_days=final_days,
             ease_factor=new_ef,
             repetitions=new_repetitions,
-            lapsed_attempts=0,
+            lapsed_attempts=state.lapsed_attempts,
         ),
         next_review_at=now + timedelta(days=final_days),
         was_lapsed=False,
@@ -314,5 +358,8 @@ __all__ = [
     "MIN_EF",
     "MAX_EF",
     "QUALITY_THRESHOLD",
-    "INITIAL_INTERVAL_HOURS",
+    "LAPSE_INTERVAL_FACTOR",
+    "MIN_LAPSE_DAYS",
+    "NEW_CARD_LAPSE_HOURS",
+    "SLOW_ANSWER_INTERVAL_FACTOR",
 ]

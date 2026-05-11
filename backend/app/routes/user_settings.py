@@ -64,7 +64,7 @@ async def patch_my_settings(
     except SettingsValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"field": exc.field, "message": exc.reason},
+            detail={"error": "settings_validation_error", "message": exc.reason},
         )
 
     return UserSettingsResponse.model_validate(settings)

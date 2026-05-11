@@ -17,6 +17,19 @@ from app.models.user_stats_total import UserStatsTotal
 from app.models.study_review import StudyReview
 
 
+def interval_to_bucket_key(interval: int) -> str:
+    """Map an SM-2 interval (days) to a maturity bucket key."""
+    if interval <= 1:
+        return "new"
+    if interval <= 7:
+        return "learning"
+    if interval <= 21:
+        return "young"
+    if interval <= 120:
+        return "mature"
+    return "long_term"
+
+
 class StatsRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -208,6 +221,199 @@ class StatsRepository:
             )
         )
         return result or 0
+
+    # ── Vocabulary maturity ───────────────────────────────────────────────────
+
+    async def get_vocab_maturity(self, user_id: int, language_id: int) -> dict:
+        from app.models.user_progress import UserProgress
+        from app.models.item import Item
+
+        now = datetime.now(timezone.utc)
+        month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+        week_ago = now - timedelta(days=7)
+
+        items_result = await self._session.execute(
+            select(UserProgress.item_id, Item.term, UserProgress.interval)
+            .join(Item, Item.id == UserProgress.item_id)
+            .where(
+                UserProgress.user_id == user_id,
+                Item.language_id == language_id,
+                Item.deleted_at.is_(None),
+            )
+            .order_by(Item.term.asc())
+        )
+        items_data = items_result.fetchall()
+        total = len(items_data)
+
+        bucket_words: dict[str, list[dict]] = {
+            "new": [], "learning": [], "young": [], "mature": [], "long_term": []
+        }
+        for item_id, term, interval in items_data:
+            word = {"item_id": item_id, "term": term, "interval": interval}
+            bucket_words[interval_to_bucket_key(interval)].append(word)
+
+        def pct(n: int) -> float:
+            return round(n / total * 100, 1) if total else 0.0
+
+        recently_mature = await self._session.scalar(
+            select(func.count(func.distinct(StudyReview.item_id))).where(
+                StudyReview.user_id == user_id,
+                StudyReview.language_id == language_id,
+                StudyReview.reviewed_at >= week_ago,
+                StudyReview.interval_before < 22,
+                StudyReview.interval_after >= 22,
+                StudyReview.interval_after.isnot(None),
+            )
+        )
+
+        recently_long_term = await self._session.scalar(
+            select(func.count(func.distinct(StudyReview.item_id))).where(
+                StudyReview.user_id == user_id,
+                StudyReview.language_id == language_id,
+                StudyReview.reviewed_at >= week_ago,
+                StudyReview.interval_before < 120,
+                StudyReview.interval_after >= 120,
+                StudyReview.interval_after.isnot(None),
+            )
+        )
+
+        first_review_subq = (
+            select(
+                StudyReview.item_id,
+                func.min(StudyReview.reviewed_at).label("first_reviewed"),
+            )
+            .where(
+                StudyReview.user_id == user_id,
+                StudyReview.language_id == language_id,
+            )
+            .group_by(StudyReview.item_id)
+            .subquery()
+        )
+        new_this_month = await self._session.scalar(
+            select(func.count())
+            .select_from(first_review_subq)
+            .where(first_review_subq.c.first_reviewed >= month_start)
+        )
+
+        def make_bucket(label: str, key: str, range_: str) -> dict:
+            words = bucket_words[key]
+            return {
+                "label": label, "key": key, "range": range_,
+                "count": len(words), "percent": pct(len(words)), "words": words,
+            }
+
+        return {
+            "total_items": total,
+            "buckets": [
+                make_bucket("New", "new", "0–1d"),
+                make_bucket("Learning", "learning", "2–7d"),
+                make_bucket("Young", "young", "8–21d"),
+                make_bucket("Mature", "mature", "22–120d"),
+                make_bucket("Long-term", "long_term", "120d+"),
+            ],
+            "recently_mature": recently_mature or 0,
+            "recently_long_term": recently_long_term or 0,
+            "new_this_month": new_this_month or 0,
+        }
+
+    # ── Set context stats ─────────────────────────────────────────────────────
+
+    async def get_set_context(self, user_id: int, set_id: int) -> dict:
+        from app.models.set_item import SetItem
+        from app.models.user_progress import UserProgress
+        from app.models.item import Item
+
+        # All items in the set
+        set_items_result = await self._session.execute(
+            select(SetItem.item_id).where(SetItem.set_id == set_id)
+        )
+        all_item_ids = [row[0] for row in set_items_result.fetchall()]
+        total_items = len(all_item_ids)
+
+        if total_items == 0:
+            return {
+                "set_id": set_id,
+                "total_items": 0,
+                "practiced_items": 0,
+                "practiced_percent": 0.0,
+                "not_started": 0,
+                "maturity_buckets": [],
+                "hardest_words": [],
+            }
+
+        # User progress for items in this set
+        progress_result = await self._session.execute(
+            select(UserProgress.item_id, UserProgress.interval)
+            .where(
+                UserProgress.user_id == user_id,
+                UserProgress.item_id.in_(all_item_ids),
+            )
+        )
+        progress_map = {row[0]: row[1] for row in progress_result.fetchall()}
+        practiced_items = len(progress_map)
+        not_started = total_items - practiced_items
+
+        def pct(n: int) -> float:
+            return round(n / total_items * 100, 1) if total_items else 0.0
+
+        # Bucket practiced items (percent of TOTAL set, not just practiced)
+        bucket_counts = {"new": 0, "learning": 0, "young": 0, "mature": 0, "long_term": 0}
+        for interval in progress_map.values():
+            bucket_counts[interval_to_bucket_key(interval)] += 1
+
+        maturity_buckets = [
+            {"label": "Not started", "key": "not_started", "count": not_started, "percent": pct(not_started)},
+            {"label": "New", "key": "new", "count": bucket_counts["new"], "percent": pct(bucket_counts["new"])},
+            {"label": "Learning", "key": "learning", "count": bucket_counts["learning"], "percent": pct(bucket_counts["learning"])},
+            {"label": "Young", "key": "young", "count": bucket_counts["young"], "percent": pct(bucket_counts["young"])},
+            {"label": "Mature", "key": "mature", "count": bucket_counts["mature"], "percent": pct(bucket_counts["mature"])},
+            {"label": "Long-term", "key": "long_term", "count": bucket_counts["long_term"], "percent": pct(bucket_counts["long_term"])},
+        ]
+
+        # Hardest words in this set (min 3 reviews, ≥ 25% failure rate)
+        total_expr = func.count(StudyReview.id)
+        fail_expr = func.sum(
+            case((StudyReview.was_correct == False, 1), else_=0)  # noqa: E712
+        )
+        rate_expr = cast(fail_expr, Float) / total_expr
+
+        hardest_result = await self._session.execute(
+            select(
+                Item.id.label("item_id"),
+                Item.term,
+                total_expr.label("total_reviews"),
+                rate_expr.label("failure_rate"),
+            )
+            .join(Item, Item.id == StudyReview.item_id)
+            .where(
+                StudyReview.user_id == user_id,
+                StudyReview.set_id == set_id,
+                Item.deleted_at.is_(None),
+            )
+            .group_by(Item.id, Item.term)
+            .having(total_expr >= 3, rate_expr >= 0.25)
+            .order_by(rate_expr.desc())
+            .limit(5)
+        )
+        hardest_words = [
+            {
+                "item_id": row.item_id,
+                "term": row.term,
+                "total_reviews": row.total_reviews,
+                "failure_rate": round(float(row.failure_rate), 4),
+            }
+            for row in hardest_result.fetchall()
+        ]
+
+        return {
+            "set_id": set_id,
+            "total_items": total_items,
+            "practiced_items": practiced_items,
+            "practiced_percent": pct(practiced_items),
+            "not_started": not_started,
+            "maturity_buckets": maturity_buckets,
+            "hardest_words": hardest_words,
+        }
 
     # ── Hardest items ─────────────────────────────────────────────────────────
 

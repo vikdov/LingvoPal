@@ -4,7 +4,7 @@
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from app.models.enums import ContentStatus, PartOfSpeech
-from app.schemas.common import BaseResponseWithDeleted
+from app.schemas.common import BaseResponseWithDeleted, BaseResponseWithUpdated
 
 
 # ============================================================================
@@ -66,13 +66,36 @@ class TranslationUpdateRequest(BaseModel):
     context_trans: str | None = Field(None, max_length=1000)
 
 
+class SynonymTermsRequest(BaseModel):
+    """PUT /api/v1/items/{item_id}/synonyms"""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    terms: list[str] = Field(default_factory=list)
+
+
 # ============================================================================
 # RESPONSE SCHEMAS
 # ============================================================================
 
 
-class ItemResponse(BaseResponseWithDeleted):
-    """Standard item response."""
+class ItemSummaryResponse(BaseModel):
+    """Slim item shape for search/list views — no timestamps or audit fields."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    term: str
+    language_id: int
+    context: str | None
+    difficulty: int | None
+    part_of_speech: PartOfSpeech | None
+    image_url: str | None
+    status: ContentStatus
+
+
+class ItemResponse(BaseResponseWithUpdated):
+    """Standard item response — full fields, no translations."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -94,7 +117,7 @@ class ItemResponse(BaseResponseWithDeleted):
         return self.status in (ContentStatus.APPROVED, ContentStatus.OFFICIAL)
 
 
-class TranslationResponse(BaseResponseWithDeleted):
+class TranslationResponse(BaseResponseWithUpdated):
     """Translation of an item."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -136,8 +159,10 @@ __all__ = [
     "AddExistingItemRequest",
     "TranslationCreateRequest",
     "TranslationUpdateRequest",
+    "SynonymTermsRequest",
+    "ItemSummaryResponse",
     "ItemResponse",
-    "SetItemResponse",
-    "TranslationResponse",
     "ItemDetailResponse",
+    "TranslationResponse",
+    "SetItemResponse",
 ]

@@ -5,7 +5,10 @@ Admin-only schemas for system operations.
 Restricted to users with is_admin=True
 """
 
-from pydantic import BaseModel, Field
+from datetime import datetime
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class UserListQueryParams(BaseModel):
@@ -27,7 +30,38 @@ class RepairStatsRequest(BaseModel):
     language_id: int | None = Field(None, description="Repair for specific language")
 
 
+class PromoteToOfficialRequest(BaseModel):
+    """POST /api/v1/admin/items/{item_id}/promote"""
+
+    override: bool = Field(
+        False,
+        description="Bypass quality threshold checks and force promotion",
+    )
+
+
+class AdminOverviewStats(BaseModel):
+    community_count: int
+    pending_queue_count: int
+    total_complaints: int
+
+
+class AuditLogEntry(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    created_at: datetime
+    table_name: str
+    record_id: int
+    action: str
+    old_values: dict[str, Any] | None
+    new_values: dict[str, Any] | None
+    user_id: int | None
+
+
 __all__ = [
     "UserListQueryParams",
     "RepairStatsRequest",
+    "PromoteToOfficialRequest",
+    "AdminOverviewStats",
+    "AuditLogEntry",
 ]

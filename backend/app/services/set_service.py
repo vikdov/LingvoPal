@@ -9,15 +9,20 @@ Design decisions documented here:
   - Fork set     = creates a new owned DRAFT set; SetItem rows copy (shared item refs, not duplicates)
 """
 
+from datetime import datetime, timezone
+
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
+    BusinessRuleViolationError,
     DuplicateResourceError,
     NotAuthorizedError,
     ResourceNotFoundError,
 )
-from app.models.enums import ContentStatus
+from app.models.enums import ContentStatus, SessionStatus
 from app.models.set import Set
+from app.models.study_session import StudySession
 from app.models.user_set_library import UserSetLibrary
 from app.repositories.item_repo import ItemRepository
 from app.repositories.set_repo import SetRepository
@@ -43,7 +48,7 @@ class SetService:
 
     async def create_set(self, user_id: int, data: SetCreateRequest) -> tuple[Set, int]:
         """
-        Create a new set owned by the user.
+        Create a new set owned by the user and auto-add it to their library.
         Returns (set, item_count=0).
         """
         s = await self._sets.create(
@@ -55,6 +60,8 @@ class SetService:
             creator_id=user_id,
             status=ContentStatus.DRAFT,
         )
+        await self._session.flush()
+        await self._sets.save_to_library(user_id, s.id)
         await self._session.commit()
         await self._session.refresh(s)
         return s, 0
@@ -77,15 +84,17 @@ class SetService:
         *,
         skip: int = 0,
         limit: int = 20,
-    ) -> tuple[list[tuple[Set, int]], int]:
+    ) -> tuple[list[tuple[Set, int, bool]], int]:
         """
-        List all sets owned by the user, with their item counts.
-        Returns ([(set, item_count), ...], total).
+        List all sets owned by the user, with item counts and pin status.
+        Returns ([(set, item_count, is_pinned), ...], total).
         """
         sets = await self._sets.get_owned(user_id, skip=skip, limit=limit)
         total = await self._sets.count_owned(user_id)
-        counts = await self._sets.count_items_batch([s.id for s in sets])
-        results = [(s, counts[s.id]) for s in sets]
+        set_ids = [s.id for s in sets]
+        counts = await self._sets.count_items_batch(set_ids)
+        pins = await self._sets.get_library_pins_batch(user_id, set_ids)
+        results = [(s, counts[s.id], pins.get(s.id, False)) for s in sets]
         return results, total
 
     async def update_set(
@@ -93,7 +102,7 @@ class SetService:
     ) -> tuple[Set, int]:
         """
         Update a set the user owns.
-        Raises ResourceNotFoundError, NotAuthorizedError.
+        Raises ResourceNotFoundError, NotAuthorizedError, BusinessRuleViolationError.
         Returns (updated_set, item_count).
         """
         s = await self._sets.get_by_id(set_id)
@@ -102,11 +111,24 @@ class SetService:
         if s.creator_id != user_id:
             raise NotAuthorizedError("update this set")
 
+        sent = data.model_fields_set
+
+        # Guard: source language cannot differ from item languages when items exist
+        if "source_lang_id" in sent and data.source_lang_id is not None:
+            item_langs = await self._items.get_distinct_item_languages(set_id)
+            if item_langs and data.source_lang_id not in item_langs:
+                raise BusinessRuleViolationError(
+                    f"Cannot change source language: items in this set use "
+                    f"language ID(s) {sorted(item_langs)}. Update or remove items first."
+                )
+
         await self._sets.update(
             set_id,
-            title=data.title,
-            description=data.description,
-            difficulty=data.difficulty,
+            title=data.title if "title" in sent else None,
+            description=data.description if "description" in sent else None,
+            difficulty=data.difficulty if "difficulty" in sent else None,
+            source_lang_id=data.source_lang_id if "source_lang_id" in sent else None,
+            **({"target_lang_id": data.target_lang_id} if "target_lang_id" in sent else {}),
         )
         await self._session.commit()
 
@@ -117,8 +139,8 @@ class SetService:
     async def delete_set(self, user_id: int, set_id: int) -> None:
         """
         Soft-delete a set the user owns.
-        SetItem rows remain in DB but become inaccessible (filtered via deleted_at on Set).
-        Items themselves are unaffected — they may still exist in other sets.
+        Also soft-deletes any items owned by the user that are orphaned
+        (only membership was in this set — not shared into other sets).
         Raises ResourceNotFoundError, NotAuthorizedError.
         """
         s = await self._sets.get_by_id(set_id)
@@ -126,6 +148,18 @@ class SetService:
             raise ResourceNotFoundError("Set", set_id)
         if s.creator_id != user_id:
             raise NotAuthorizedError("delete this set")
+
+        await self._session.execute(
+            update(StudySession)
+            .where(
+                StudySession.set_id == set_id,
+                StudySession.status == SessionStatus.IN_PROGRESS,
+            )
+            .values(status=SessionStatus.ABANDONED, ended_at=datetime.now(timezone.utc))
+        )
+
+        orphaned = await self._items.get_orphaned_item_ids(set_id, user_id)
+        await self._items.soft_delete_bulk(orphaned)
 
         await self._sets.soft_delete(set_id)
         await self._session.commit()
@@ -176,9 +210,13 @@ class SetService:
         *,
         skip: int = 0,
         limit: int = 20,
-    ) -> list[UserSetLibrary]:
-        """Return the user's saved library entries (sets are eagerly loaded)."""
-        return list(await self._sets.get_user_library(user_id, skip=skip, limit=limit))
+    ) -> tuple[list[tuple[UserSetLibrary, int]], int]:
+        """Return (entry, item_count) pairs and total count."""
+        entries = list(await self._sets.get_user_library(user_id, skip=skip, limit=limit))
+        total = await self._sets.count_user_library(user_id)
+        set_ids = [e.set_id for e in entries]
+        counts = await self._sets.count_items_batch(set_ids)
+        return [(e, counts.get(e.set_id, 0)) for e in entries], total
 
     async def save_set_to_library(
         self, user_id: int, set_id: int
@@ -212,6 +250,24 @@ class SetService:
         await self._sets.remove_from_library(user_id, set_id)
         await self._session.commit()
 
+    async def touch_set(self, user_id: int, set_id: int) -> None:
+        """
+        Update last_opened_at for the user's library entry.
+        No-op if the set isn't in their library.
+        """
+        await self._sets.touch_library_entry(user_id, set_id)
+        await self._session.commit()
+
+    async def toggle_pin(self, user_id: int, set_id: int, is_pinned: bool) -> None:
+        """
+        Set the is_pinned flag on a library entry, creating one if needed.
+        """
+        entry = await self._sets.get_library_entry(user_id, set_id)
+        if not entry:
+            entry = await self._sets.save_to_library(user_id, set_id)
+        entry.is_pinned = is_pinned
+        await self._session.commit()
+
     async def fork_set(self, user_id: int, set_id: int) -> tuple[Set, int]:
         """
         Create an owned private copy of a visible set.
@@ -220,6 +276,8 @@ class SetService:
           - Creates a new DRAFT set with the same metadata, owned by the user.
           - Copies SetItem rows pointing to the *same* Item records (shared references, not duplicates).
           - The fork is private by default; the user can make it public later.
+          - If the original was in the user's library, the library entry is swapped to the fork
+            (preserving is_pinned), so the user studies their own copy going forward.
 
         Raises ResourceNotFoundError if source set is not found or not accessible.
         """
@@ -241,6 +299,15 @@ class SetService:
         item_rows = await self._items.get_item_ids_for_set(set_id)
         for item_id, sort_order in item_rows:
             await self._items.add_to_set(forked.id, item_id, sort_order)
+
+        # Swap library entry: remove original, add fork (preserve is_pinned)
+        original_entry = await self._sets.get_library_entry(user_id, set_id)
+        was_pinned = original_entry.is_pinned if original_entry else False
+        if original_entry:
+            await self._sets.remove_from_library(user_id, set_id)
+        fork_entry = await self._sets.save_to_library(user_id, forked.id)
+        if was_pinned:
+            fork_entry.is_pinned = True
 
         await self._session.commit()
         await self._session.refresh(forked)

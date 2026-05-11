@@ -25,10 +25,15 @@ from app.models.enums import UserRole
 import redis.asyncio as aioredis
 
 from app.services.auth_service import AuthService
+from app.services.email_service import EmailService
+from app.services.email_verification_service import EmailVerificationService
 from app.services.item_service import ItemService
 from app.services.moderation_service import ModerationService
+from app.services.complaint_service import ComplaintService
+from app.services.password_reset_service import PasswordResetService
 from app.services.practice_service import PracticeService
 from app.services.set_service import SetService
+from app.services.storage import StorageService
 from app.services.user_settings_service import UserSettingsService
 from app.core.security import decode_token as decode_access_token, TokenExpiredError, TokenInvalidError
 
@@ -246,6 +251,30 @@ async def get_moderation_service(db: WriteDBSession) -> ModerationService:
     return ModerationService(db)
 
 
+async def get_complaint_service(db: WriteDBSession) -> ComplaintService:
+    return ComplaintService(db)
+
+
+def get_storage_service() -> StorageService:
+    return StorageService()
+
+
+async def get_email_verif_service(
+    redis: Annotated[aioredis.Redis, Depends(get_redis_client)],
+) -> EmailVerificationService:
+    return EmailVerificationService(redis)
+
+
+async def get_password_reset_service(
+    redis: Annotated[aioredis.Redis, Depends(get_redis_client)],
+) -> PasswordResetService:
+    return PasswordResetService(redis)
+
+
+def get_email_service() -> EmailService:
+    return EmailService(get_settings())
+
+
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 StatsServiceDep = Annotated[StatsService, Depends(get_stats_service)]
 SetServiceDep = Annotated[SetService, Depends(get_set_service)]
@@ -255,6 +284,12 @@ UserSettingsServiceDep = Annotated[
 ]
 PracticeServiceDep = Annotated[PracticeService, Depends(get_practice_service)]
 ModerationServiceDep = Annotated[ModerationService, Depends(get_moderation_service)]
+ComplaintServiceDep = Annotated[ComplaintService, Depends(get_complaint_service)]
+StorageDep = Annotated[StorageService, Depends(get_storage_service)]
+EmailVerifServiceDep = Annotated[EmailVerificationService, Depends(get_email_verif_service)]
+PasswordResetServiceDep = Annotated[PasswordResetService, Depends(get_password_reset_service)]
+EmailServiceDep = Annotated[EmailService, Depends(get_email_service)]
+RedisDep = Annotated[aioredis.Redis, Depends(get_redis_client)]
 
 
 __all__ = [
@@ -287,4 +322,11 @@ __all__ = [
     "PracticeServiceDep",
     "StatsServiceDep",
     "ModerationServiceDep",
+    "ComplaintServiceDep",
+    "get_complaint_service",
+    "StorageDep",
+    "EmailVerifServiceDep",
+    "PasswordResetServiceDep",
+    "EmailServiceDep",
+    "RedisDep",
 ]

@@ -13,6 +13,7 @@ Hierarchy:
   ├── ResourceNotFoundError
   ├── NotAuthorizedError
   │   └── NotAuthorizedToStudyError
+  ├── ContentValidationError
   └── BusinessRuleViolationError
       ├── ConcurrencyError
       ├── InvalidStateTransitionError
@@ -21,6 +22,7 @@ Hierarchy:
 Services raise these. Routers catch and translate to HTTP responses.
 """
 
+from datetime import datetime
 from enum import Enum
 
 
@@ -37,6 +39,10 @@ class AuthErrorCode(str, Enum):
     TOKEN_EXPIRED = "token_expired"
     TOKEN_INVALID = "token_invalid"
     PASSWORD_SAME_AS_CURRENT = "password_same_as_current"
+    VERIFICATION_TOKEN_INVALID = "verification_token_invalid"
+    ALREADY_VERIFIED = "already_verified"
+    VERIFICATION_RATE_LIMITED = "verification_rate_limited"
+    PASSWORD_RESET_TOKEN_INVALID = "password_reset_token_invalid"
 
 
 # ============================================================================
@@ -104,6 +110,38 @@ class AccountDisabledError(AuthError):
         )
 
 
+class VerificationTokenInvalidError(AuthError):
+    def __init__(self) -> None:
+        super().__init__(
+            AuthErrorCode.VERIFICATION_TOKEN_INVALID,
+            "Verification token is invalid or has expired.",
+        )
+
+
+class AlreadyVerifiedError(AuthError):
+    def __init__(self) -> None:
+        super().__init__(
+            AuthErrorCode.ALREADY_VERIFIED,
+            "This email address is already verified.",
+        )
+
+
+class VerificationRateLimitedError(AuthError):
+    def __init__(self) -> None:
+        super().__init__(
+            AuthErrorCode.VERIFICATION_RATE_LIMITED,
+            "Too many verification emails sent today. Try again tomorrow.",
+        )
+
+
+class PasswordResetTokenInvalidError(AuthError):
+    def __init__(self) -> None:
+        super().__init__(
+            AuthErrorCode.PASSWORD_RESET_TOKEN_INVALID,
+            "Password reset token is invalid or has expired.",
+        )
+
+
 # ============================================================================
 # RESOURCE / AUTHORISATION
 # ============================================================================
@@ -140,6 +178,13 @@ class BusinessRuleViolationError(LingvoPalError):
         super().__init__(f"Business rule violated: {rule}")
 
 
+class NoDueItemsError(BusinessRuleViolationError):
+    def __init__(self, set_id: int, next_review_at: datetime | None = None) -> None:
+        super().__init__(f"No items due for review in set {set_id}")
+        self.set_id = set_id
+        self.next_review_at = next_review_at
+
+
 class ConcurrencyError(BusinessRuleViolationError):
     def __init__(self, model: str, record_id: int) -> None:
         self.model = model
@@ -173,6 +218,15 @@ class SettingsValidationError(BusinessRuleViolationError):
         self.reason = reason
 
 
+class ContentValidationError(LingvoPalError):
+    """Raised when submitted content fails automated quality checks."""
+
+    def __init__(self, field: str, reason: str) -> None:
+        super().__init__(f"Content validation failed for '{field}': {reason}")
+        self.field = field
+        self.reason = reason
+
+
 __all__ = [
     # Base
     "LingvoPalError",
@@ -185,14 +239,20 @@ __all__ = [
     "UsernameAlreadyExistsError",
     "SamePasswordError",
     "AccountDisabledError",
+    "VerificationTokenInvalidError",
+    "AlreadyVerifiedError",
+    "VerificationRateLimitedError",
+    "PasswordResetTokenInvalidError",
     # Resource / authorisation
     "ResourceNotFoundError",
     "NotAuthorizedError",
     "NotAuthorizedToStudyError",
     # Business rules
     "BusinessRuleViolationError",
+    "NoDueItemsError",
     "ConcurrencyError",
     "InvalidStateTransitionError",
     "DuplicateResourceError",
     "SettingsValidationError",
+    "ContentValidationError",
 ]

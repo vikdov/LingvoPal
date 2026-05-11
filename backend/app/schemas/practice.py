@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ── Comparison config (sent at session start, consumed by frontend) ───────────
@@ -54,27 +54,47 @@ class ItemHintSchema(BaseModel):
     synonyms: list[str] = Field(default_factory=list)
     last_reviewed: datetime | None = None
     translation_id: int | None = None
+    # Cloze split — backend guarantees no UTF-16/code-point index mismatch
+    cloze_prefix: str | None = None
+    cloze_word: str | None = None
+    cloze_suffix: str | None = None
 
 
 # ── Session start ─────────────────────────────────────────────────────────────
 
 
 class StartSessionRequest(BaseModel):
-    set_id: int = Field(..., gt=0)
+    set_id: int | None = Field(None, gt=0)
+    practice_all: bool = False
+    source_lang_id: int | None = Field(None, gt=0)
+    force: bool = False
+
+    @model_validator(mode="after")
+    def check_params(self) -> "StartSessionRequest":
+        if self.practice_all:
+            if self.source_lang_id is None:
+                raise ValueError("source_lang_id is required when practice_all=True")
+        else:
+            if self.set_id is None:
+                raise ValueError("set_id is required when practice_all=False")
+        return self
 
 
 class SessionStartedResponse(BaseModel):
     """
-    Returned when a session is created.
+    Returned when a session is created or resumed.
 
     The full item batch is sent upfront so the frontend can practice
     entirely offline — no per-card round-trips needed.
+    current_index is non-zero when resuming a partially-completed session.
     """
 
     session_id: int
-    set_id: int
+    set_id: int | None       # None for "practice all" sessions
     items: list[ItemHintSchema]
     comparison_config: ComparisonConfig
+    current_index: int = 0
+    resumed: bool = False
 
 
 # ── Per-answer submission (fire-and-forget) ───────────────────────────────────

@@ -72,9 +72,6 @@ class SignupRequest(BaseModel):
         description="Display name (alphanumeric, _, - only)",
     )
     native_lang_id: int = Field(..., gt=0, description="User's native language ID")
-    interface_lang_id: int | None = Field(
-        None, gt=0, description="Interface language ID (defaults to native language)"
-    )
 
 
 class LoginRequest(BaseModel):
@@ -90,6 +87,29 @@ class LoginRequest(BaseModel):
         max_length=128,
         description="Password (plain text)",
     )
+
+
+class VerifyEmailRequest(BaseModel):
+    """POST /api/v1/auth/verify-email"""
+
+    token: str = Field(..., min_length=1, max_length=128)
+
+
+class ForgotPasswordRequest(BaseModel):
+    """POST /api/v1/auth/forgot-password"""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    email: NormalizedEmail = Field(..., description="Account email address")
+
+
+class ResetPasswordRequest(BaseModel):
+    """POST /api/v1/auth/reset-password"""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    token: str = Field(..., min_length=1, max_length=128)
+    new_password: StrongPassword
 
 
 class PasswordChangeRequest(BaseModel):
@@ -155,6 +175,9 @@ __all__ = [
     "SignupRequest",
     "LoginRequest",
     "PasswordChangeRequest",
+    "VerifyEmailRequest",
+    "ForgotPasswordRequest",
+    "ResetPasswordRequest",
     # Responses
     "TokenResponse",
     "AuthErrorResponse",

@@ -96,3 +96,13 @@ CLAUDE.md
 
 # Git worktrees
 .worktrees/
+
+#Claude and plugins
+.claude/
+.kiro/
+.cursorrules
+.windsurfrules
+.opencode.json
+AGENTS.md
+GEMINI.md
+1000_Basic_English_Words.apkg

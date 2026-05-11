@@ -26,8 +26,11 @@ class StudySession(Base):
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    set_id: Mapped[int] = mapped_column(
-        ForeignKey("sets.id", ondelete="CASCADE"), nullable=False
+    set_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sets.id", ondelete="CASCADE"), nullable=True
+    )
+    source_lang_id: Mapped[int | None] = mapped_column(
+        ForeignKey("languages.id", ondelete="SET NULL"), nullable=True
     )
     started_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), nullable=False
@@ -44,7 +47,7 @@ class StudySession(Base):
     items_reviewed: Mapped[int] = mapped_column(default=0, nullable=False)
 
     user: Mapped["User"] = relationship()
-    set: Mapped["Set"] = relationship()
+    set: Mapped["Set | None"] = relationship()
     reviews: Mapped[list["StudyReview"]] = relationship(
         back_populates="session",
         cascade="all, delete-orphan",

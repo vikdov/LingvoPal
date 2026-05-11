@@ -11,18 +11,23 @@ from typing import NoReturn
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.core.dependencies import CurrentUser, SetServiceDep
+from app.core.dependencies import ComplaintServiceDep, CurrentUser, SetServiceDep
 from app.core.exceptions import (
+    BusinessRuleViolationError,
     DuplicateResourceError,
     LingvoPalError,
     NotAuthorizedError,
     ResourceNotFoundError,
 )
 from app.schemas.common import PaginatedResponse
+from app.schemas.complaint import ComplaintRequest, ComplaintResponse
 from app.schemas.set import (
+    CreatedSetSummaryResponse,
     SetCreateRequest,
     SetLibraryEntryResponse,
+    SetLibraryPinRequest,
     SetResponse,
+    SetSummaryResponse,
     SetUpdateRequest,
 )
 
@@ -41,11 +46,23 @@ def _handle(exc: LingvoPalError) -> NoReturn:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
     if isinstance(exc, DuplicateResourceError):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    if isinstance(exc, BusinessRuleViolationError):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
 def _build_set_response(s, item_count: int) -> SetResponse:
     return SetResponse.model_validate(s).model_copy(update={"item_count": item_count})
+
+
+def _build_set_summary(s, item_count: int) -> SetSummaryResponse:
+    return SetSummaryResponse.model_validate(s).model_copy(update={"item_count": item_count})
+
+
+def _build_created_set_summary(s, item_count: int, is_pinned: bool) -> CreatedSetSummaryResponse:
+    return CreatedSetSummaryResponse.model_validate(s).model_copy(
+        update={"item_count": item_count, "is_pinned": is_pinned}
+    )
 
 
 # ============================================================================
@@ -72,25 +89,25 @@ async def create_set(
 
 
 @router.get(
-    "/my",
-    response_model=PaginatedResponse[SetResponse],
-    summary="List my own sets",
+    "/created",
+    response_model=PaginatedResponse[CreatedSetSummaryResponse],
+    summary="List sets I created",
 )
-async def get_my_sets(
+async def get_created_sets(
     user: CurrentUser,
     service: SetServiceDep,
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-) -> PaginatedResponse[SetResponse]:
+) -> PaginatedResponse[CreatedSetSummaryResponse]:
     results, total = await service.get_my_sets(user.id, skip=skip, limit=limit)
-    data = [_build_set_response(s, count) for s, count in results]
+    data = [_build_created_set_summary(s, count, is_pinned) for s, count, is_pinned in results]
     page = skip // limit + 1 if limit else 1
     return PaginatedResponse(data=data, total=total, page=page, page_size=limit)
 
 
 @router.get(
     "/public",
-    response_model=PaginatedResponse[SetResponse],
+    response_model=PaginatedResponse[SetSummaryResponse],
     summary="Search public sets",
 )
 async def search_public_sets(
@@ -102,7 +119,7 @@ async def search_public_sets(
     difficulty: int | None = Query(None, ge=1, le=7),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-) -> PaginatedResponse[SetResponse]:
+) -> PaginatedResponse[SetSummaryResponse]:
     results, total = await service.search_public_sets(
         query=query,
         source_lang_id=source_lang_id,
@@ -111,14 +128,14 @@ async def search_public_sets(
         skip=skip,
         limit=limit,
     )
-    data = [_build_set_response(s, count) for s, count in results]
+    data = [_build_set_summary(s, count) for s, count in results]
     page = skip // limit + 1 if limit else 1
     return PaginatedResponse(data=data, total=total, page=page, page_size=limit)
 
 
 @router.get(
     "/library",
-    response_model=list[SetLibraryEntryResponse],
+    response_model=PaginatedResponse[SetLibraryEntryResponse],
     summary="Get my saved library",
 )
 async def get_library(
@@ -126,10 +143,20 @@ async def get_library(
     service: SetServiceDep,
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-) -> list[SetLibraryEntryResponse]:
-    entries = await service.get_user_library(user.id, skip=skip, limit=limit)
-    # item_count is 0 by default in the nested SetResponse; acceptable for library list view
-    return [SetLibraryEntryResponse.model_validate(e) for e in entries]
+) -> PaginatedResponse[SetLibraryEntryResponse]:
+    entries, total = await service.get_user_library(user.id, skip=skip, limit=limit)
+    data = [
+        SetLibraryEntryResponse(
+            set_id=e.set_id,
+            added_at=e.added_at,
+            last_opened_at=e.last_opened_at,
+            is_pinned=e.is_pinned,
+            set=SetSummaryResponse.model_validate(e.set).model_copy(update={"item_count": count}),
+        )
+        for e, count in entries
+    ]
+    page = skip // limit + 1 if limit else 1
+    return PaginatedResponse(data=data, total=total, page=page, page_size=limit)
 
 
 @router.get(
@@ -184,9 +211,9 @@ async def delete_set(
 
 
 @router.post(
-    "/{set_id}/save",
+    "/{set_id}/library",
     status_code=status.HTTP_201_CREATED,
-    summary="Save a set to your library",
+    summary="Add a set to your library",
     responses={
         409: {"description": "Set already in library"},
     },
@@ -204,7 +231,7 @@ async def save_set_to_library(
 
 
 @router.delete(
-    "/{set_id}/save",
+    "/{set_id}/library",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Remove a set from your library",
 )
@@ -215,6 +242,36 @@ async def remove_from_library(
 ) -> None:
     try:
         await service.remove_set_from_library(user.id, set_id)
+    except LingvoPalError as exc:
+        _handle(exc)
+
+
+@router.post(
+    "/{set_id}/touch",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Record that the user opened a set (updates last_opened_at)",
+)
+async def touch_set(
+    set_id: int,
+    user: CurrentUser,
+    service: SetServiceDep,
+) -> None:
+    await service.touch_set(user.id, set_id)
+
+
+@router.patch(
+    "/{set_id}/library",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Update library entry (e.g. pin/unpin a set)",
+)
+async def update_library_entry(
+    set_id: int,
+    body: SetLibraryPinRequest,
+    user: CurrentUser,
+    service: SetServiceDep,
+) -> None:
+    try:
+        await service.toggle_pin(user.id, set_id, body.is_pinned)
     except LingvoPalError as exc:
         _handle(exc)
 
@@ -238,5 +295,29 @@ async def fork_set(
     try:
         s, count = await service.fork_set(user.id, set_id)
         return _build_set_response(s, count)
+    except LingvoPalError as exc:
+        _handle(exc)
+
+
+@router.post(
+    "/{set_id}/report",
+    response_model=ComplaintResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Report a community set",
+    description=(
+        "File a complaint against a COMMUNITY set. "
+        "One report per user per set. "
+        "Requires at least one completed study session."
+    ),
+)
+async def report_set(
+    set_id: int,
+    body: ComplaintRequest,
+    user: CurrentUser,
+    svc: ComplaintServiceDep,
+) -> ComplaintResponse:
+    try:
+        complaint = await svc.file_set_complaint(user.id, set_id, body.reason, body.details)
+        return ComplaintResponse.model_validate(complaint)
     except LingvoPalError as exc:
         _handle(exc)

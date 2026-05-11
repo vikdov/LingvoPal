@@ -19,7 +19,7 @@ from app.database import Base
 from app.core.config import get_settings
 from app.models import (
     Language, User, UserSettings,
-    Item, Translation, Set, SetItem, ItemSynonym,
+    Item, Translation, Set, SetItem, ItemSynonymTerm,
     UserSetLibrary, StudySession, StudyReview, UserProgress,
     UserDailyStats, UserStatsTotal,
     PendingModeration, PendingSession, ContentAuditLog,

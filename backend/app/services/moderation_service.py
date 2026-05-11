@@ -3,32 +3,45 @@
 Moderation service — workflow for submitting and reviewing content.
 
 State machine:
-  DRAFT           → submit()   → PENDING_REVIEW  (content status)
-  PENDING_REVIEW  → approve()  → APPROVED        (content status)
-  PENDING_REVIEW  → reject()   → DRAFT           (content status)
-  DRAFT           → submit()   → PENDING_REVIEW  (resubmit after rejection)
+  DRAFT      → submit()   → COMMUNITY  (content status, publicly visible immediately)
+  COMMUNITY  → approve()  → APPROVED   (content status)
+  COMMUNITY  → reject()   → DRAFT      (content status)
+  DRAFT      → submit()   → COMMUNITY  (resubmit after rejection)
 
 PendingModeration entry:
   PENDING  → approve() → APPROVED (resolved_at set)
   PENDING  → reject()  → REJECTED (resolved_at set)
 """
 
+import logging
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
     BusinessRuleViolationError,
     ConcurrencyError,
+    ContentValidationError,  # noqa: F401 — re-exported for route imports
     InvalidStateTransitionError,
     NotAuthorizedError,
     ResourceNotFoundError,
 )
 from app.models.enums import ContentStatus, ModerationStatus, ModerationTargetType
 from app.models.pending_moderation import PendingModeration
+from app.repositories.audit_repo import AuditRepository
+from app.repositories.complaint_repo import ComplaintRepository
 from app.repositories.item_repo import ItemRepository
 from app.repositories.moderation_repo import ModerationRepository
 from app.repositories.set_repo import SetRepository
+from app.services import content_validator
+
+logger = logging.getLogger(__name__)
 
 _SUBMITTABLE_STATUSES = (ContentStatus.DRAFT,)
+
+
+def _assert_status(current: ContentStatus, expected: ContentStatus) -> None:
+    if current != expected:
+        raise InvalidStateTransitionError(current.value, expected.value)
 
 
 def _set_snapshot(s) -> dict:
@@ -60,6 +73,8 @@ class ModerationService:
         self._mod = ModerationRepository(session)
         self._sets = SetRepository(session)
         self._items = ItemRepository(session)
+        self._audit = AuditRepository(session)
+        self._complaints = ComplaintRepository(session)
 
     # ------------------------------------------------------------------
     # USER: Submit for review
@@ -82,7 +97,9 @@ class ModerationService:
         if s.creator_id != user_id:
             raise NotAuthorizedError("submit this set for review")
         if s.status not in _SUBMITTABLE_STATUSES:
-            raise InvalidStateTransitionError(s.status.value, ContentStatus.PENDING_REVIEW.value)
+            raise InvalidStateTransitionError(s.status.value, ContentStatus.COMMUNITY.value)
+
+        content_validator.validate_set(s.title, s.description)
 
         # Cancel any existing active entry for this target (upsert semantics)
         existing = await self._mod.get_active_for_target(ModerationTargetType.SET, set_id)
@@ -90,8 +107,7 @@ class ModerationService:
             await self._session.delete(existing)
             await self._session.flush()
 
-        # Advance content status to PENDING_REVIEW
-        await self._sets.update(set_id, status=ContentStatus.PENDING_REVIEW)
+        await self._sets.update(set_id, status=ContentStatus.COMMUNITY)
 
         entry = await self._mod.create(
             target_type=ModerationTargetType.SET,
@@ -121,14 +137,22 @@ class ModerationService:
         if item.creator_id != user_id:
             raise NotAuthorizedError("submit this item for review")
         if item.status not in _SUBMITTABLE_STATUSES:
-            raise InvalidStateTransitionError(item.status.value, ContentStatus.PENDING_REVIEW.value)
+            raise InvalidStateTransitionError(item.status.value, ContentStatus.COMMUNITY.value)
+
+        lang_code = await self._items.get_language_code(item.language_id)
+        lang_mismatch = content_validator.validate_item(item.term, item.context, lang_code or "")
+        if lang_mismatch:
+            logger.warning(
+                "Language mismatch on submission: item=%d expected_lang=%s",
+                item_id, lang_code,
+            )
 
         existing = await self._mod.get_active_for_target(ModerationTargetType.ITEM, item_id)
         if existing:
             await self._session.delete(existing)
             await self._session.flush()
 
-        await self._items.update_status(item_id, ContentStatus.PENDING_REVIEW)
+        await self._items.update_status(item_id, ContentStatus.COMMUNITY)
 
         entry = await self._mod.create(
             target_type=ModerationTargetType.ITEM,
@@ -217,17 +241,33 @@ class ModerationService:
         if not resolved:
             raise ConcurrencyError("PendingModeration", moderation_id)
 
-        await self._approve_content(entry)
+        await self._approve_content(entry, admin_id)
         await self._session.commit()
 
         await self._session.refresh(entry)
         return entry
 
-    async def _approve_content(self, entry: PendingModeration) -> None:
+    async def _approve_content(self, entry: PendingModeration, moderator_id: int) -> None:
         if entry.target_type == ModerationTargetType.SET:
+            s = await self._sets.get_by_id(entry.target_id)
+            if s:
+                _assert_status(s.status, ContentStatus.COMMUNITY)
             await self._sets.update(entry.target_id, status=ContentStatus.APPROVED)
+            await self._audit.log(
+                "sets", entry.target_id, "UPDATE", user_id=moderator_id,
+                old_values={"status": ContentStatus.COMMUNITY.value},
+                new_values={"status": ContentStatus.APPROVED.value},
+            )
         elif entry.target_type == ModerationTargetType.ITEM:
+            item = await self._items.get_by_id(entry.target_id)
+            if item:
+                _assert_status(item.status, ContentStatus.COMMUNITY)
             await self._items.update_status(entry.target_id, ContentStatus.APPROVED)
+            await self._audit.log(
+                "items", entry.target_id, "UPDATE", user_id=moderator_id,
+                old_values={"status": ContentStatus.COMMUNITY.value},
+                new_values={"status": ContentStatus.APPROVED.value},
+            )
 
     # ------------------------------------------------------------------
     # ADMIN: Reject
@@ -263,17 +303,247 @@ class ModerationService:
         if not resolved:
             raise ConcurrencyError("PendingModeration", moderation_id)
 
-        await self._revert_content(entry)
+        await self._revert_content(entry, admin_id)
         await self._session.commit()
 
         await self._session.refresh(entry)
         return entry
 
-    async def _revert_content(self, entry: PendingModeration) -> None:
+    # ------------------------------------------------------------------
+    # ADMIN: Promote to OFFICIAL
+    # ------------------------------------------------------------------
+
+    async def promote_to_official(
+        self,
+        admin_id: int,
+        item_id: int,
+        override: bool = False,
+    ) -> None:
+        """
+        Promote an APPROVED item to OFFICIAL.
+
+        Quality thresholds from config are soft gates: if override=True,
+        admin can bypass them. Always raises InvalidStateTransitionError
+        if item is not APPROVED.
+        """
+        from app.core.config import get_settings
+        from app.repositories.quality_repo import QualityRepository
+        from app.models.item_quality_metrics import ItemQualityMetrics
+        from sqlalchemy import select
+
+        item = await self._items.get_by_id(item_id)
+        if not item:
+            raise ResourceNotFoundError("Item", item_id)
+        _assert_status(item.status, ContentStatus.APPROVED)
+
+        if not override:
+            settings = get_settings()
+            result = await self._session.execute(
+                select(ItemQualityMetrics).where(
+                    ItemQualityMetrics.item_id == item_id
+                )
+            )
+            metrics = result.scalar_one_or_none()
+            if metrics:
+                below_threshold = (
+                    metrics.learner_count < settings.OFFICIAL_MIN_LEARNERS
+                    or metrics.global_success_rate < settings.OFFICIAL_MIN_SUCCESS_RATE
+                )
+                if below_threshold:
+                    raise BusinessRuleViolationError(
+                        f"Item does not meet OFFICIAL thresholds "
+                        f"(learners={metrics.learner_count}, "
+                        f"success_rate={metrics.global_success_rate:.2f}). "
+                        f"Pass override=true to promote anyway."
+                    )
+
+        await self._items.update_status(item_id, ContentStatus.OFFICIAL)
+        await self._audit.log(
+            "items", item_id, "UPDATE", user_id=admin_id,
+            old_values={"status": ContentStatus.APPROVED.value},
+            new_values={"status": ContentStatus.OFFICIAL.value},
+        )
+        await self._session.commit()
+
+    # ------------------------------------------------------------------
+    # ADMIN: Promotion candidates
+    # ------------------------------------------------------------------
+
+    async def list_promotion_candidates(
+        self, skip: int = 0, limit: int = 20
+    ) -> list:
+        """Return APPROVED items whose quality metrics meet OFFICIAL thresholds."""
+        from app.core.config import get_settings
+        from app.repositories.quality_repo import QualityRepository
+        from app.models.item_quality_metrics import ItemQualityMetrics
+        from app.models.item import Item
+        from sqlalchemy import select
+
+        settings = get_settings()
+        result = await self._session.execute(
+            select(Item)
+            .join(ItemQualityMetrics, ItemQualityMetrics.item_id == Item.id)
+            .where(
+                Item.status == ContentStatus.APPROVED,
+                Item.deleted_at.is_(None),
+                ItemQualityMetrics.learner_count >= settings.OFFICIAL_MIN_LEARNERS,
+                ItemQualityMetrics.global_success_rate >= settings.OFFICIAL_MIN_SUCCESS_RATE,
+            )
+            .order_by(
+                ItemQualityMetrics.global_success_rate.desc(),
+                ItemQualityMetrics.learner_count.desc(),
+            )
+            .offset(skip)
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
+    # ------------------------------------------------------------------
+    # ADMIN: Overview stats
+    # ------------------------------------------------------------------
+
+    async def get_overview_stats(self) -> dict:
+        from sqlalchemy import select, func as sql_func
+        from app.models.item import Item
+
+        community_count = (await self._session.execute(
+            select(sql_func.count()).where(
+                Item.status == ContentStatus.COMMUNITY,
+                Item.deleted_at.is_(None),
+            )
+        )).scalar_one()
+
+        pending_queue_count = await self._mod.count_all(status=ModerationStatus.PENDING)
+        total_complaints = await self._complaints.count_all()
+
+        return {
+            "community_count": community_count,
+            "pending_queue_count": pending_queue_count,
+            "total_complaints": total_complaints,
+        }
+
+    # ------------------------------------------------------------------
+    # ADMIN: Enriched moderation queue
+    # ------------------------------------------------------------------
+
+    async def list_submissions_enriched(
+        self,
+        *,
+        target_type: ModerationTargetType | None = None,
+        status: ModerationStatus | None = None,
+        skip: int = 0,
+        limit: int = 20,
+    ) -> tuple[list, int]:
+        from sqlalchemy import select
+        from app.models.item_quality_metrics import ItemQualityMetrics
+        from app.schemas.moderation import (
+            AdminModerationResponse,
+            PendingModerationResponse,
+            QualityMetricsSummary,
+        )
+
+        entries = list(await self._mod.list_all(
+            target_type=target_type, status=status, skip=skip, limit=limit
+        ))
+        total = await self._mod.count_all(target_type=target_type, status=status)
+
+        if not entries:
+            return [], total
+
+        item_ids = [e.target_id for e in entries if e.target_type == ModerationTargetType.ITEM]
+        set_ids = [e.target_id for e in entries if e.target_type == ModerationTargetType.SET]
+
+        item_counts = await self._complaints.count_for_targets_batch(ModerationTargetType.ITEM, item_ids)
+        set_counts = await self._complaints.count_for_targets_batch(ModerationTargetType.SET, set_ids)
+
+        quality_map: dict[int, ItemQualityMetrics] = {}
+        if item_ids:
+            result = await self._session.execute(
+                select(ItemQualityMetrics).where(ItemQualityMetrics.item_id.in_(item_ids))
+            )
+            for m in result.scalars():
+                quality_map[m.item_id] = m
+
+        enriched = []
+        for e in entries:
+            base = PendingModerationResponse.model_validate(e).model_dump()
+            if e.target_type == ModerationTargetType.ITEM:
+                complaint_count = item_counts.get(e.target_id, 0)
+                qm = quality_map.get(e.target_id)
+                quality_metrics = QualityMetricsSummary(
+                    learner_count=qm.learner_count,
+                    sample_size=qm.sample_size,
+                    global_success_rate=qm.global_success_rate,
+                    avg_interval=qm.avg_interval,
+                ) if qm else None
+            else:
+                complaint_count = set_counts.get(e.target_id, 0)
+                quality_metrics = None
+
+            enriched.append(AdminModerationResponse(
+                **base,
+                quality_metrics=quality_metrics,
+                complaint_count=complaint_count,
+            ))
+
+        return enriched, total
+
+    # ------------------------------------------------------------------
+    # ADMIN: Complaint listing
+    # ------------------------------------------------------------------
+
+    async def list_complaints_admin(
+        self,
+        *,
+        target_type: ModerationTargetType | None = None,
+        skip: int = 0,
+        limit: int = 20,
+    ) -> tuple[list, int]:
+        entries = list(await self._complaints.list_all(
+            target_type=target_type, skip=skip, limit=limit
+        ))
+        total = await self._complaints.count_all(target_type=target_type)
+        return entries, total
+
+    # ------------------------------------------------------------------
+    # ADMIN: Audit log
+    # ------------------------------------------------------------------
+
+    async def list_audit_log(
+        self,
+        *,
+        table_name: str | None = None,
+        action: str | None = None,
+        skip: int = 0,
+        limit: int = 20,
+    ) -> tuple[list, int]:
+        entries = list(await self._audit.list_all(
+            table_name=table_name, action=action, skip=skip, limit=limit
+        ))
+        total = await self._audit.count_all(table_name=table_name, action=action)
+        return entries, total
+
+    async def _revert_content(self, entry: PendingModeration, moderator_id: int) -> None:
         if entry.target_type == ModerationTargetType.SET:
+            s = await self._sets.get_by_id(entry.target_id)
+            if s:
+                _assert_status(s.status, ContentStatus.COMMUNITY)
             await self._sets.update(entry.target_id, status=ContentStatus.DRAFT)
+            await self._audit.log(
+                "sets", entry.target_id, "UPDATE", user_id=moderator_id,
+                old_values={"status": ContentStatus.COMMUNITY.value},
+                new_values={"status": ContentStatus.DRAFT.value},
+            )
         elif entry.target_type == ModerationTargetType.ITEM:
+            item = await self._items.get_by_id(entry.target_id)
+            if item:
+                _assert_status(item.status, ContentStatus.COMMUNITY)
             await self._items.update_status(entry.target_id, ContentStatus.DRAFT)
+            await self._audit.log(
+                "items", entry.target_id, "UPDATE", user_id=moderator_id,
+                old_values={"status": ContentStatus.COMMUNITY.value},
+                new_values={"status": ContentStatus.DRAFT.value},
+            )
 
 
 __all__ = ["ModerationService"]

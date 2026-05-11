@@ -21,6 +21,7 @@ from fastapi import APIRouter, HTTPException, status
 from app.core.dependencies import PracticeServiceDep
 from app.core.exceptions import (
     BusinessRuleViolationError,
+    NoDueItemsError,
     NotAuthorizedToStudyError,
     ResourceNotFoundError,
 )
@@ -54,7 +55,21 @@ async def start_session(
     svc: PracticeServiceDep,
 ) -> SessionStartedResponse:
     try:
-        return await svc.start_session(body.set_id)
+        return await svc.start_session(
+            body.set_id,
+            practice_all=body.practice_all,
+            source_lang_id=body.source_lang_id,
+            force=body.force,
+        )
+    except NoDueItemsError as exc:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "error": "no_due_items",
+                "message": str(exc),
+                "next_review_at": exc.next_review_at.isoformat() if exc.next_review_at else None,
+            },
+        )
     except ResourceNotFoundError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc))
     except NotAuthorizedToStudyError as exc:

@@ -1,8 +1,8 @@
 """add_triggers: updated_at triggers + audit logging + user stats repair functions
 
 Revision ID: 497834a509ad
-Revises: 375a1ab09e48
-Create Date: 2026-04-17 19:06:23.439970
+Revises: 928f022370b7
+Create Date: 2026-05-10 19:06:23.439970
 """
 
 from typing import Sequence, Union
@@ -11,9 +11,10 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "497834a509ad"
-down_revision: Union[str, Sequence[str], None] = "375a1ab09e48"
+down_revision: Union[str, Sequence[str], None] = "928f022370b7"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
+CONTENT_TABLES = ["items", "sets", "translations", "item_synonym_terms"]
 
 
 def upgrade() -> None:
@@ -34,11 +35,14 @@ def upgrade() -> None:
         $$;
     """)
 
-    # BEFORE UPDATE triggers
-    op.execute("CREATE TRIGGER trg_items_updated_at          BEFORE UPDATE ON items          FOR EACH ROW EXECUTE FUNCTION set_updated_at();")
-    op.execute("CREATE TRIGGER trg_sets_updated_at           BEFORE UPDATE ON sets           FOR EACH ROW EXECUTE FUNCTION set_updated_at();")
-    op.execute("CREATE TRIGGER trg_translations_updated_at   BEFORE UPDATE ON translations   FOR EACH ROW EXECUTE FUNCTION set_updated_at();")
-    op.execute("CREATE TRIGGER trg_item_synonyms_updated_at  BEFORE UPDATE ON item_synonyms  FOR EACH ROW EXECUTE FUNCTION set_updated_at();")
+    # Create BEFORE UPDATE triggers for all tables that track updated_at
+    updated_at_tables = CONTENT_TABLES
+    for table in updated_at_tables:
+        op.execute(f"""
+            CREATE TRIGGER trg_{table}_updated_at
+            BEFORE UPDATE ON {table}
+            FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+        """)
 
     # ================================================================
     # 2. Audit logging function + triggers
@@ -88,11 +92,14 @@ def upgrade() -> None:
         $$;
     """)
 
-    # AFTER INSERT/UPDATE/DELETE audit triggers
-    op.execute("CREATE TRIGGER trg_audit_items          AFTER INSERT OR UPDATE OR DELETE ON items          FOR EACH ROW EXECUTE FUNCTION audit_log_content_changes();")
-    op.execute("CREATE TRIGGER trg_audit_translations   AFTER INSERT OR UPDATE OR DELETE ON translations   FOR EACH ROW EXECUTE FUNCTION audit_log_content_changes();")
-    op.execute("CREATE TRIGGER trg_audit_sets           AFTER INSERT OR UPDATE OR DELETE ON sets           FOR EACH ROW EXECUTE FUNCTION audit_log_content_changes();")
-    op.execute("CREATE TRIGGER trg_audit_item_synonyms  AFTER INSERT OR UPDATE OR DELETE ON item_synonyms  FOR EACH ROW EXECUTE FUNCTION audit_log_content_changes();")
+    # Create AFTER INSERT/UPDATE/DELETE audit triggers
+    audit_tables = CONTENT_TABLES
+    for table in audit_tables:
+        op.execute(f"""
+            CREATE TRIGGER trg_audit_{table}
+            AFTER INSERT OR UPDATE OR DELETE ON {table}
+            FOR EACH ROW EXECUTE FUNCTION audit_log_content_changes();
+        """)
 
     # ================================================================
     # 3. User stats repair functions
@@ -144,7 +151,7 @@ def upgrade() -> None:
             GET DIAGNOSTICS v_daily_count = ROW_COUNT;
 
             -- 2. Totals from daily stats
-            INSERT INTO user_stats_total (user_id, language_id, total_seconds, total_words, last_repaired)
+            INSERT INTO user_stats_total (user_id, language_id, total_seconds, total_words, last_recalculated_at)
             SELECT
                 user_id,
                 language_id,
@@ -157,7 +164,7 @@ def upgrade() -> None:
             ON CONFLICT (user_id, language_id) DO UPDATE SET
                 total_seconds = EXCLUDED.total_seconds,
                 total_words   = EXCLUDED.total_words,
-                last_repaired = EXCLUDED.last_repaired;
+                last_recalculated_at = EXCLUDED.last_recalculated_at;
 
             GET DIAGNOSTICS v_totals_count = ROW_COUNT;
 
@@ -184,20 +191,21 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema - safely remove everything in reverse order."""
-    # Drop audit triggers + function
-    op.execute("DROP TRIGGER IF EXISTS trg_audit_item_synonyms ON item_synonyms;")
-    op.execute("DROP TRIGGER IF EXISTS trg_audit_sets           ON sets;")
-    op.execute("DROP TRIGGER IF EXISTS trg_audit_translations   ON translations;")
-    op.execute("DROP TRIGGER IF EXISTS trg_audit_items          ON items;")
-    op.execute("DROP FUNCTION IF EXISTS audit_log_content_changes();")
 
-    # Drop updated_at triggers + function
-    op.execute("DROP TRIGGER IF EXISTS trg_item_synonyms_updated_at ON item_synonyms;")
-    op.execute("DROP TRIGGER IF EXISTS trg_translations_updated_at  ON translations;")
-    op.execute("DROP TRIGGER IF EXISTS trg_sets_updated_at          ON sets;")
-    op.execute("DROP TRIGGER IF EXISTS trg_items_updated_at         ON items;")
-    op.execute("DROP FUNCTION IF EXISTS set_updated_at();")
-
-    # Drop repair functions
+    # Drop repair functions first (they depend on other tables)
     op.execute("DROP FUNCTION IF EXISTS repair_all_user_stats();")
     op.execute("DROP FUNCTION IF EXISTS repair_user_stats(INTEGER);")
+
+    # Drop audit triggers and function
+    audit_tables = CONTENT_TABLES
+    for table in audit_tables:
+        op.execute(f"DROP TRIGGER IF EXISTS trg_audit_{table} ON {table};")
+
+    op.execute("DROP FUNCTION IF EXISTS audit_log_content_changes();")
+
+    # Drop updated_at triggers and function
+    updated_at_tables = CONTENT_TABLES
+    for table in updated_at_tables:
+        op.execute(f"DROP TRIGGER IF EXISTS trg_{table}_updated_at ON {table};")
+
+    op.execute("DROP FUNCTION IF EXISTS set_updated_at();")

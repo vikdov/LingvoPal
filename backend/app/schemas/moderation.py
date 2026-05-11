@@ -3,8 +3,8 @@
 Content moderation schemas.
 
 Lifecycle:
-  DRAFT → (submit) → PENDING_REVIEW → (approve) → APPROVED
-                                     → (reject)  → DRAFT  (resubmittable)
+  DRAFT → (submit) → COMMUNITY → (approve) → APPROVED
+                               → (reject)  → DRAFT  (resubmittable)
 """
 
 from datetime import datetime
@@ -101,6 +101,20 @@ class PendingModerationResponse(BaseResponse):
     resolution_feedback: str | None = None
 
 
+class QualityMetricsSummary(BaseModel):
+    learner_count: int
+    sample_size: int
+    global_success_rate: float
+    avg_interval: float
+
+
+class AdminModerationResponse(PendingModerationResponse):
+    """Enriched version for admin list — includes quality metrics and complaint count."""
+
+    quality_metrics: QualityMetricsSummary | None = None
+    complaint_count: int = 0
+
+
 __all__ = [
     "SubmitForReviewRequest",
     "ApproveModerationRequest",
@@ -108,4 +122,6 @@ __all__ = [
     "ModerationListQueryParams",
     "ModerationSubmissionResponse",
     "PendingModerationResponse",
+    "QualityMetricsSummary",
+    "AdminModerationResponse",
 ]

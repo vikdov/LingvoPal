@@ -3,9 +3,6 @@
 Item service — all business logic for items, translations, and set membership.
 """
 
-import uuid
-from pathlib import Path
-
 from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,13 +24,18 @@ from app.schemas.item import (
     TranslationCreateRequest,
     TranslationUpdateRequest,
 )
+from app.services.storage import StorageService
 
 _PUBLIC_STATUSES = (ContentStatus.APPROVED, ContentStatus.OFFICIAL)
 _ALLOWED_IMAGE_TYPES = frozenset({
     "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"
 })
 _MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
-_UPLOAD_DIR = Path("static/uploads")
+_ALLOWED_AUDIO_TYPES = frozenset({
+    "audio/mpeg", "audio/mp3", "audio/ogg", "audio/wav",
+    "audio/mp4", "audio/aac", "audio/x-m4a", "audio/webm",
+})
+_MAX_AUDIO_BYTES = 10 * 1024 * 1024  # 10 MB
 
 
 class ItemService:
@@ -94,23 +96,26 @@ class ItemService:
         )
         set_item = await self._items.add_to_set(set_id, item.id)
         await self._session.commit()
-        await self._session.refresh(item)
+        item = await self._items.get_by_id_with_translations(item.id)
         return item, set_item
 
-    async def get_set_items(self, user_id: int, set_id: int) -> list[SetItem]:
+    async def get_set_items(
+        self, user_id: int, set_id: int, skip: int = 0, limit: int = 20
+    ) -> tuple[list[SetItem], int]:
         s = await self._sets.get_by_id(set_id)
         if not s:
             raise ResourceNotFoundError("Set", set_id)
         if s.creator_id != user_id and s.status not in _PUBLIC_STATUSES:
             raise ResourceNotFoundError("Set", set_id)
-        return list(await self._items.get_set_items(set_id))
+        items = list(await self._items.get_set_items(set_id, skip=skip, limit=limit))
+        total = await self._items.count_set_items(set_id)
+        return items, total
 
     async def update_item(
         self, user_id: int, item_id: int, data: ItemUpdateRequest
     ) -> Item:
-        await self._require_owned_item(user_id, item_id)
+        item = await self._require_owned_item(user_id, item_id)
         values = data.model_dump(exclude_unset=True)
-        # Treat explicitly empty strings as None for nullable string fields
         for field in ("context", "lemma", "audio_url"):
             if field in values and values[field] == "":
                 values[field] = None
@@ -121,30 +126,39 @@ class ItemService:
 
     async def delete_item(self, user_id: int, item_id: int) -> None:
         await self._require_owned_item(user_id, item_id)
-        await self._items.soft_delete(item_id)
+        external = await self._items.count_external_set_memberships(item_id, user_id)
+        if external > 0:
+            await self._items.release_to_community(item_id)
+        else:
+            await self._items.soft_delete(item_id)
         await self._session.commit()
 
+    async def get_my_items(
+        self, user_id: int, *, skip: int = 0, limit: int = 20
+    ) -> tuple[list[Item], int]:
+        items = list(await self._items.get_created_by_user(user_id, skip=skip, limit=limit))
+        total = await self._items.count_created_by_user(user_id)
+        return items, total
+
     async def submit_item(self, user_id: int, item_id: int) -> Item:
-        """Transition item from DRAFT → PENDING_REVIEW."""
+        """Transition item from DRAFT → COMMUNITY (publicly visible)."""
         item = await self._require_owned_item(user_id, item_id)
         if item.status != ContentStatus.DRAFT:
             raise LingvoPalError(
                 f"Item is already {item.status.value} and cannot be submitted."
             )
-        await self._items.update_status(item_id, ContentStatus.PENDING_REVIEW)
+        await self._items.update_status(item_id, ContentStatus.COMMUNITY)
         await self._session.commit()
         return await self._items.get_by_id_with_translations(item_id)
 
     async def upload_item_image(
-        self, user_id: int, item_id: int, file: UploadFile, base_url: str
+        self, user_id: int, item_id: int, file: UploadFile, storage: StorageService
     ) -> Item:
         await self._require_owned_item(user_id, item_id)
 
         content_type = file.content_type or ""
         if content_type not in _ALLOWED_IMAGE_TYPES:
-            raise LingvoPalError(
-                "Invalid file type. Allowed: JPEG, PNG, WebP, GIF."
-            )
+            raise LingvoPalError("Invalid file type. Allowed: JPEG, PNG, WebP, GIF.")
 
         data = await file.read()
         if len(data) > _MAX_IMAGE_BYTES:
@@ -154,12 +168,30 @@ class ItemService:
         if ext not in {"jpg", "jpeg", "png", "webp", "gif"}:
             ext = "jpg"
 
-        _UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-        filename = f"{uuid.uuid4().hex}.{ext}"
-        (_UPLOAD_DIR / filename).write_bytes(data)
-
-        image_url = f"{base_url.rstrip('/')}/static/uploads/{filename}"
+        image_url = await storage.upload_image(data, content_type, ext)
         await self._items.update(item_id, image_url=image_url)
+        await self._session.commit()
+        return await self._items.get_by_id_with_translations(item_id)
+
+    async def upload_item_audio(
+        self, user_id: int, item_id: int, file: UploadFile, storage: StorageService
+    ) -> Item:
+        await self._require_owned_item(user_id, item_id)
+
+        content_type = file.content_type or ""
+        if content_type not in _ALLOWED_AUDIO_TYPES:
+            raise LingvoPalError("Invalid file type. Allowed: MP3, OGG, WAV, M4A, WebM.")
+
+        data = await file.read()
+        if len(data) > _MAX_AUDIO_BYTES:
+            raise LingvoPalError("Audio file exceeds 10 MB limit.")
+
+        ext = (file.filename or "audio").rsplit(".", 1)[-1].lower()
+        if ext not in {"mp3", "ogg", "wav", "m4a", "aac", "webm"}:
+            ext = "mp3"
+
+        audio_url = await storage.upload_audio(data, content_type, ext)
+        await self._items.update(item_id, audio_url=audio_url)
         await self._session.commit()
         return await self._items.get_by_id_with_translations(item_id)
 
@@ -307,10 +339,33 @@ class ItemService:
                 f"Translation is already {t.status.value} and cannot be submitted."
             )
         await self._items.update_translation_status(
-            translation_id, ContentStatus.PENDING_REVIEW
+            translation_id, ContentStatus.COMMUNITY
         )
         await self._session.commit()
         return await self._items.get_translation(translation_id)
+
+    # ------------------------------------------------------------------
+    # Synonyms (string terms)
+    # ------------------------------------------------------------------
+
+    async def get_synonyms(self, user_id: int, item_id: int) -> list[str]:
+        item = await self._items.get_by_id(item_id)
+        if not item:
+            raise ResourceNotFoundError("Item", item_id)
+        if item.creator_id != user_id and item.status not in _PUBLIC_STATUSES:
+            raise ResourceNotFoundError("Item", item_id)
+        return await self._items.get_synonym_terms(item_id)
+
+    async def set_synonyms(self, user_id: int, item_id: int, terms: list[str]) -> None:
+        item = await self._require_owned_item(user_id, item_id)
+        normalized = [t.strip() for t in terms if t.strip()]
+        await self._items.set_synonym_terms(item_id, item.language_id, normalized)
+        await self._session.commit()
+
+    async def search_synonym_suggestions(self, language_id: int, q: str) -> list[str]:
+        if not q.strip():
+            return []
+        return await self._items.search_synonym_suggestions(q.strip(), language_id)
 
 
 __all__ = ["ItemService"]

@@ -39,8 +39,8 @@ class StudyReview(Base):
     translation_id: Mapped[int | None] = mapped_column(
         ForeignKey("translations.id", ondelete="SET NULL"), nullable=True
     )
-    set_id: Mapped[int] = mapped_column(
-        ForeignKey("sets.id", ondelete="CASCADE"), nullable=False
+    set_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sets.id", ondelete="SET NULL"), nullable=True
     )
     session_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("study_sessions.id", ondelete="CASCADE"), nullable=False

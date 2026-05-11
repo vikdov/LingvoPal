@@ -45,6 +45,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
     BusinessRuleViolationError,
+    NoDueItemsError,
+    NotAuthorizedError,
     NotAuthorizedToStudyError,
     ResourceNotFoundError,
 )
@@ -126,58 +128,105 @@ class PracticeService:
 
     # ── Start ─────────────────────────────────────────────────────────────────
 
-    async def start_session(self, set_id: int) -> SessionStartedResponse:
+    async def start_session(
+        self,
+        set_id: int | None,
+        *,
+        practice_all: bool = False,
+        source_lang_id: int | None = None,
+        force: bool = False,
+    ) -> SessionStartedResponse:
         """
         Initialise a new practice session and return the full item batch.
 
-        1. Verify the set exists and the user has access.
-        2. Block if user already has an in-progress session.
-        3. Select items (due reviews first, then new items).
-        4. Seed UserProgress rows for brand-new items.
-        5. Fetch ALL item hints in a single batch query.
-        6. Create a StudySession DB record (source of truth).
-        7. Seed Redis state.
-        8. Return SessionStartedResponse with full items + comparison_config.
+        When practice_all=True, set_id is None and items are drawn from ALL
+        library sets matching source_lang_id. Otherwise set_id is required.
         """
-        await self._assert_no_active_session()
-
-        db_set = await self._repo.get_set(set_id)
-        if db_set is None:
-            raise ResourceNotFoundError("Set", set_id)
-        if not await self._user_can_study_set(db_set):
-            raise NotAuthorizedToStudyError(set_id, self._user_id)
-
-        config = await self._build_batch_config(db_set)
-        item_ids = await self._select_items(set_id, config)
-
-        if not item_ids:
-            raise ResourceNotFoundError("due items", f"set {set_id}")
-
-        item_hints = await self._repo.fetch_item_hints(
-            item_ids, set_id, config.target_lang_id, self._user_id
-        )
-
-        # Flush the session row to get its ID; commit happens AFTER Redis writes
-        # so a Redis failure rolls back the DB record atomically.
-        db_session = await self._repo.create_session(self._user_id, set_id)
-
-        state = make_session_state(
-            session_id=db_session.id,
-            user_id=self._user_id,
-            set_id=set_id,
-            item_order=item_ids,
-            config=config,
-            item_hints=item_hints,
-        )
+        if not await self._session_mgr.acquire_start_lock(self._user_id):
+            raise BusinessRuleViolationError(
+                "Session start already in progress. Try again shortly."
+            )
         try:
-            await self._session_mgr.save_session(state)
-            await self._session_mgr.set_active(self._user_id, db_session.id)
-        except Exception:
-            # Redis failed — rollback DB to avoid orphaned in-progress session
-            await self._db.rollback()
-            raise
+            # Determine context key (practice_all uses source_lang_id, single-set uses set_id)
+            ctx_set_id = None if practice_all else set_id
+            ctx_source_lang = source_lang_id if practice_all else None
 
-        await self._db.commit()
+            existing = await self._resume_or_none(ctx_set_id, ctx_source_lang)
+            if existing is not None:
+                items = [
+                    ItemHintSchema(
+                        item_id=item_id,
+                        **{
+                            k: v
+                            for k, v in (existing.item_hints.get(str(item_id)) or {}).items()
+                            if k != "item_id"
+                        },
+                    )
+                    for item_id in existing.item_order
+                ]
+                return SessionStartedResponse(
+                    session_id=existing.session_id,
+                    set_id=existing.set_id,
+                    items=items,
+                    comparison_config=_config_to_comparison(existing.config),
+                    current_index=existing.current_index,
+                    resumed=True,
+                )
+
+            if practice_all:
+                config = await self._build_batch_config(None)
+                item_ids = await self._select_items(
+                    None, config, source_lang_id=source_lang_id, force=force
+                )
+                if not item_ids:
+                    raise NoDueItemsError(0)
+                item_hints = await self._repo.fetch_item_hints(
+                    item_ids, None, config.target_lang_id, self._user_id
+                )
+                _apply_prompt_fallback(item_hints)
+                db_session = await self._repo.create_session(
+                    self._user_id, None, source_lang_id=source_lang_id
+                )
+            else:
+                db_set = await self._repo.get_set(set_id)
+                if db_set is None:
+                    raise ResourceNotFoundError("Set", set_id)
+                if not await self._user_can_study_set(db_set):
+                    raise NotAuthorizedToStudyError(set_id, self._user_id)
+
+                config = await self._build_batch_config(db_set)
+                item_ids = await self._select_items(set_id, config, force=force)
+                if not item_ids:
+                    next_review_at = await self._repo.get_next_review_at(self._user_id, set_id)
+                    raise NoDueItemsError(set_id, next_review_at)
+                item_hints = await self._repo.fetch_item_hints(
+                    item_ids, set_id, config.target_lang_id, self._user_id
+                )
+                _apply_prompt_fallback(item_hints)
+                db_session = await self._repo.create_session(self._user_id, set_id)
+                source_lang_id = None  # not needed for single-set sessions
+
+            state = make_session_state(
+                session_id=db_session.id,
+                user_id=self._user_id,
+                set_id=set_id if not practice_all else None,
+                source_lang_id=source_lang_id,
+                item_order=item_ids,
+                config=config,
+                item_hints=item_hints,
+            )
+            try:
+                await self._session_mgr.save_session(state)
+                await self._session_mgr.set_active(
+                    self._user_id, db_session.id, set_id=ctx_set_id, source_lang_id=ctx_source_lang
+                )
+            except Exception:
+                await self._db.rollback()
+                raise
+
+            await self._db.commit()
+        finally:
+            await self._session_mgr.release_start_lock(self._user_id)
 
         logger.info(
             "session_started",
@@ -185,6 +234,7 @@ class PracticeService:
                 "session_id": db_session.id,
                 "user_id": self._user_id,
                 "set_id": set_id,
+                "practice_all": practice_all,
                 "item_count": len(item_ids),
             },
         )
@@ -203,7 +253,7 @@ class PracticeService:
 
         return SessionStartedResponse(
             session_id=db_session.id,
-            set_id=set_id,
+            set_id=db_session.set_id,
             items=items,
             comparison_config=_config_to_comparison(config),
         )
@@ -224,6 +274,9 @@ class PracticeService:
         """
         state = await self._load_state_or_raise(session_id)
 
+        if state.user_id != self._user_id:
+            raise NotAuthorizedToStudyError(state.set_id, self._user_id)
+
         if state.is_complete:
             raise ResourceNotFoundError("pending item", session_id)
 
@@ -235,10 +288,11 @@ class PracticeService:
 
         hint = state.get_hint(req.item_id)
         if hint is None:
-            hint = await self._repo.fetch_item_hints(
+            fallback_hints = await self._repo.fetch_item_hints(
                 [req.item_id], state.set_id, state.config.target_lang_id, self._user_id
             )
-            hint = (hint or {}).get(str(req.item_id))
+            _apply_prompt_fallback(fallback_hints)
+            hint = fallback_hints.get(str(req.item_id))
 
         correct_answer = hint["answer"] if hint else ""
         translation_id: int | None = hint.get("translation_id") if hint else None
@@ -319,7 +373,11 @@ class PracticeService:
 
         # Idempotency: already flushed
         if db_session.ended_at is not None:
-            await self._session_mgr.clear_active(self._user_id)
+            await self._session_mgr.clear_active(
+                self._user_id,
+                set_id=db_session.set_id,
+                source_lang_id=db_session.source_lang_id,
+            )
             return await self._build_summary_from_db(session_id)
 
         # Acquire flush lock — prevents double-processing
@@ -342,7 +400,11 @@ class PracticeService:
         finally:
             await self._session_mgr.release_flush_lock(session_id)
 
-        await self._session_mgr.clear_active(self._user_id)
+        await self._session_mgr.clear_active(
+            self._user_id,
+            set_id=state.set_id,
+            source_lang_id=state.source_lang_id,
+        )
         summary["status"] = status.value
         return summary
 
@@ -361,7 +423,10 @@ class PracticeService:
     # ── Active session recovery ───────────────────────────────────────────────
 
     async def get_active_session(self) -> SessionState | None:
-        session_id = await self._session_mgr.get_active_session_id(self._user_id)
+        # Redis active pointer is now context-scoped; fall through to DB for global lookup.
+        session_id = await self._session_mgr.get_active_session_id(
+            self._user_id, set_id=None, source_lang_id=None
+        )
         if session_id is not None:
             state = await self._session_mgr.load_session(session_id)
             if state is not None:
@@ -373,6 +438,8 @@ class PracticeService:
 
         try:
             return await self._reconstruct_state(db_session.id)
+        except NotAuthorizedError:
+            raise
         except Exception:
             logger.warning(
                 "session_reconstruction_failed",
@@ -395,6 +462,8 @@ class PracticeService:
             raise NotAuthorizedToStudyError(session_id, self._user_id)
 
         db_set = await self._repo.get_set(state.set_id)
+        if db_set is None:
+            raise ResourceNotFoundError("Set", state.set_id)
         new_config = await self._build_batch_config(db_set)
 
         updated_state = SessionState(
@@ -413,30 +482,39 @@ class PracticeService:
 
     # ── Private helpers ───────────────────────────────────────────────────────
 
-    async def _assert_no_active_session(self) -> None:
-        # Fast path: Redis active pointer
-        session_id = await self._session_mgr.get_active_session_id(self._user_id)
+    async def _resume_or_none(
+        self, set_id: int | None, source_lang_id: int | None
+    ) -> SessionState | None:
+        """Return the in-progress session for this context (set_id or practice-all), or None."""
+        # Fast path: Redis per-context active pointer
+        session_id = await self._session_mgr.get_active_session_id(
+            self._user_id, set_id=set_id, source_lang_id=source_lang_id
+        )
         if session_id is not None:
-            existing = await self._session_mgr.load_session(session_id)
-            if existing is not None and not existing.is_complete:
-                raise BusinessRuleViolationError(
-                    f"Session {session_id} is still in progress. "
-                    "Finalise or abandon it before starting a new one."
-                )
+            state = await self._session_mgr.load_session(session_id)
+            if state is not None and not state.is_complete:
+                return state
 
-        # Slow path: Redis cold or TTL-expired — orphaned DB session.
-        # Redis state is gone (24h TTL or eviction), so any buffered answers are
-        # already lost. Auto-abandon to unblock the user rather than raising.
-        db_session = await self._repo.get_active_db_session(self._user_id)
-        if db_session is not None:
-            db_session.status = SessionStatus.ABANDONED
-            db_session.ended_at = datetime.now(timezone.utc)
-            await self._db.flush()
-            await self._session_mgr.clear_active(self._user_id)
+        # Slow path: DB query for this specific context (Redis TTL may have expired)
+        db_session = await self._repo.get_active_db_session_for_context(
+            self._user_id, set_id=set_id, source_lang_id=source_lang_id
+        )
+        if db_session is None:
+            return None
+
+        try:
+            state = await self._reconstruct_state(db_session.id)
+            # Re-register the Redis active pointer
+            await self._session_mgr.set_active(
+                self._user_id, db_session.id, set_id=set_id, source_lang_id=source_lang_id
+            )
+            return state if not state.is_complete else None
+        except Exception:
             logger.warning(
-                "orphaned_session_auto_abandoned",
+                "session_resume_reconstruction_failed",
                 extra={"session_id": db_session.id, "user_id": self._user_id},
             )
+            return None
 
     async def _load_state_or_raise(self, session_id: int) -> SessionState:
         state = await self._session_mgr.load_session(session_id)
@@ -453,10 +531,12 @@ class PracticeService:
         if db_session is None:
             raise ResourceNotFoundError("StudySession", session_id)
         if db_session.user_id != self._user_id:
-            raise NotAuthorizedToStudyError(db_session.set_id, self._user_id)
+            raise NotAuthorizedError(
+                f"access session {session_id}", f"(user {self._user_id})"
+            )
 
-        db_set = await self._repo.get_set(db_session.set_id)
-        if db_set is None:
+        db_set = await self._repo.get_set(db_session.set_id) if db_session.set_id else None
+        if db_session.set_id and db_set is None:
             raise ResourceNotFoundError("Set", db_session.set_id)
         config = await self._build_batch_config(db_set)
 
@@ -465,18 +545,24 @@ class PracticeService:
             answered_ids = await self._repo.get_answered_ids_from_reviews(session_id)
 
         remaining_ids = await self._select_items(
-            db_session.set_id, config, exclude_ids=set(answered_ids)
+            db_session.set_id,
+            config,
+            exclude_ids=set(answered_ids),
+            seed_new=False,
+            source_lang_id=db_session.source_lang_id,
         )
 
         item_order = answered_ids + remaining_ids
         item_hints = await self._repo.fetch_item_hints(
             item_order, db_session.set_id, config.target_lang_id, self._user_id
         )
+        _apply_prompt_fallback(item_hints)
 
         state = SessionState(
             session_id=session_id,
             user_id=self._user_id,
             set_id=db_session.set_id,
+            source_lang_id=db_session.source_lang_id,
             item_order=item_order,
             current_index=len(answered_ids),
             config=config,
@@ -485,7 +571,11 @@ class PracticeService:
         )
 
         await self._session_mgr.save_session(state)
-        await self._session_mgr.set_active(self._user_id, session_id)
+        await self._session_mgr.set_active(
+            self._user_id, session_id,
+            set_id=state.set_id,
+            source_lang_id=state.source_lang_id,
+        )
         logger.info(
             "session_reconstructed",
             extra={"session_id": session_id, "answered": len(answered_ids)},
@@ -514,7 +604,14 @@ class PracticeService:
 
     async def _build_batch_config(self, db_set: Set | None) -> BatchConfig:
         settings = await self._repo.get_user_settings(self._user_id)
-        target_lang_id = db_set.target_lang_id if db_set else 0
+
+        if db_set is not None:
+            target_lang_id = db_set.target_lang_id or 0
+        elif settings is not None:
+            # "practice all": use interface language as translation target
+            target_lang_id = settings.interface_lang_id
+        else:
+            target_lang_id = 0
 
         if settings is None:
             return BatchConfig(target_lang_id=target_lang_id)
@@ -535,13 +632,18 @@ class PracticeService:
 
     async def _select_items(
         self,
-        set_id: int,
+        set_id: int | None,
         config: BatchConfig,
         *,
         exclude_ids: set[int] | None = None,
+        seed_new: bool = True,
+        source_lang_id: int | None = None,
+        force: bool = False,
     ) -> list[int]:
         due_ids = await self._repo.select_due_item_ids(
-            self._user_id, set_id, config.batch_size, exclude_ids
+            self._user_id, set_id, config.batch_size, exclude_ids,
+            source_lang_id=source_lang_id,
+            force=force,
         )
 
         slots_for_new = min(
@@ -553,9 +655,10 @@ class PracticeService:
         if slots_for_new > 0:
             combined_exclude = (exclude_ids or set()) | set(due_ids)
             new_ids = await self._repo.select_new_item_ids(
-                self._user_id, set_id, slots_for_new, combined_exclude
+                self._user_id, set_id, slots_for_new, combined_exclude,
+                source_lang_id=source_lang_id,
             )
-            if new_ids:
+            if new_ids and seed_new:
                 init = initial_state()
                 await self._repo.seed_progress_bulk(
                     self._user_id,
@@ -570,6 +673,13 @@ class PracticeService:
 
 
 # ── Pure helpers ──────────────────────────────────────────────────────────────
+
+
+def _apply_prompt_fallback(hints: dict[str, dict]) -> None:
+    """When no translation exists, fall back to the item term as the prompt."""
+    for key, hint in hints.items():
+        if hint.get("prompt") is None:
+            hints[key] = {**hint, "prompt": hint["answer"]}
 
 
 def _config_to_comparison(config: BatchConfig) -> ComparisonConfig:

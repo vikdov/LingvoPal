@@ -3,6 +3,7 @@
 
 from typing import TYPE_CHECKING
 
+import sqlalchemy as sa
 from sqlalchemy import CheckConstraint, ForeignKey, Index, text
 from sqlalchemy.dialects.postgresql import ENUM as pgEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -14,6 +15,7 @@ if TYPE_CHECKING:
     from app.models.language import Language
     from app.models.user import User
     from app.models.translation import Translation
+    from app.models.item_quality_metrics import ItemQualityMetrics
 
 
 class Item(Base, SoftDeleteTimestampMixin):
@@ -48,6 +50,11 @@ class Item(Base, SoftDeleteTimestampMixin):
         default=ContentStatus.DRAFT,
         nullable=False,
     )
+    content_hash: Mapped[str | None] = mapped_column(
+        sa.String(64),
+        nullable=True,
+        comment="SHA-256 of normalized (language_id|term|context) for import dedup",
+    )
 
     language: Mapped["Language"] = relationship(foreign_keys=[language_id])
     creator: Mapped["User | None"] = relationship(
@@ -62,16 +69,27 @@ class Item(Base, SoftDeleteTimestampMixin):
         back_populates="item",
         cascade="all, delete-orphan",
     )
+    quality_metrics: Mapped["ItemQualityMetrics | None"] = relationship(
+        back_populates="item",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
 
     __table_args__ = (
         CheckConstraint("difficulty BETWEEN 1 AND 7", name="chk_item_difficulty"),
         Index("idx_items_lookup", "language_id", "term"),
         Index(
+            "uq_items_content_hash_active",
+            "content_hash",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL AND content_hash IS NOT NULL"),
+        ),
+        Index(
             "idx_items_unverified",
             "created_at",
             postgresql_where=text(
                 "deleted_at IS NULL AND verified_by IS NULL"
-                " AND status = 'pending_review'"
+                " AND status = 'community'"
             ),
         ),
         Index(

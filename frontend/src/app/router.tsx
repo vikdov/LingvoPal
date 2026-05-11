@@ -1,53 +1,29 @@
-import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
+import { createBrowserRouter } from 'react-router-dom';
 
 // 1. Layout Imports
 import { AppLayout } from '@/components/layout/AppLayout';
 import { AuthLayout } from '@/components/layout/AuthLayout';
-import { PublicLayout } from '@/components/layout/PublicLayout';
+import { LandingLayout } from '@/components/layout/LandingLayout';
+import { PracticeLayout } from '@/components/layout/PracticeLayout';
 
 // 2. Feature View Imports (Importing from the feature's public API)
 import { LandingView } from '@/features/landing';
-import { LoginView, RegisterView } from '@/features/auth';
+import {
+  LoginView,
+  RegisterView,
+  VerifyEmailView,
+  ForgotPasswordView,
+  ResetPasswordView,
+} from '@/features/auth';
 import { DashboardView } from '@/features/stats';
-import { SetsListView, SetDetailView } from '@/features/sets';
+import { SetsListView, SetDetailView, SetDiscoveryView, ItemDiscoveryView, ExpressionsLibraryView } from '@/features/sets';
 import { PracticeView, SessionSummaryView } from '@/features/practice';
 import { SettingsView } from '@/features/settings';
+import { AdminDashboard, PendingItemsPage, PendingSetsPage } from '@/features/admin';
 
 // 3. App-Level Imports
 import { NotFoundView } from './NotFoundView';
-import { useAuthStore } from '@/features/auth/model/auth.store'; // Direct store access for the guard
-
-/**
- * GUARD: Protected Route Wrapper
- * Checks if the user is authenticated. 
- * If yes, renders the child route (Outlet).
- * If no, redirects to login.
- */
-const ProtectedRoute = () => {
-  // We use the selector pattern to avoid unnecessary re-renders
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-
-  if (!isAuthenticated) {
-    return <Navigate to="/auth/login" replace />;
-  }
-
-  return <Outlet />;
-};
-
-/**
- * GUARD: Public Route Wrapper (Optional)
- * Prevents logged-in users from seeing the Landing/Login page 
- * and sends them straight to the dashboard.
- */
-const PublicOnlyRoute = () => {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  return <Outlet />;
-};
+import { ProtectedRoute, PublicOnlyRoute, AdminRoute } from './guards';
 
 export const router = createBrowserRouter([
   // --- PUBLIC ROUTES (Landing, Marketing) ---
@@ -56,12 +32,12 @@ export const router = createBrowserRouter([
     children: [
       {
         path: '/',
-        element: <PublicLayout />,
+        element: <LandingLayout />,
         children: [
           { index: true, element: <LandingView /> },
         ],
       },
-      // --- AUTH ROUTES (Login, Register) ---
+      // --- AUTH ROUTES (Login, Register — redirect to app if already logged in) ---
       {
         path: 'auth',
         element: <AuthLayout />,
@@ -73,26 +49,62 @@ export const router = createBrowserRouter([
     ],
   },
 
+  // --- OPEN AUTH ROUTES (accessible regardless of auth state) ---
+  // These must not be inside PublicOnlyRoute so logged-in users can still use them
+  // (e.g., clicking a reset/verify link from email while already logged in).
+  {
+    path: 'auth',
+    element: <AuthLayout />,
+    children: [
+      { path: 'forgot-password', element: <ForgotPasswordView /> },
+      { path: 'reset-password', element: <ResetPasswordView /> },
+    ],
+  },
+  {
+    path: 'verify',
+    element: <AuthLayout />,
+    children: [{ index: true, element: <VerifyEmailView /> }],
+  },
+
   // --- PROTECTED APP ROUTES (Dashboard, Practice, etc.) ---
   {
     element: <ProtectedRoute />,
     children: [
+      // Practice — full-screen, no sidebar
       {
-        element: <AppLayout />, // The Sidebar + Header shell
+        element: <PracticeLayout />,
+        children: [
+          { path: 'practice', element: <PracticeView /> },
+          { path: 'practice/summary', element: <SessionSummaryView /> },
+        ],
+      },
+
+      // Everything else — sidebar + header shell
+      {
+        element: <AppLayout />,
         children: [
           // Dashboard
           { path: 'dashboard', element: <DashboardView /> },
 
           // Sets (Library)
           { path: 'sets', element: <SetsListView /> },
+          { path: 'sets/discover', element: <SetDiscoveryView /> },
+          { path: 'items/discover', element: <ItemDiscoveryView /> },
           { path: 'sets/:setId', element: <SetDetailView /> },
-
-          // Practice Mode
-          { path: 'practice', element: <PracticeView /> },
-          { path: 'practice/summary', element: <SessionSummaryView /> },
+          { path: 'words', element: <ExpressionsLibraryView /> },
 
           // Settings
           { path: 'settings', element: <SettingsView /> },
+
+          // Admin (role check enforced at backend + frontend guard)
+          {
+            element: <AdminRoute />,
+            children: [
+              { path: 'admin', element: <AdminDashboard /> },
+              { path: 'admin/items', element: <PendingItemsPage /> },
+              { path: 'admin/sets', element: <PendingSetsPage /> },
+            ],
+          },
         ],
       },
     ],
