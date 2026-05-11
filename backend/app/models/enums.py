@@ -8,7 +8,7 @@ class ContentStatus(str, Enum):
     """Status of user-generated content in the review workflow"""
 
     DRAFT = "draft"
-    PENDING_REVIEW = "pending_review"
+    COMMUNITY = "community"
     APPROVED = "approved"
     OFFICIAL = "official"
 
@@ -84,6 +84,17 @@ class SessionStatus(str, Enum):
     ABANDONED = "abandoned"
 
 
+class ComplaintReason(str, Enum):
+    """Reason a user reported a piece of community content"""
+
+    WRONG_LANGUAGE = "wrong_language"
+    INCORRECT_TRANSLATION = "incorrect_translation"
+    INAPPROPRIATE = "inappropriate"
+    SPAM = "spam"
+    DUPLICATE = "duplicate"
+    OTHER = "other"
+
+
 __all__ = [
     "ContentStatus",
     "PartOfSpeech",
@@ -94,4 +105,5 @@ __all__ = [
     "EvaluationMode",
     "RetentionPriority",
     "SessionStatus",
+    "ComplaintReason",
 ]

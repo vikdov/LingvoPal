@@ -29,8 +29,8 @@ class Set(Base, SoftDeleteTimestampMixin):
     source_lang_id: Mapped[int] = mapped_column(
         ForeignKey("languages.id", ondelete="RESTRICT"), nullable=False
     )
-    target_lang_id: Mapped[int] = mapped_column(
-        ForeignKey("languages.id", ondelete="RESTRICT"), nullable=False
+    target_lang_id: Mapped[int | None] = mapped_column(
+        ForeignKey("languages.id", ondelete="RESTRICT"), nullable=True
     )
     creator_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -44,7 +44,7 @@ class Set(Base, SoftDeleteTimestampMixin):
         nullable=False,
     )
     source_language: Mapped["Language"] = relationship(foreign_keys=[source_lang_id])
-    target_language: Mapped["Language"] = relationship(foreign_keys=[target_lang_id])
+    target_language: Mapped["Language | None"] = relationship(foreign_keys=[target_lang_id])
     creator: Mapped["User | None"] = relationship(
         foreign_keys=[creator_id],
         primaryjoin="Set.creator_id == User.id",
@@ -64,7 +64,7 @@ class Set(Base, SoftDeleteTimestampMixin):
 
     __table_args__ = (
         CheckConstraint(
-            "source_lang_id != target_lang_id",
+            "target_lang_id IS NULL OR source_lang_id != target_lang_id",
             name="chk_lang_pair_different",
         ),
         CheckConstraint("difficulty BETWEEN 1 AND 7", name="chk_set_difficulty"),

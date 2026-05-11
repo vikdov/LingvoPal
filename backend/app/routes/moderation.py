@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from app.core.dependencies import CurrentUser, ModerationServiceDep
 from app.core.exceptions import (
     BusinessRuleViolationError,
+    ContentValidationError,
     InvalidStateTransitionError,
     LingvoPalError,
     NotAuthorizedError,
@@ -37,6 +38,11 @@ def _handle(exc: LingvoPalError) -> NoReturn:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     if isinstance(exc, NotAuthorizedError):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    if isinstance(exc, ContentValidationError):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"field": exc.field, "reason": exc.reason},
+        )
     if isinstance(exc, InvalidStateTransitionError):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     if isinstance(exc, BusinessRuleViolationError):

@@ -101,6 +101,41 @@ async def get_hardest_items(
 
 
 @router.get(
+    "/vocab-maturity",
+    summary="Vocabulary maturity buckets + recently stabilized",
+)
+async def get_vocab_maturity(
+    svc: StatsServiceDep,
+    language_id: int = Query(..., gt=0),
+) -> dict:
+    """
+    Returns maturity bucket counts (New/Learning/Young/Mature/Long-term),
+    recently crossed thresholds, new-this-month count, and a learning balance
+    advisory if the deck is overloaded.
+    """
+    try:
+        return await svc.get_vocab_maturity(language_id)
+    except ResourceNotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+@router.get(
+    "/set-context/{set_id}",
+    summary="Contextual stats for a specific set",
+)
+async def get_set_context(
+    svc: StatsServiceDep,
+    set_id: int,
+) -> dict:
+    """
+    Per-set stats for the current user:
+    progress (items practiced / total), maturity distribution across set items,
+    and top hardest words by failure rate.
+    """
+    return await svc.get_set_context(set_id)
+
+
+@router.get(
     "/range",
     summary="Aggregated stats over a date range",
 )

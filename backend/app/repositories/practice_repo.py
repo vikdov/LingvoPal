@@ -1,16 +1,17 @@
 """Practice repository — all ORM queries for the practice session flow."""
 
 import logging
+import re
 from datetime import datetime, timezone
 
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.models.enums import SessionStatus
 from app.models.item import Item
-from app.models.item_synonym import ItemSynonym
+from app.models.item_synonym_term import ItemSynonymTerm
 from app.models.pending_session import PendingSession
 from app.models.set import Set
 from app.models.set_item import SetItem
@@ -22,6 +23,31 @@ from app.models.user_progress import UserProgress
 from app.models.user_set_library import UserSetLibrary
 
 logger = logging.getLogger(__name__)
+
+
+def _split_cloze(
+    context: str | None, term: str
+) -> tuple[str | None, str | None, str | None]:
+    """
+    Split context into (prefix, surface_word, suffix) for cloze display.
+
+    Prefers explicit {{surface_form}} annotation; falls back to word-boundary
+    search for term. Returns (None, None, None) when no match found.
+
+    Returns strings, not integer offsets, to avoid Python code-point vs JS UTF-16
+    index mismatch for non-ASCII content.
+    """
+    if not context or not term:
+        return None, None, None
+    marker = re.search(r"\{\{(.+?)\}\}", context)
+    if marker:
+        s, e = marker.start(), marker.end()
+        return context[:s], marker.group(1), context[e:]
+    match = re.search(r"\b" + re.escape(term) + r"\b", context, re.IGNORECASE)
+    if not match:
+        return None, None, None
+    s, e = match.start(), match.end()
+    return context[:s], context[s:e], context[e:]
 
 
 class PracticeRepository:
@@ -55,55 +81,134 @@ class PracticeRepository:
     async def select_due_item_ids(
         self,
         user_id: int,
-        set_id: int,
+        set_id: int | None,
         limit: int,
         exclude_ids: set[int] | None = None,
+        source_lang_id: int | None = None,
+        force: bool = False,
     ) -> list[int]:
         now = datetime.now(timezone.utc)
-        stmt = (
-            select(UserProgress.item_id)
-            .join(SetItem, SetItem.item_id == UserProgress.item_id)
-            .join(Item, Item.id == UserProgress.item_id)
-            .where(
+
+        if set_id is not None:
+            where = [
                 UserProgress.user_id == user_id,
                 SetItem.set_id == set_id,
-                UserProgress.next_review <= now,
                 Item.deleted_at.is_(None),
+            ]
+            if not force:
+                where.append(UserProgress.next_review <= now)
+            stmt = (
+                select(UserProgress.item_id)
+                .join(SetItem, SetItem.item_id == UserProgress.item_id)
+                .join(Item, Item.id == UserProgress.item_id)
+                .where(*where)
+                .order_by(UserProgress.next_review.asc())
+                .limit(limit)
             )
-            .order_by(UserProgress.next_review.asc())
-            .limit(limit)
-        )
+        else:
+            # "practice all": items from all library sets for source_lang_id
+            eligible = (
+                select(SetItem.item_id)
+                .join(Set, Set.id == SetItem.set_id)
+                .join(UserSetLibrary, and_(
+                    UserSetLibrary.set_id == Set.id,
+                    UserSetLibrary.user_id == user_id,
+                ))
+                .where(Set.source_lang_id == source_lang_id)
+                .distinct()
+                .scalar_subquery()
+            )
+            where_all = [
+                UserProgress.user_id == user_id,
+                Item.deleted_at.is_(None),
+                UserProgress.item_id.in_(eligible),
+            ]
+            if not force:
+                where_all.append(UserProgress.next_review <= now)
+            stmt = (
+                select(UserProgress.item_id)
+                .join(Item, Item.id == UserProgress.item_id)
+                .where(*where_all)
+                .order_by(UserProgress.next_review.asc())
+                .limit(limit)
+            )
+
         if exclude_ids:
             stmt = stmt.where(UserProgress.item_id.notin_(exclude_ids))
         return [row[0] for row in (await self._db.execute(stmt)).fetchall()]
 
+    async def get_next_review_at(self, user_id: int, set_id: int) -> datetime | None:
+        stmt = (
+            select(func.min(UserProgress.next_review))
+            .join(SetItem, SetItem.item_id == UserProgress.item_id)
+            .where(
+                UserProgress.user_id == user_id,
+                SetItem.set_id == set_id,
+            )
+        )
+        return (await self._db.execute(stmt)).scalar_one_or_none()
+
     async def select_new_item_ids(
         self,
         user_id: int,
-        set_id: int,
+        set_id: int | None,
         limit: int,
         exclude_ids: set[int] | None = None,
+        source_lang_id: int | None = None,
     ) -> list[int]:
         if limit <= 0:
             return []
-        stmt = (
-            select(Item.id)
-            .join(SetItem, SetItem.item_id == Item.id)
-            .outerjoin(
-                UserProgress,
-                and_(
-                    UserProgress.item_id == Item.id,
-                    UserProgress.user_id == user_id,
-                ),
+
+        if set_id is not None:
+            stmt = (
+                select(Item.id)
+                .join(SetItem, SetItem.item_id == Item.id)
+                .outerjoin(
+                    UserProgress,
+                    and_(
+                        UserProgress.item_id == Item.id,
+                        UserProgress.user_id == user_id,
+                    ),
+                )
+                .where(
+                    SetItem.set_id == set_id,
+                    Item.deleted_at.is_(None),
+                    UserProgress.item_id.is_(None),  # anti-join: never seen
+                )
+                .order_by(Item.id.asc())
+                .limit(limit)
             )
-            .where(
-                SetItem.set_id == set_id,
-                Item.deleted_at.is_(None),
-                UserProgress.item_id.is_(None),  # hash anti-join: never seen
+        else:
+            # "practice all": new items across all library sets for source_lang_id
+            eligible = (
+                select(SetItem.item_id)
+                .join(Set, Set.id == SetItem.set_id)
+                .join(UserSetLibrary, and_(
+                    UserSetLibrary.set_id == Set.id,
+                    UserSetLibrary.user_id == user_id,
+                ))
+                .where(Set.source_lang_id == source_lang_id)
+                .distinct()
+                .scalar_subquery()
             )
-            .order_by(Item.id.asc())
-            .limit(limit)
-        )
+            stmt = (
+                select(Item.id)
+                .outerjoin(
+                    UserProgress,
+                    and_(
+                        UserProgress.item_id == Item.id,
+                        UserProgress.user_id == user_id,
+                    ),
+                )
+                .where(
+                    Item.deleted_at.is_(None),
+                    UserProgress.item_id.is_(None),
+                    Item.id.in_(eligible),
+                )
+                .order_by(Item.id.asc())
+                .limit(limit)
+            )
+
         if exclude_ids:
             stmt = stmt.where(Item.id.notin_(exclude_ids))
         return [row[0] for row in (await self._db.execute(stmt)).fetchall()]
@@ -144,12 +249,15 @@ class PracticeRepository:
     async def fetch_item_hints(
         self,
         item_ids: list[int],
-        set_id: int,
+        set_id: int | None,
         target_lang_id: int,
         user_id: int,
     ) -> dict[str, dict]:
         """
         Single JOIN query for all per-card data, then one synonym query.
+
+        When set_id is None ("practice all"), skips SetItem join and pinned
+        translation — falls back to language-based translation lookup only.
 
         Returns dict[str(item_id), hint_dict] where hint_dict contains
         everything ItemHintSchema needs.
@@ -157,61 +265,97 @@ class PracticeRepository:
         if not item_ids:
             return {}
 
-        PinnedT = aliased(Translation, name="pinned_t")
         LangT = aliased(Translation, name="lang_t")
 
-        stmt = (
-            select(
-                Item.id.label("item_id"),
-                Item.term.label("answer"),
-                Item.context.label("context"),
-                Item.image_url.label("image_url"),
-                Item.audio_url.label("audio_url"),
-                Item.part_of_speech.label("part_of_speech"),
-                func.coalesce(PinnedT.id, LangT.id).label("resolved_trans_id"),
-                func.coalesce(PinnedT.term_trans, LangT.term_trans).label("prompt"),
-                func.coalesce(
-                    PinnedT.context_trans, LangT.context_trans
-                ).label("context_trans"),
-                UserProgress.last_reviewed.label("last_reviewed"),
+        if set_id is not None:
+            PinnedT = aliased(Translation, name="pinned_t")
+            stmt = (
+                select(
+                    Item.id.label("item_id"),
+                    Item.term.label("answer"),
+                    Item.context.label("context"),
+                    Item.image_url.label("image_url"),
+                    Item.audio_url.label("audio_url"),
+                    Item.part_of_speech.label("part_of_speech"),
+                    func.coalesce(PinnedT.id, LangT.id).label("resolved_trans_id"),
+                    func.coalesce(PinnedT.term_trans, LangT.term_trans).label("prompt"),
+                    func.coalesce(
+                        PinnedT.context_trans, LangT.context_trans
+                    ).label("context_trans"),
+                    UserProgress.last_reviewed.label("last_reviewed"),
+                )
+                .select_from(Item)
+                .join(SetItem, and_(SetItem.item_id == Item.id, SetItem.set_id == set_id))
+                .outerjoin(
+                    PinnedT,
+                    and_(
+                        SetItem.translation_id.is_not(None),
+                        PinnedT.id == SetItem.translation_id,
+                    ),
+                )
+                .outerjoin(
+                    LangT,
+                    and_(
+                        SetItem.translation_id.is_(None),
+                        LangT.item_id == Item.id,
+                        LangT.language_id == target_lang_id,
+                        LangT.deleted_at.is_(None),
+                    ),
+                )
+                .outerjoin(
+                    UserProgress,
+                    and_(
+                        UserProgress.item_id == Item.id,
+                        UserProgress.user_id == user_id,
+                    ),
+                )
+                .where(Item.id.in_(item_ids))
             )
-            .select_from(Item)
-            .join(SetItem, and_(SetItem.item_id == Item.id, SetItem.set_id == set_id))
-            .outerjoin(
-                PinnedT,
-                and_(
-                    SetItem.translation_id.is_not(None),
-                    PinnedT.id == SetItem.translation_id,
-                ),
+        else:
+            # "practice all": no set context, language-based translation only
+            stmt = (
+                select(
+                    Item.id.label("item_id"),
+                    Item.term.label("answer"),
+                    Item.context.label("context"),
+                    Item.image_url.label("image_url"),
+                    Item.audio_url.label("audio_url"),
+                    Item.part_of_speech.label("part_of_speech"),
+                    LangT.id.label("resolved_trans_id"),
+                    LangT.term_trans.label("prompt"),
+                    LangT.context_trans.label("context_trans"),
+                    UserProgress.last_reviewed.label("last_reviewed"),
+                )
+                .select_from(Item)
+                .outerjoin(
+                    LangT,
+                    and_(
+                        LangT.item_id == Item.id,
+                        LangT.language_id == target_lang_id,
+                        LangT.deleted_at.is_(None),
+                    ),
+                )
+                .outerjoin(
+                    UserProgress,
+                    and_(
+                        UserProgress.item_id == Item.id,
+                        UserProgress.user_id == user_id,
+                    ),
+                )
+                .where(Item.id.in_(item_ids))
             )
-            .outerjoin(
-                LangT,
-                and_(
-                    SetItem.translation_id.is_(None),
-                    LangT.item_id == Item.id,
-                    LangT.language_id == target_lang_id,
-                    LangT.deleted_at.is_(None),
-                ),
-            )
-            .outerjoin(
-                UserProgress,
-                and_(
-                    UserProgress.item_id == Item.id,
-                    UserProgress.user_id == user_id,
-                ),
-            )
-            .where(Item.id.in_(item_ids))
-        )
 
         rows = (await self._db.execute(stmt)).fetchall()
         synonyms = await self._fetch_synonyms(item_ids)
 
         hints: dict[str, dict] = {}
         for row in rows:
-            prompt = row.prompt if row.prompt is not None else row.answer
             pos = row.part_of_speech.value if row.part_of_speech is not None else None
+            cloze_prefix, cloze_word, cloze_suffix = _split_cloze(
+                row.context, row.answer
+            )
             hints[str(row.item_id)] = {
-                "prompt": prompt,
+                "prompt": row.prompt,  # None when no translation found; caller applies fallback
                 "answer": row.answer,
                 "context": row.context,
                 "context_trans": row.context_trans,
@@ -223,53 +367,38 @@ class PracticeRepository:
                     row.last_reviewed.isoformat() if row.last_reviewed else None
                 ),
                 "synonyms": synonyms.get(row.item_id, []),
+                "cloze_prefix": cloze_prefix,
+                "cloze_word": cloze_word,
+                "cloze_suffix": cloze_suffix,
             }
 
         return hints
 
     async def _fetch_synonyms(self, item_ids: list[int]) -> dict[int, list[str]]:
-        """
-        item_synonyms is a pair table with item_a_id < item_b_id.
-        For each item in item_ids, collect the terms of its synonym partners.
-        """
         if not item_ids:
             return {}
-
-        ItemA = aliased(Item, name="item_a")
-        ItemB = aliased(Item, name="item_b")
-
         stmt = (
-            select(
-                ItemSynonym.item_a_id,
-                ItemSynonym.item_b_id,
-                ItemA.term.label("term_a"),
-                ItemB.term.label("term_b"),
-            )
-            .join(ItemA, ItemA.id == ItemSynonym.item_a_id)
-            .join(ItemB, ItemB.id == ItemSynonym.item_b_id)
-            .where(
-                ItemSynonym.deleted_at.is_(None),
-                or_(
-                    ItemSynonym.item_a_id.in_(item_ids),
-                    ItemSynonym.item_b_id.in_(item_ids),
-                ),
-            )
+            select(ItemSynonymTerm.item_id, ItemSynonymTerm.term)
+            .where(ItemSynonymTerm.item_id.in_(item_ids))
+            .order_by(ItemSynonymTerm.term)
         )
-
         result: dict[int, list[str]] = {}
         for row in (await self._db.execute(stmt)).fetchall():
-            if row.item_a_id in item_ids:
-                result.setdefault(row.item_a_id, []).append(row.term_b)
-            if row.item_b_id in item_ids:
-                result.setdefault(row.item_b_id, []).append(row.term_a)
+            result.setdefault(row.item_id, []).append(row.term)
         return result
 
     # ── Session CRUD ──────────────────────────────────────────────────────────
 
-    async def create_session(self, user_id: int, set_id: int) -> StudySession:
+    async def create_session(
+        self,
+        user_id: int,
+        set_id: int | None,
+        source_lang_id: int | None = None,
+    ) -> StudySession:
         db_session = StudySession(
             user_id=user_id,
             set_id=set_id,
+            source_lang_id=source_lang_id,
             started_at=datetime.now(timezone.utc),
             status=SessionStatus.IN_PROGRESS,
             correct_count=0,
@@ -294,6 +423,37 @@ class PracticeRepository:
             .order_by(StudySession.started_at.desc())
             .limit(1)
         )
+
+    async def get_active_db_session_for_context(
+        self,
+        user_id: int,
+        set_id: int | None,
+        source_lang_id: int | None,
+    ) -> StudySession | None:
+        if set_id is not None:
+            q = (
+                select(StudySession)
+                .where(
+                    StudySession.user_id == user_id,
+                    StudySession.set_id == set_id,
+                    StudySession.status == SessionStatus.IN_PROGRESS,
+                )
+                .order_by(StudySession.started_at.desc())
+                .limit(1)
+            )
+        else:
+            q = (
+                select(StudySession)
+                .where(
+                    StudySession.user_id == user_id,
+                    StudySession.set_id.is_(None),
+                    StudySession.source_lang_id == source_lang_id,
+                    StudySession.status == SessionStatus.IN_PROGRESS,
+                )
+                .order_by(StudySession.started_at.desc())
+                .limit(1)
+            )
+        return await self._db.scalar(q)
 
     async def get_all_in_progress_sessions(self) -> list[StudySession]:
         result = await self._db.execute(

@@ -4,7 +4,7 @@
 from datetime import datetime, timezone
 from typing import Sequence
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import case, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -14,7 +14,9 @@ from app.models.set import Set
 from app.models.set_item import SetItem
 from app.models.user_set_library import UserSetLibrary
 
-_PUBLIC_STATUSES = (ContentStatus.APPROVED, ContentStatus.OFFICIAL)
+_MISSING = object()  # sentinel — distinguishes "not provided" from None
+
+_PUBLIC_STATUSES = (ContentStatus.COMMUNITY, ContentStatus.APPROVED, ContentStatus.OFFICIAL)
 
 
 class SetRepository:
@@ -44,8 +46,15 @@ class SetRepository:
     ) -> Sequence[Set]:
         result = await self._session.execute(
             select(Set)
+            .outerjoin(
+                UserSetLibrary,
+                (UserSetLibrary.set_id == Set.id) & (UserSetLibrary.user_id == user_id),
+            )
             .where(Set.creator_id == user_id, Set.deleted_at.is_(None))
-            .order_by(Set.created_at.desc())
+            .order_by(
+                func.coalesce(UserSetLibrary.is_pinned, False).desc(),
+                func.coalesce(UserSetLibrary.last_opened_at, Set.created_at).desc(),
+            )
             .offset(skip)
             .limit(limit)
         )
@@ -85,8 +94,13 @@ class SetRepository:
             stmt = stmt.where(Set.target_lang_id == target_lang_id)
         if difficulty is not None:
             stmt = stmt.where(Set.difficulty == difficulty)
+        status_rank = case(
+            (Set.status == ContentStatus.OFFICIAL, 1),
+            (Set.status == ContentStatus.APPROVED, 2),
+            else_=3,
+        )
         result = await self._session.execute(
-            stmt.order_by(Set.created_at.desc()).offset(skip).limit(limit)
+            stmt.order_by(status_rank, Set.created_at.desc()).offset(skip).limit(limit)
         )
         return result.scalars().all()
 
@@ -153,7 +167,7 @@ class SetRepository:
         *,
         title: str,
         source_lang_id: int,
-        target_lang_id: int,
+        target_lang_id: int | None,
         creator_id: int,
         description: str | None = None,
         difficulty: int | None = None,
@@ -180,6 +194,8 @@ class SetRepository:
         description: str | None = None,
         difficulty: int | None = None,
         status: ContentStatus | None = None,
+        source_lang_id: int | None = None,
+        target_lang_id: object = _MISSING,
     ) -> None:
         values: dict = {}
         if title is not None:
@@ -190,6 +206,10 @@ class SetRepository:
             values["difficulty"] = difficulty
         if status is not None:
             values["status"] = status
+        if source_lang_id is not None:
+            values["source_lang_id"] = source_lang_id
+        if target_lang_id is not _MISSING:
+            values["target_lang_id"] = target_lang_id  # allows explicit None (clear)
         if not values:
             return
         await self._session.execute(
@@ -228,11 +248,12 @@ class SetRepository:
         """Load library entries with their sets eagerly (avoids raise_on_sql)."""
         result = await self._session.execute(
             select(UserSetLibrary)
-            .where(UserSetLibrary.user_id == user_id)
+            .join(Set, Set.id == UserSetLibrary.set_id)
+            .where(UserSetLibrary.user_id == user_id, Set.deleted_at.is_(None))
             .options(selectinload(UserSetLibrary.set))
             .order_by(
                 UserSetLibrary.is_pinned.desc(),
-                UserSetLibrary.added_at.desc(),
+                func.coalesce(UserSetLibrary.last_opened_at, UserSetLibrary.added_at).desc(),
             )
             .offset(skip)
             .limit(limit)
@@ -253,6 +274,15 @@ class SetRepository:
             )
         )
 
+    async def count_user_library(self, user_id: int) -> int:
+        result = await self._session.execute(
+            select(func.count())
+            .select_from(UserSetLibrary)
+            .join(Set, Set.id == UserSetLibrary.set_id)
+            .where(UserSetLibrary.user_id == user_id, Set.deleted_at.is_(None))
+        )
+        return result.scalar_one()
+
     async def touch_library_entry(self, user_id: int, set_id: int) -> None:
         """Update last_opened_at when a user opens a set from their library."""
         await self._session.execute(
@@ -262,6 +292,30 @@ class SetRepository:
                 UserSetLibrary.set_id == set_id,
             )
             .values(last_opened_at=datetime.now(timezone.utc))
+        )
+
+    async def get_library_pins_batch(
+        self, user_id: int, set_ids: list[int]
+    ) -> dict[int, bool]:
+        """Return {set_id: is_pinned} for each set_id that has a library entry."""
+        if not set_ids:
+            return {}
+        result = await self._session.execute(
+            select(UserSetLibrary.set_id, UserSetLibrary.is_pinned).where(
+                UserSetLibrary.user_id == user_id,
+                UserSetLibrary.set_id.in_(set_ids),
+            )
+        )
+        return {row.set_id: row.is_pinned for row in result}
+
+    async def set_pin(self, user_id: int, set_id: int, is_pinned: bool) -> None:
+        await self._session.execute(
+            update(UserSetLibrary)
+            .where(
+                UserSetLibrary.user_id == user_id,
+                UserSetLibrary.set_id == set_id,
+            )
+            .values(is_pinned=is_pinned)
         )
 
 

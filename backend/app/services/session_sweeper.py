@@ -250,7 +250,11 @@ class SessionSweeper:
         # finalise_batch committed; mark pending record recovered.
         # get_session() auto-commits on clean exit, persisting this UPDATE.
         await repo.mark_pending_session_recovered(session_id)
-        await mgr.clear_active(user_id)
+        await mgr.clear_active(
+            user_id,
+            set_id=state.set_id,
+            source_lang_id=state.source_lang_id,
+        )
         logger.info("sweeper_flushed", extra={"session_id": session_id})
 
 

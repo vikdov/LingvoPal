@@ -25,10 +25,12 @@ import pytest
 
 from app.services.sm2_engine import (
     INITIAL_EF,
-    INITIAL_INTERVAL_HOURS,
+    LAPSE_INTERVAL_FACTOR,
     MAX_EF,
     MIN_EF,
+    MIN_LAPSE_DAYS,
     QUALITY_THRESHOLD,
+    SLOW_ANSWER_INTERVAL_FACTOR,
     SM2State,
     apply_absence_decay_for_days,
     initial_state,
@@ -124,22 +126,13 @@ class TestUpdateValidation:
 
 
 class TestLapsePath:
-    def test_lapse_resets_repetitions(self):
-        s = _state(reps=5, interval=30)
-        result = update(s, 0, now=_NOW)
-        assert result.new_state.repetitions == 0
-
-    def test_lapse_resets_interval(self):
-        s = _state(interval=30)
-        result = update(s, 2, now=_NOW)
-        assert result.new_state.interval_days == 0
-
-    def test_lapse_decreases_ef(self):
+    def test_lapse_preserves_ef(self):
+        """Original SM-2: EF never changes on lapse."""
         s = _state(ef="2.5")
         result = update(s, 0, now=_NOW)
-        assert result.new_state.ease_factor < Decimal("2.5")
+        assert result.new_state.ease_factor == Decimal("2.5")
 
-    def test_lapse_ef_not_below_minimum(self):
+    def test_lapse_preserves_ef_at_minimum(self):
         s = _state(ef=str(MIN_EF))
         result = update(s, 0, now=_NOW)
         assert result.new_state.ease_factor == MIN_EF
@@ -158,32 +151,57 @@ class TestLapsePath:
         result = update(s, 1, now=_NOW)
         assert result.new_state.lapsed_attempts == 3
 
-    def test_first_lapse_recovery_interval_24h(self):
-        """First failure → 24h recovery (1440 min)."""
-        s = _state(lapsed=0)
+    # Young card (interval <= 3 days)
+    def test_new_card_lapse_gives_one_hour(self):
+        """Never recalled card → 1-hour re-show, not 1 day."""
+        s = _state(reps=0, interval=0)
         result = update(s, 0, now=_NOW)
-        expected_min = _NOW + timedelta(minutes=1439)
-        expected_max = _NOW + timedelta(minutes=1441)
-        assert expected_min <= result.next_review_at <= expected_max
+        assert result.next_review_at == _NOW + timedelta(hours=1)
+        assert result.new_state.interval_days == 0
+        assert result.new_state.repetitions == 0
 
-    def test_second_lapse_recovery_interval_30min(self):
-        s = _state(lapsed=1)
+    def test_young_card_lapse_gives_min_lapse_days(self):
+        s = _state(reps=1, interval=0)
         result = update(s, 0, now=_NOW)
-        expected = _NOW + timedelta(minutes=30)
+        assert result.new_state.interval_days == MIN_LAPSE_DAYS
+
+    def test_young_card_lapse_resets_repetitions(self):
+        s = _state(reps=1, interval=1)
+        result = update(s, 0, now=_NOW)
+        assert result.new_state.repetitions == 0
+
+    def test_young_card_lapse_schedules_min_lapse_days(self):
+        s = _state(reps=1, interval=0)
+        result = update(s, 0, now=_NOW)
+        expected = _NOW + timedelta(days=MIN_LAPSE_DAYS)
         assert abs((result.next_review_at - expected).total_seconds()) < 5
 
-    def test_third_lapse_recovery_interval_10min(self):
-        s = _state(lapsed=2)
+    # Mature card (interval > 3 days)
+    def test_mature_card_lapse_proportional_interval(self):
+        """30-day card → round(30 × 0.33) = 10 days."""
+        s = _state(reps=3, interval=30)
         result = update(s, 0, now=_NOW)
-        expected = _NOW + timedelta(minutes=10)
-        assert abs((result.next_review_at - expected).total_seconds()) < 5
+        expected_days = max(MIN_LAPSE_DAYS, round(30 * float(LAPSE_INTERVAL_FACTOR)))
+        assert result.new_state.interval_days == expected_days
 
-    def test_fourth_and_beyond_lapse_recovery_5min(self):
-        for lapsed in (3, 4, 10):
-            s = _state(lapsed=lapsed)
-            result = update(s, 0, now=_NOW)
-            expected = _NOW + timedelta(minutes=5)
-            assert abs((result.next_review_at - expected).total_seconds()) < 5
+    def test_mature_card_lapse_sets_repetitions_one(self):
+        """Mature card skips re-learning phase."""
+        s = _state(reps=5, interval=30)
+        result = update(s, 0, now=_NOW)
+        assert result.new_state.repetitions == 1
+
+    def test_mature_card_lapse_schedules_proportional(self):
+        s = _state(reps=3, interval=365)
+        result = update(s, 0, now=_NOW)
+        expected_days = max(MIN_LAPSE_DAYS, round(365 * float(LAPSE_INTERVAL_FACTOR)))
+        expected_dt = _NOW + timedelta(days=expected_days)
+        assert abs((result.next_review_at - expected_dt).total_seconds()) < 5
+
+    def test_proportional_lapse_minimum_one_day(self):
+        """Very short mature card interval cannot go below MIN_LAPSE_DAYS."""
+        s = _state(reps=3, interval=4)  # 4 * 0.33 = 1.32 → rounds to 1
+        result = update(s, 0, now=_NOW)
+        assert result.new_state.interval_days >= MIN_LAPSE_DAYS
 
 
 # ---------------------------------------------------------------------------
@@ -200,16 +218,17 @@ class TestSuccessFirstRepetition:
         result = update(_state(reps=0), 4, now=_NOW)
         assert result.was_lapsed is False
 
-    def test_lapsed_attempts_reset(self):
+    def test_lapsed_attempts_preserved_on_success(self):
+        """lapsed_attempts is a lifetime counter — success does not reset it."""
         s = _state(lapsed=3)
         result = update(s, 4, now=_NOW)
-        assert result.new_state.lapsed_attempts == 0
+        assert result.new_state.lapsed_attempts == 3
 
-    def test_next_review_within_day(self):
-        """First review → 6-hour interval (default intensity=1.0)."""
+    def test_next_review_is_one_day(self):
+        """First review → 1-day interval (default intensity=1.0)."""
         result = update(_state(reps=0), 4, now=_NOW)
         delta = result.next_review_at - _NOW
-        assert timedelta(hours=5) <= delta <= timedelta(hours=7)
+        assert delta == timedelta(days=1)
 
     def test_interval_days_is_one(self):
         result = update(_state(reps=0), 5, now=_NOW)
@@ -219,9 +238,10 @@ class TestSuccessFirstRepetition:
         result = update(_state(reps=0, ef="2.5"), 5, now=_NOW)
         assert result.new_state.ease_factor > Decimal("2.5")
 
-    def test_q3_decreases_ef(self):
+    def test_q3_ef_neutral(self):
+        """q=3 (slow-correct): EF unchanged — latency != difficulty."""
         result = update(_state(reps=0, ef="2.5"), 3, now=_NOW)
-        assert result.new_state.ease_factor < Decimal("2.5")
+        assert result.new_state.ease_factor == Decimal("2.5")
 
     def test_q4_leaves_ef_neutral(self):
         result = update(_state(reps=0, ef="2.5"), 4, now=_NOW)
@@ -292,11 +312,12 @@ class TestEaseFactorBoundaries:
         result = update(s, 0, now=_NOW)
         assert result.new_state.ease_factor >= MIN_EF
 
-    def test_repeated_lapses_do_not_go_below_min(self):
-        s = _state(ef=str(MIN_EF), lapsed=5)
+    def test_repeated_lapses_ef_unchanged(self):
+        """EF never changes on lapse — stays at initial value regardless of failure count."""
+        s = _state(ef="2.5", lapsed=5)
         for _ in range(10):
             s = update(s, 0, now=_NOW).new_state
-        assert s.ease_factor >= MIN_EF
+        assert s.ease_factor == Decimal("2.5")
 
 
 # ---------------------------------------------------------------------------
@@ -319,11 +340,12 @@ class TestReviewIntensityScaling:
         r_light = update(s, 4, review_intensity=1.3, now=_NOW)
         assert r_light.new_state.interval_days >= r_default.new_state.interval_days
 
-    def test_first_review_intensity_scales_hours(self):
-        # intensity=0.5 (<1.0) → initial_hours * 0.5 → sooner first review
+    def test_first_review_intensity_clamped_to_one_day(self):
+        # First interval is always 1 day minimum regardless of intensity
         r_default = update(_state(reps=0), 4, review_intensity=1.0, now=_NOW)
         r_intensive = update(_state(reps=0), 4, review_intensity=0.5, now=_NOW)
-        assert r_intensive.next_review_at < r_default.next_review_at
+        assert r_intensive.next_review_at == r_default.next_review_at
+        assert r_intensive.new_state.interval_days == 1
 
 
 # ---------------------------------------------------------------------------
@@ -336,8 +358,9 @@ class TestNextReviewAt:
         result = update(_state(), 4, now=_NOW)
         assert result.next_review_at > _NOW
 
-    def test_lapse_next_review_within_24h(self):
-        result = update(_state(lapsed=0), 0, now=_NOW)
+    def test_young_lapse_next_review_within_24h(self):
+        """Young card (interval=0) lapse → MIN_LAPSE_DAYS = 1 day."""
+        result = update(_state(lapsed=0, interval=0), 0, now=_NOW)
         assert result.next_review_at <= _NOW + timedelta(hours=24, minutes=1)
 
     def test_success_next_review_uses_injected_now(self):
@@ -417,18 +440,19 @@ class TestFullSessionSimulation:
         assert r3.new_state.interval_days > r2.new_state.interval_days
 
     def test_lapse_then_recovery(self):
-        """Simulate a card lapsing and then recovering."""
+        """Mature card lapses: rep=1, proportional interval; next success → rep=2."""
         s = _state(reps=5, interval=30, ef="2.8")
 
-        # Lapse
+        # Lapse — mature card (interval=30 > 3)
         lapsed = update(s, 1, now=_NOW)
         assert lapsed.was_lapsed is True
-        assert lapsed.new_state.repetitions == 0
+        assert lapsed.new_state.repetitions == 1  # skips 6h re-learning
+        assert lapsed.new_state.ease_factor == Decimal("2.8")  # EF unchanged
 
         # First successful recovery
-        recovered = update(lapsed.new_state, 4, now=_NOW + timedelta(minutes=30))
+        recovered = update(lapsed.new_state, 4, now=_NOW + timedelta(days=10))
         assert recovered.was_lapsed is False
-        assert recovered.new_state.repetitions == 1
+        assert recovered.new_state.repetitions == 2
 
     def test_repeated_perfect_scores_increase_ef(self):
         s = _state(reps=3, interval=15, ef="2.5")
@@ -436,8 +460,24 @@ class TestFullSessionSimulation:
             s = update(s, 5, now=_NOW).new_state
         assert s.ease_factor > Decimal("2.5")
 
-    def test_repeated_slow_scores_decrease_ef(self):
+    def test_repeated_slow_scores_preserve_ef(self):
+        """Repeated q=3: EF stays stable. Only interval is shortened each cycle."""
         s = _state(reps=3, interval=15, ef="2.5")
         for _ in range(5):
             s = update(s, 3, now=_NOW).new_state
-        assert s.ease_factor < Decimal("2.5")
+        assert s.ease_factor == Decimal("2.5")
+
+    def test_q3_shorter_interval_than_q4(self):
+        """q=3 interval scaled by SLOW_ANSWER_INTERVAL_FACTOR vs q=4 at same state."""
+        s = _state(reps=3, interval=20, ef="2.5")
+        r3 = update(s, 3, now=_NOW)
+        r4 = update(s, 4, now=_NOW)
+        assert r3.new_state.interval_days < r4.new_state.interval_days
+
+    def test_q3_interval_uses_slow_factor(self):
+        """q=3 interval ≈ q=4 interval × SLOW_ANSWER_INTERVAL_FACTOR."""
+        s = _state(reps=3, interval=20, ef="2.5")
+        r3 = update(s, 3, now=_NOW)
+        r4 = update(s, 4, now=_NOW)
+        expected = max(1, round(r4.new_state.interval_days * float(SLOW_ANSWER_INTERVAL_FACTOR)))
+        assert r3.new_state.interval_days == expected

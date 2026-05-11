@@ -202,6 +202,19 @@ class StatsService:
             self._user_id, language_id, limit=limit
         )
 
+    # ── Vocabulary maturity ───────────────────────────────────────────────────
+
+    async def get_vocab_maturity(self, language_id: int) -> dict:
+        await self._assert_language_exists(language_id)
+        data = await self._repo.get_vocab_maturity(self._user_id, language_id)
+        data["learning_balance"] = _compute_learning_balance(data["buckets"], data["total_items"])
+        return data
+
+    # ── Set context stats ─────────────────────────────────────────────────────
+
+    async def get_set_context(self, set_id: int) -> dict:
+        return await self._repo.get_set_context(self._user_id, set_id)
+
     # ── Streak ────────────────────────────────────────────────────────────────
 
     async def get_streak(self, language_id: int) -> dict:
@@ -217,6 +230,32 @@ class StatsService:
         )
         if result.scalar_one_or_none() is None:
             raise ResourceNotFoundError("Language", language_id)
+
+
+# ============================================================================
+# Pure helpers
+# ============================================================================
+
+
+def _compute_learning_balance(buckets: list[dict], total: int) -> dict | None:
+    if total < 10:
+        return None
+
+    new_pct = next((b["percent"] for b in buckets if b["key"] == "new"), 0.0)
+    learning_pct = next((b["percent"] for b in buckets if b["key"] == "learning"), 0.0)
+    mature_pct = next((b["percent"] for b in buckets if b["key"] == "mature"), 0.0)
+    long_term_pct = next((b["percent"] for b in buckets if b["key"] == "long_term"), 0.0)
+
+    active_load = new_pct + learning_pct
+    retention = mature_pct + long_term_pct
+
+    if new_pct > 35:
+        return {"status": "heavy", "message": "Too many new cards at once. Review existing words before adding more."}
+    if active_load > 55:
+        return {"status": "heavy", "message": "Learning load is heavy. Consistent reviews help words mature faster."}
+    if total > 30 and retention < 15:
+        return {"status": "slow", "message": "Words are maturing slowly. Keep reviewing daily for better retention."}
+    return None
 
 
 # ============================================================================

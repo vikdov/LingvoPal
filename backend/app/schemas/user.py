@@ -3,9 +3,11 @@
 User profile schemas with privacy controls.
 
 - PublicResponse: What other users see
-- PrivateResponse: What you see about yourself
+- PrivateResponse: What you see about yourself (also used in auth token response)
 - DetailResponse: Private + settings
 """
+
+from datetime import datetime
 
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -54,19 +56,21 @@ class UserPublicResponse(BaseResponseWithDeleted):
     model_config = ConfigDict(from_attributes=True)
 
 
-class UserPrivateResponse(BaseResponseWithDeleted):
+class UserPrivateResponse(BaseModel):
     """
-    Private profile (what you see about yourself).
+    Private profile — returned by both /me and auth token responses.
 
-    Full data:
-    - Email, verification status, admin flag
-    - But no passwords, no internal audit fields
+    No audit timestamps (updated_at / deleted_at are internal).
     """
 
-    username: str
+    id: int
+    created_at: datetime
+    username: str | None
     email: str
     email_verified: bool
     is_admin: bool
+    native_lang_id: int
+    active_target_lang_id: int | None
     model_config = ConfigDict(from_attributes=True)
 
 

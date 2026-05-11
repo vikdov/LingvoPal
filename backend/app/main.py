@@ -3,11 +3,11 @@
 
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -62,6 +62,15 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Startup failed: {e}")
         raise
+
+    # Ensure S3 bucket exists
+    try:
+        from app.services.storage import StorageService
+
+        await StorageService().ensure_bucket()
+        logger.info("Storage bucket ready")
+    except Exception as e:
+        logger.warning(f"Storage bucket setup failed: {e}")
 
     # Start session sweeper
     sweeper = None
@@ -127,6 +136,17 @@ def create_app() -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+    @app.exception_handler(RequestValidationError)
+    async def _validation_error_handler(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        first = exc.errors()[0] if exc.errors() else {}
+        message = str(first.get("msg", "Invalid request"))
+        return JSONResponse(
+            status_code=422,
+            content={"detail": {"error": "validation_error", "message": message}},
+        )
+
     # ========================================================================
     # CORS Middleware
     # ========================================================================
@@ -156,6 +176,7 @@ def create_app() -> FastAPI:
     # ========================================================================
     from app.routes.admin import router as admin_router
     from app.routes.auth import router as auth_router
+    from app.routes.import_routes import router as import_router
     from app.routes.items import items_router, set_items_router
     from app.routes.languages import router as languages_router
     from app.routes.moderation import router as moderation_router
@@ -171,16 +192,12 @@ def create_app() -> FastAPI:
     app.include_router(sets_router, prefix="/api/v1")
     app.include_router(items_router, prefix="/api/v1")
     app.include_router(set_items_router, prefix="/api/v1")
+    app.include_router(import_router, prefix="/api/v1")
     app.include_router(moderation_router, prefix="/api/v1")
     app.include_router(admin_router, prefix="/api/v1")
     app.include_router(user_settings_router, prefix="/api/v1")
     app.include_router(stats_router, prefix="/api/v1")
     app.include_router(practice_router, prefix="/api/v1")
-
-    # Serve uploaded images
-    upload_dir = Path("static/uploads")
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    app.mount("/static", StaticFiles(directory="static"), name="static")
 
     return app
 

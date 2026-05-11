@@ -225,6 +225,66 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6379
 
     # =========================================================================
+    # Email / SMTP
+    # Dev: Mailpit on :1025 (catches all email, UI at :8025)
+    # Prod: swap SMTP_HOST/PORT/USER/PASSWORD/TLS for SendGrid, SES, Resend, etc.
+    # =========================================================================
+
+    SMTP_HOST: str = "localhost"
+    SMTP_PORT: int = 1025
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = "noreply@lingvopal.com"
+    SMTP_TLS: bool = False
+
+    # Browser-facing frontend URL — used to build verification links in emails.
+    FRONTEND_URL: str = "http://localhost:5173"
+
+    # =========================================================================
+    # Object Storage (S3-compatible: MinIO locally, R2/S3 in prod)
+    #
+    # S3_HOST / S3_PORT drive server-to-server connections (backend → MinIO).
+    # Override S3_HOST in docker-compose to the container name so the app
+    # container can reach MinIO on the Docker network — same pattern as
+    # DATABASE_HOST / REDIS_HOST.
+    #
+    # MEDIA_BASE_URL is the browser-facing URL (always localhost in dev).
+    # =========================================================================
+
+    S3_HOST: str = "localhost"
+    S3_PORT: int = 9000
+    S3_ACCESS_KEY: str
+    S3_SECRET_KEY: str
+    S3_BUCKET: str = "lingvopal"
+    S3_REGION: str = "us-east-1"
+
+    # Public base URL for media files (browser-accessible).
+    # Dev:  http://localhost:9000/lingvopal
+    # Prod: https://cdn.example.com  (CDN in front of bucket)
+    MEDIA_BASE_URL: str = "http://localhost:9000/lingvopal"
+
+    # =========================================================================
+    # Content moderation thresholds — configurable without code change
+    # =========================================================================
+
+    # Number of community complaints before a COMMUNITY item is auto-pulled to DRAFT
+    COMPLAINT_ESCALATION_THRESHOLD: int = 3
+
+    # Max complaints a single user can file per calendar day (anti-gaming)
+    MAX_COMPLAINTS_PER_DAY: int = 5
+
+    # Minimum learner count for OFFICIAL promotion (soft gate, admin can override)
+    OFFICIAL_MIN_LEARNERS: int = 20
+
+    # Minimum global success rate for OFFICIAL promotion (soft gate)
+    OFFICIAL_MIN_SUCCESS_RATE: float = 0.70
+
+    @computed_field
+    @property
+    def S3_ENDPOINT_URL(self) -> str:
+        return f"http://{self.S3_HOST}:{self.S3_PORT}"
+
+    # =========================================================================
     # Pydantic configuration
     # env_file is intentionally empty here — file loading is handled by
     # settings_customise_sources() so it happens at instantiation time, not at

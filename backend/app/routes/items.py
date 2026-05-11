@@ -3,24 +3,28 @@
 
 from typing import NoReturn
 
-from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 
-from app.core.dependencies import CurrentUser, ItemServiceDep
+from app.core.dependencies import ComplaintServiceDep, CurrentUser, ItemServiceDep, StorageDep
 from app.core.exceptions import (
+    BusinessRuleViolationError,
     DuplicateResourceError,
     LingvoPalError,
     NotAuthorizedError,
     ResourceNotFoundError,
 )
 from app.models.enums import PartOfSpeech
+from app.schemas.complaint import ComplaintRequest, ComplaintResponse
 from app.schemas.common import PaginatedResponse
 from app.schemas.item import (
     AddExistingItemRequest,
     ItemCreateRequest,
     ItemDetailResponse,
     ItemResponse,
+    ItemSummaryResponse,
     ItemUpdateRequest,
     SetItemResponse,
+    SynonymTermsRequest,
     TranslationCreateRequest,
     TranslationResponse,
     TranslationUpdateRequest,
@@ -42,7 +46,36 @@ def _handle(exc: LingvoPalError) -> NoReturn:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
     if isinstance(exc, DuplicateResourceError):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    if isinstance(exc, BusinessRuleViolationError):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+# ============================================================================
+# MY ITEMS  (/items/mine)
+# ============================================================================
+
+
+@items_router.get(
+    "/mine",
+    response_model=PaginatedResponse[ItemDetailResponse],
+    summary="List items created by the current user",
+)
+async def get_my_items(
+    user: CurrentUser,
+    service: ItemServiceDep,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+) -> PaginatedResponse[ItemDetailResponse]:
+    items, total = await service.get_my_items(user.id, skip=skip, limit=limit)
+    pages = -(-total // limit)
+    return PaginatedResponse(
+        data=[ItemDetailResponse.model_validate(i) for i in items],
+        total=total,
+        page=(skip // limit) + 1,
+        pages=pages,
+        limit=limit,
+    )
 
 
 # ============================================================================
@@ -52,7 +85,7 @@ def _handle(exc: LingvoPalError) -> NoReturn:
 
 @items_router.get(
     "/public",
-    response_model=PaginatedResponse[ItemResponse],
+    response_model=PaginatedResponse[ItemSummaryResponse],
     summary="Search public items",
 )
 async def search_public_items(
@@ -64,7 +97,7 @@ async def search_public_items(
     difficulty: int | None = Query(None, ge=1, le=7),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-) -> PaginatedResponse[ItemResponse]:
+) -> PaginatedResponse[ItemSummaryResponse]:
     items, total = await service.search_public_items(
         query=query,
         language_id=language_id,
@@ -75,7 +108,7 @@ async def search_public_items(
     )
     page = skip // limit + 1 if limit else 1
     return PaginatedResponse(
-        data=[ItemResponse.model_validate(i) for i in items],
+        data=[ItemSummaryResponse.model_validate(i) for i in items],
         total=total,
         page=page,
         page_size=limit,
@@ -124,7 +157,7 @@ async def delete_item(
 @items_router.post(
     "/{item_id}/submit",
     response_model=ItemDetailResponse,
-    summary="Submit item for moderation review (DRAFT → PENDING_REVIEW)",
+    summary="Submit item for moderation review (DRAFT → COMMUNITY)",
 )
 async def submit_item(
     item_id: int,
@@ -139,20 +172,38 @@ async def submit_item(
 
 
 @items_router.post(
+    "/{item_id}/audio",
+    response_model=ItemDetailResponse,
+    summary="Upload audio pronunciation for an item",
+)
+async def upload_item_audio(
+    item_id: int,
+    user: CurrentUser,
+    service: ItemServiceDep,
+    storage: StorageDep,
+    file: UploadFile = File(...),
+) -> ItemDetailResponse:
+    try:
+        item = await service.upload_item_audio(user.id, item_id, file, storage)
+        return ItemDetailResponse.model_validate(item)
+    except LingvoPalError as exc:
+        _handle(exc)
+
+
+@items_router.post(
     "/{item_id}/image",
     response_model=ItemDetailResponse,
     summary="Upload an image for an item",
 )
 async def upload_item_image(
     item_id: int,
-    request: Request,
     user: CurrentUser,
     service: ItemServiceDep,
+    storage: StorageDep,
     file: UploadFile = File(...),
 ) -> ItemDetailResponse:
     try:
-        base_url = str(request.base_url)
-        item = await service.upload_item_image(user.id, item_id, file, base_url)
+        item = await service.upload_item_image(user.id, item_id, file, storage)
         return ItemDetailResponse.model_validate(item)
     except LingvoPalError as exc:
         _handle(exc)
@@ -243,17 +294,24 @@ async def submit_translation(
 
 @set_items_router.get(
     "",
-    response_model=list[SetItemResponse],
+    response_model=PaginatedResponse[SetItemResponse],
     summary="List items in a set (with translations)",
 )
 async def get_set_items(
     set_id: int,
     user: CurrentUser,
     service: ItemServiceDep,
-) -> list[SetItemResponse]:
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+) -> PaginatedResponse[SetItemResponse]:
     try:
-        set_items = await service.get_set_items(user.id, set_id)
-        return [SetItemResponse.model_validate(si) for si in set_items]
+        set_items, total = await service.get_set_items(user.id, set_id, skip=skip, limit=limit)
+        return PaginatedResponse[SetItemResponse](
+            data=[SetItemResponse.model_validate(si) for si in set_items],
+            total=total,
+            page=(skip // limit) + 1,
+            page_size=limit,
+        )
     except LingvoPalError as exc:
         _handle(exc)
 
@@ -330,5 +388,83 @@ async def fork_item_into_set(
     try:
         item, _ = await service.fork_item_into_set(user.id, set_id, item_id)
         return ItemDetailResponse.model_validate(item)
+    except LingvoPalError as exc:
+        _handle(exc)
+
+
+# ============================================================================
+# SYNONYMS
+# ============================================================================
+
+# /synonym-suggestions must be defined before /{item_id} routes
+@items_router.get(
+    "/synonym-suggestions",
+    response_model=list[str],
+    summary="Autocomplete synonym term suggestions",
+)
+async def get_synonym_suggestions(
+    language_id: int = Query(..., gt=0),
+    q: str = Query(..., min_length=1),
+    service: ItemServiceDep = ...,
+) -> list[str]:
+    return await service.search_synonym_suggestions(language_id, q)
+
+
+@items_router.get(
+    "/{item_id}/synonyms",
+    response_model=list[str],
+    summary="List synonym terms of an item",
+)
+async def get_item_synonyms(
+    item_id: int,
+    user: CurrentUser,
+    service: ItemServiceDep,
+) -> list[str]:
+    try:
+        return await service.get_synonyms(user.id, item_id)
+    except LingvoPalError as exc:
+        _handle(exc)
+
+
+@items_router.put(
+    "/{item_id}/synonyms",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Replace all synonym terms for an item",
+)
+async def set_item_synonyms(
+    item_id: int,
+    body: SynonymTermsRequest,
+    user: CurrentUser,
+    service: ItemServiceDep,
+) -> None:
+    try:
+        await service.set_synonyms(user.id, item_id, body.terms)
+    except LingvoPalError as exc:
+        _handle(exc)
+
+
+@items_router.post(
+    "/{item_id}/report",
+    response_model=ComplaintResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Report a community item",
+    description=(
+        "File a complaint against a COMMUNITY item. "
+        "One report per user per item. "
+        "Requires at least one completed study session. "
+        f"Rate-limited to MAX_COMPLAINTS_PER_DAY per day."
+    ),
+)
+async def report_item(
+    item_id: int,
+    body: ComplaintRequest,
+    user: CurrentUser,
+    svc: ComplaintServiceDep,
+) -> ComplaintResponse:
+    try:
+        complaint = await svc.file_item_complaint(
+            user.id, item_id, body.reason, body.details
+        )
+        return ComplaintResponse.model_validate(complaint)
     except LingvoPalError as exc:
         _handle(exc)

@@ -26,6 +26,7 @@ Quality mapping (spec-compliant):
 """
 
 import logging
+import re
 import unicodedata
 from dataclasses import dataclass
 from typing import Final
@@ -55,6 +56,10 @@ DEFAULT_EXPECTED_MS: Final[int] = 3_000  # 3 seconds
 # Speed ratio thresholds for quality mapping
 FAST_THRESHOLD: Final[float] = 0.80   # ratio < this → q=5 (fast)
 VERY_SLOW_THRESHOLD: Final[float] = 1.50   # ratio > this → q=3 (slow)
+
+# Words at or below this length require exact (post-normalise) match.
+# Levenshtein on short words is too permissive: 1 edit on a 3-char word = 0.67 sim.
+SHORT_WORD_MAX_LEN: Final[int] = 4
 
 ConfidenceOverride = int | None  # 1=blackout, 2=hard, 3=neutral, 4=good, 5=easy
 
@@ -114,12 +119,19 @@ def evaluate(ctx: EvaluationContext) -> EvaluationResult:
 
     All logging for future model tuning is emitted here (similarity, time_delta, q).
     """
-    norm_user = _normalise(ctx.user_answer)
-    norm_correct = _normalise(ctx.correct_answer)
+    norm_user = normalise(ctx.user_answer)
+    norm_correct = normalise(ctx.correct_answer)
 
-    similarity = _levenshtein_similarity(norm_user, norm_correct)
-    threshold = SIMILARITY_THRESHOLDS[ctx.evaluation_mode]
-    is_correct = similarity >= threshold
+    # Short words need exact match — fuzzy threshold is too permissive at ≤4 chars.
+    # e.g. "any" (3 chars): 1 edit → 0.67 similarity, well below any threshold anyway,
+    # but also prevents marginal near-misses on common function words.
+    if len(norm_correct) <= SHORT_WORD_MAX_LEN:
+        is_correct = norm_user == norm_correct
+        similarity = 1.0 if is_correct else levenshtein_similarity(norm_user, norm_correct)
+    else:
+        similarity = levenshtein_similarity(norm_user, norm_correct)
+        threshold = SIMILARITY_THRESHOLDS[ctx.evaluation_mode]
+        is_correct = similarity >= threshold
 
     capped_ms = min(ctx.response_time_ms, T_MAX_MS)
     time_ratio = capped_ms / ctx.expected_time_ms if ctx.expected_time_ms > 0 else 1.0
@@ -149,30 +161,36 @@ def evaluate(ctx: EvaluationContext) -> EvaluationResult:
 
 
 # ============================================================================
-# Private — text normalisation
+# Text normalisation
 # ============================================================================
 
 
-def _normalise(text: str) -> str:
+def normalise(text: str) -> str:
     """
-    Lowercase, strip leading/trailing whitespace, and remove diacritics.
+    Normalise for comparison. Pipeline (must mirror frontend answerMatcher.ts):
+      1. lowercase
+      2. trim leading/trailing whitespace
+      3. collapse internal whitespace to single space
+      4. strip punctuation — retain letters, digits, apostrophes
+      5. NFD decompose → drop diacritic combining marks
 
-    "café" → "cafe", "Üniversität" → "universitat"
+    "café" → "cafe", "Üniversität" → "universitat", "don't" → "don't"
     """
     text = text.strip().lower()
-    # NFD decomposition splits combined characters (e.g. é → e + combining accent)
-    # then we discard non-ASCII (i.e. the combining marks)
+    text = " ".join(text.split())
+    text = re.sub(r"[^\w\s']", "", text)
+    text = text.replace("_", "")
     text = unicodedata.normalize("NFD", text)
     text = text.encode("ascii", "ignore").decode("ascii")
-    return text
+    return text.strip()
 
 
 # ============================================================================
-# Private — Levenshtein similarity (pure DP, no external dependencies)
+# Levenshtein similarity (pure DP, no external dependencies)
 # ============================================================================
 
 
-def _levenshtein_similarity(a: str, b: str) -> float:
+def levenshtein_similarity(a: str, b: str) -> float:
     """
     Compute Levenshtein similarity ratio in [0.0, 1.0].
 
@@ -260,9 +278,12 @@ __all__ = [
     "EvaluationResult",
     "evaluate",
     "map_quality",
+    "normalise",
+    "levenshtein_similarity",
     "SIMILARITY_THRESHOLDS",
     "T_MAX_MS",
     "DEFAULT_EXPECTED_MS",
     "FAST_THRESHOLD",
     "VERY_SLOW_THRESHOLD",
+    "SHORT_WORD_MAX_LEN",
 ]

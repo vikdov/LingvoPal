@@ -46,9 +46,11 @@ SESSION_KEY_PREFIX: Final[str] = "practice:session:"
 RAW_KEY_PREFIX: Final[str] = "practice:raw:"
 ACTIVE_KEY_PREFIX: Final[str] = "practice:active:"
 FLUSHING_KEY_PREFIX: Final[str] = "practice:flushing:"
+STARTING_KEY_PREFIX: Final[str] = "practice:starting:"
 SEEN_KEY_PREFIX: Final[str] = "practice:seen:"
 TTL_SECONDS: Final[int] = 24 * 3600  # 24-hour sliding window
 FLUSH_LOCK_TTL: Final[int] = 120      # flushing lock expires after 2 min
+START_LOCK_TTL: Final[int] = 30       # start lock: covers check-and-create window
 
 INTENSITY_MAP: Final[dict[str, float]] = {
     "light": 1.3,
@@ -190,7 +192,8 @@ class SessionState:
 
     session_id: int
     user_id: int
-    set_id: int
+    set_id: int | None       # None for "practice all" sessions
+    source_lang_id: int | None  # set when set_id is None, for reconstruction
     item_order: list[int]
     current_index: int
     config: BatchConfig
@@ -224,6 +227,7 @@ class SessionState:
             "session_id": self.session_id,
             "user_id": self.user_id,
             "set_id": self.set_id,
+            "source_lang_id": self.source_lang_id,
             "item_order": self.item_order,
             "current_index": self.current_index,
             "config": self.config.to_dict(),
@@ -237,7 +241,8 @@ class SessionState:
         return cls(
             session_id=d["session_id"],
             user_id=d["user_id"],
-            set_id=d["set_id"],
+            set_id=d.get("set_id"),
+            source_lang_id=d.get("source_lang_id"),
             item_order=d["item_order"],
             current_index=d["current_index"],
             config=BatchConfig.from_dict(d["config"]),
@@ -341,8 +346,10 @@ class SessionManager:
         return f"{RAW_KEY_PREFIX}{session_id}"
 
     @staticmethod
-    def _active_key(user_id: int) -> str:
-        return f"{ACTIVE_KEY_PREFIX}{user_id}"
+    def _active_key(user_id: int, set_id: int | None, source_lang_id: int | None) -> str:
+        if set_id is not None:
+            return f"{ACTIVE_KEY_PREFIX}{user_id}:set:{set_id}"
+        return f"{ACTIVE_KEY_PREFIX}{user_id}:all:{source_lang_id or 0}"
 
     @staticmethod
     def _seen_key(session_id: int) -> str:
@@ -457,15 +464,19 @@ class SessionManager:
 
     # ── Active session pointer (reverse lookup user → session) ───────────────
 
-    async def set_active(self, user_id: int, session_id: int) -> None:
+    async def set_active(
+        self, user_id: int, session_id: int, *, set_id: int | None, source_lang_id: int | None
+    ) -> None:
         """Record which session_id is the user's current in-progress session."""
         await self._redis.set(
-            self._active_key(user_id), str(session_id), ex=TTL_SECONDS
+            self._active_key(user_id, set_id, source_lang_id), str(session_id), ex=TTL_SECONDS
         )
 
-    async def get_active_session_id(self, user_id: int) -> int | None:
-        """Return the active session_id for a user, or None."""
-        raw = await self._redis.get(self._active_key(user_id))
+    async def get_active_session_id(
+        self, user_id: int, *, set_id: int | None, source_lang_id: int | None
+    ) -> int | None:
+        """Return the active session_id for a user/context, or None."""
+        raw = await self._redis.get(self._active_key(user_id, set_id, source_lang_id))
         if raw is None:
             return None
         try:
@@ -473,9 +484,11 @@ class SessionManager:
         except ValueError:
             return None
 
-    async def clear_active(self, user_id: int) -> None:
+    async def clear_active(
+        self, user_id: int, *, set_id: int | None, source_lang_id: int | None
+    ) -> None:
         """Remove the active session pointer after session completion."""
-        await self._redis.delete(self._active_key(user_id))
+        await self._redis.delete(self._active_key(user_id, set_id, source_lang_id))
 
     # ── TTL introspection (for safety valve) ────────────────────────────────
 
@@ -506,6 +519,22 @@ class SessionManager:
     async def release_flush_lock(self, session_id: int) -> None:
         await self._redis.delete(self._flushing_key(session_id))
 
+    # ── Start lock (prevents TOCTOU on concurrent session starts) ────────────
+
+    @staticmethod
+    def _starting_key(user_id: int) -> str:
+        return f"{STARTING_KEY_PREFIX}{user_id}"
+
+    async def acquire_start_lock(self, user_id: int) -> bool:
+        """Claim the per-user start lock (SET NX EX). Returns True if acquired."""
+        result = await self._redis.set(
+            self._starting_key(user_id), "1", nx=True, ex=START_LOCK_TTL
+        )
+        return result is not None
+
+    async def release_start_lock(self, user_id: int) -> None:
+        await self._redis.delete(self._starting_key(user_id))
+
 
 # ============================================================================
 # Factory helpers
@@ -516,7 +545,8 @@ def make_session_state(
     *,
     session_id: int,
     user_id: int,
-    set_id: int,
+    set_id: int | None,
+    source_lang_id: int | None = None,
     item_order: list[int],
     config: BatchConfig,
     item_hints: dict[str, dict],
@@ -526,6 +556,7 @@ def make_session_state(
         session_id=session_id,
         user_id=user_id,
         set_id=set_id,
+        source_lang_id=source_lang_id,
         item_order=item_order,
         current_index=0,
         config=config,
@@ -544,8 +575,10 @@ __all__ = [
     "RAW_KEY_PREFIX",
     "ACTIVE_KEY_PREFIX",
     "FLUSHING_KEY_PREFIX",
+    "STARTING_KEY_PREFIX",
     "SEEN_KEY_PREFIX",
     "TTL_SECONDS",
     "FLUSH_LOCK_TTL",
+    "START_LOCK_TTL",
     "INTENSITY_MAP",
 ]

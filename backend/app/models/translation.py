@@ -88,7 +88,7 @@ class Translation(Base, SoftDeleteTimestampMixin):
             "created_at",
             postgresql_where=text(
                 "deleted_at IS NULL AND verified_by IS NULL"
-                " AND status = 'pending_review'"
+                " AND status = 'community'"
             ),
         ),
     )

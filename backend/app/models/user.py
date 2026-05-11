@@ -18,6 +18,7 @@ from app.models.enums import (
 
 if TYPE_CHECKING:
     from app.models.language import Language
+    from app.models.user_language import UserLanguage
 
 
 class User(Base, SoftDeleteTimestampMixin):
@@ -50,6 +51,10 @@ class User(Base, SoftDeleteTimestampMixin):
     settings: Mapped["UserSettings"] = relationship(
         back_populates="user",
         uselist=False,
+        cascade="all, delete-orphan",
+    )
+    languages: Mapped[list["UserLanguage"]] = relationship(
+        back_populates="user",
         cascade="all, delete-orphan",
     )
 
@@ -87,7 +92,6 @@ class UserSettings(Base, TimestampMixin):
         nullable=False,
         comment="Language for app interface",
     )
-
     # ── Learning behaviour ───────────────────────────────────────────────────
 
     learning_intensity: Mapped[LearningIntensity] = mapped_column(
@@ -153,9 +157,7 @@ class UserSettings(Base, TimestampMixin):
 
     user: Mapped[User] = relationship(back_populates="settings", foreign_keys=[user_id])
     native_language: Mapped["Language"] = relationship(foreign_keys=[native_lang_id])
-    interface_language: Mapped["Language"] = relationship(
-        foreign_keys=[interface_lang_id]
-    )
+    interface_language: Mapped["Language"] = relationship(foreign_keys=[interface_lang_id])
 
     def __repr__(self) -> str:
         return f"<UserSettings user_id={self.user_id}>"

@@ -22,13 +22,14 @@ from app.models.enums import EvaluationMode
 from app.services.answer_evaluator import (
     DEFAULT_EXPECTED_MS,
     FAST_THRESHOLD,
+    SHORT_WORD_MAX_LEN,
     T_MAX_MS,
     VERY_SLOW_THRESHOLD,
     EvaluationContext,
     EvaluationResult,
     evaluate,
-    _levenshtein_similarity,
-    _normalise,
+    levenshtein_similarity as _levenshtein_similarity,
+    normalise as _normalise,
 )
 
 
@@ -407,6 +408,52 @@ class TestEvaluationResultFields:
                 assert result.is_correct is False
             else:
                 assert result.is_correct is True
+
+
+# ---------------------------------------------------------------------------
+# evaluate() — short-word exact-match threshold
+# ---------------------------------------------------------------------------
+
+
+class TestShortWordThreshold:
+    """Words at or below SHORT_WORD_MAX_LEN require exact post-normalise match."""
+
+    def test_exact_short_word_correct(self):
+        result = evaluate(_ctx("any", "any"))
+        assert result.is_correct is True
+        assert result.similarity == 1.0
+
+    def test_one_typo_short_word_incorrect(self):
+        # "anny" vs "any" — would pass forgiving threshold (0.80) without short-word rule
+        result = evaluate(_ctx("anny", "any", mode=EvaluationMode.FORGIVING))
+        assert result.is_correct is False
+
+    def test_short_word_boundary(self):
+        # Word of exactly SHORT_WORD_MAX_LEN chars uses exact match
+        assert len("also") == SHORT_WORD_MAX_LEN
+        result = evaluate(_ctx("alsa", "also", mode=EvaluationMode.FORGIVING))
+        assert result.is_correct is False
+
+    def test_word_just_above_boundary_uses_fuzzy(self):
+        # 5-char word: one typo → similarity ~0.8, passes forgiving mode
+        assert len("hello") == SHORT_WORD_MAX_LEN + 1
+        result = evaluate(_ctx("helo", "hello", mode=EvaluationMode.FORGIVING))
+        assert result.is_correct is True  # 0.8 >= 0.8 threshold
+
+    def test_short_word_similarity_still_computed(self):
+        # Even when incorrect via exact-match rule, similarity is still in result
+        result = evaluate(_ctx("th", "the"))
+        assert result.is_correct is False
+        assert 0.0 <= result.similarity <= 1.0
+
+    def test_case_insensitive_short_word(self):
+        result = evaluate(_ctx("ANY", "any"))
+        assert result.is_correct is True
+
+    def test_diacritics_normalised_short_word(self):
+        # "thé" normalises to "the" → exact match with "the"
+        result = evaluate(_ctx("thé", "the"))
+        assert result.is_correct is True
 
 
 # ---------------------------------------------------------------------------
