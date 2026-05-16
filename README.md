@@ -166,3 +166,89 @@ LingvoPal intentionally removes passive recognition. Writing activates different
 - Writing over tapping  
 - Quality content over quantity
 - Focused method over feature sprawl
+
+---
+
+## Academic Context
+
+LingvoPal serves as the primary case study for a bachelor's thesis:
+
+> **"Impact of DevOps Practices on Software Delivery Efficiency and Business Performance"**
+
+### Core Thesis Argument
+
+DevOps is not a technology stack to install — it is a corrective toolkit applied to specific bottlenecks. The right question is never "which DevOps tools exist?" but "what hurts most right now, and which practice fixes it?"
+
+Adopting tools without identifying the underlying inefficiency produces **Cargo Cult DevOps**: the rituals are followed, the tools are running, but no real friction is removed.
+
+The thesis demonstrates the alternative: each practice was adopted when a specific bottleneck made it necessary, and gains compound as practices stack.
+
+### DevOps Practices Inventory
+
+| Practice | Tool | Status | Bottleneck it solves |
+|---|---|---|---|
+| Version control conventions | Conventional commits + feature branches | Present | Change traceability, rework visibility |
+| Dependency management | `uv` + lockfile | Present | Reproducible installs, fast setup |
+| Containerization | Docker Compose | Present | Environment parity, service orchestration |
+| Environment automation | `scripts/setup.sh` | Present | Onboarding friction, manual steps |
+| Database migrations | Alembic | Present | Schema safety, rollback capability |
+| Test automation | pytest | Partial | Defect detection before integration |
+| Continuous Integration | GitHub Actions | Planned | Automated validation on every PR |
+| Continuous Deployment | Railway | Planned | Manual deploy eliminated, lead time reduced |
+| Observability | Structured logging | Deferred | No production users yet — adding now = Cargo Cult |
+| IaC / Orchestration | — | Deferred | Single server — no infra drift problem at this scale |
+
+### Research Methodology
+
+A controlled experiment reconstructs the adoption sequence on isolated git branches. Each practice is introduced one at a time; metrics are recorded before and after each addition to isolate its individual contribution.
+
+```
+experiment/00-baseline     ← no DevOps practices
+experiment/01-vcs          ← + conventional commits & branching
+experiment/02-deps         ← + uv + lockfile
+experiment/03-docker       ← + Docker Compose
+experiment/04-scripts      ← + setup.sh
+experiment/05-migrations   ← + Alembic
+experiment/06-tests        ← + pytest
+experiment/07-ci           ← + GitHub Actions CI
+experiment/08-deploy       ← + CD pipeline + live deployment
+```
+
+Metrics are practice-specific — each practice is evaluated on the capability it introduces, not a single universal measure:
+
+| Branch | Metric |
+|---|---|
+| `00-baseline` | Setup time (min), manual step count |
+| `01-vcs` | `fix:`/`feat:` commit ratio, branch lifetime |
+| `02-deps` | Install time, reproducibility |
+| `03-docker` | Setup time delta, eliminated manual service steps |
+| `04-scripts` | Step count: manual vs scripted |
+| `05-migrations` | Migration apply + rollback time |
+| `06-tests` | Time-to-detect injected bug, coverage % |
+| `07-ci` | Time-to-feedback (min), manual steps eliminated |
+| `08-deploy` | Lead time commit→live (min), deploy step count |
+
+### Compounding Effect
+
+Practices in isolation give linear gains. Practices in combination give superlinear gains:
+
+- Tests alone — catches bugs locally, sometimes skipped
+- Tests + CI — catches bugs automatically on every push, never skipped
+- Tests + CI + CD — catches bugs and ships fixes with a single `git push`
+
+Each layer multiplies the value of the one before it.
+
+### Deferred Practices
+
+The following practices are understood but intentionally not yet adopted — the bottlenecks they solve have not materialized at current project scale:
+
+| Practice | Adopted when |
+|---|---|
+| Kubernetes / orchestration | Multi-instance traffic scaling required |
+| Feature flags | Multiple active user segments need independent releases |
+| Full observability stack (Sentry, Prometheus) | First real production user complaints |
+| Load testing | Pre-launch performance SLA defined |
+| Secret management (Vault) | Multi-team credential access required |
+| IaC (Terraform) | Multi-environment infra drift becomes a real problem |
+
+Deferring these is the correct DevOps decision at MVP stage. Adopting them now would be Cargo Cult.
