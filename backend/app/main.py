@@ -12,11 +12,25 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.core.config import get_settings
+from app.core.exceptions import (
+    AuthError,
+    BusinessRuleViolationError,
+    ContentValidationError,
+    DuplicateResourceError,
+    LingvoPalError,
+    NotAuthorizedError,
+    ResourceNotFoundError,
+)
 from app.database import init_async_session_factory, shutdown_db_engine
 
 settings = get_settings()
 
 logging.basicConfig(level=settings.LOG_LEVEL)
+logging.getLogger("botocore").setLevel(logging.WARNING)
+logging.getLogger("aiobotocore").setLevel(logging.WARNING)
+logging.getLogger("passlib").setLevel(logging.ERROR)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
@@ -126,6 +140,9 @@ def create_app() -> FastAPI:
         version=settings.API_VERSION,
         debug=settings.DEBUG,
         lifespan=lifespan,
+        docs_url="/docs" if settings.DEBUG else None,
+        redoc_url="/redoc" if settings.DEBUG else None,
+        openapi_url="/openapi.json" if settings.DEBUG else None,
     )
 
     # ========================================================================
@@ -135,6 +152,23 @@ def create_app() -> FastAPI:
 
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+    @app.exception_handler(LingvoPalError)
+    async def _domain_error_handler(request: Request, exc: LingvoPalError) -> JSONResponse:
+        if isinstance(exc, ResourceNotFoundError):
+            return JSONResponse(status_code=404, content={"detail": str(exc)})
+        if isinstance(exc, NotAuthorizedError):
+            return JSONResponse(status_code=403, content={"detail": str(exc)})
+        if isinstance(exc, AuthError):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": {"error": exc.code, "message": exc.message}},
+            )
+        if isinstance(exc, DuplicateResourceError):
+            return JSONResponse(status_code=409, content={"detail": str(exc)})
+        if isinstance(exc, (BusinessRuleViolationError, ContentValidationError)):
+            return JSONResponse(status_code=422, content={"detail": str(exc)})
+        return JSONResponse(status_code=400, content={"detail": str(exc)})
 
     @app.exception_handler(RequestValidationError)
     async def _validation_error_handler(
@@ -146,6 +180,20 @@ def create_app() -> FastAPI:
             status_code=422,
             content={"detail": {"error": "validation_error", "message": message}},
         )
+
+    # ========================================================================
+    # Security Headers Middleware
+    # ========================================================================
+    from starlette.responses import Response as StarletteResponse
+
+    @app.middleware("http")
+    async def _security_headers(request: Request, call_next) -> StarletteResponse:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["X-XSS-Protection"] = "0"
+        return response
 
     # ========================================================================
     # CORS Middleware
@@ -164,12 +212,7 @@ def create_app() -> FastAPI:
     @app.get("/health", tags=["system"])
     async def health_check():
         """Health check endpoint"""
-        return {
-            "status": "ok",
-            "app": settings.API_TITLE,
-            "version": settings.API_VERSION,
-            "debug": settings.DEBUG,
-        }
+        return {"status": "ok", "app": settings.API_TITLE, "version": settings.API_VERSION}
 
     # ========================================================================
     # Include Routers
