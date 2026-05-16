@@ -20,6 +20,7 @@ export interface ItemHint {
   context_trans: string | null;
   image_url: string | null;
   audio_url: string | null;
+  context_audio_url: string | null;
   part_of_speech: string | null;
   synonyms: string[];
   last_reviewed: string | null;

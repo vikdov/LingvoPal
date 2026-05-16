@@ -24,19 +24,9 @@ import { langAccentColor } from '../components/SetCover';
 import { SetEditor } from '../components/SetEditor';
 import { AnkiImportModal } from '../components/AnkiImportModal';
 import type { SetLibraryEntry, CreatedSetSummaryResponse } from '../types/sets.types';
-
-function langName(id: number | null | undefined, languages: LanguageRef[]): string {
-  if (id == null) return '';
-  return languages.find((l) => l.id === id)?.name ?? String(id);
-}
+import { langName, difficultyLabel } from '../utils/formatters';
 
 const PAGE_SIZE = 12;
-
-function difficultyLabel(difficulty: number | null): string {
-  if (difficulty === null) return '';
-  const labels = ['', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'Native'];
-  return labels[difficulty] ?? String(difficulty);
-}
 
 function formatDate(iso: string | null): string {
   if (!iso) return 'Never';
@@ -96,12 +86,12 @@ function LibraryCardSkeleton() {
   );
 }
 
-interface LibraryEntryCardProps {
+export interface LibraryEntryCardProps {
   entry: SetLibraryEntry;
   languages: LanguageRef[];
 }
 
-function LibraryEntryCard({ entry, languages }: LibraryEntryCardProps) {
+export function LibraryEntryCard({ entry, languages }: LibraryEntryCardProps) {
   const navigate = useNavigate();
   const removeFromLibrary = useRemoveFromLibrary();
   const pinSet = usePinSet();

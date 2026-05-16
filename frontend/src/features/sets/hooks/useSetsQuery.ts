@@ -352,11 +352,12 @@ export function useMySets(skip = 0, limit = 20) {
   return useCreatedSets(skip, limit);
 }
 
-export function useMyItems(skip = 0, limit = 20) {
+export function useMyItems(skip = 0, limit = 20, query?: string) {
   return useQuery({
-    queryKey: itemKeys.mine(skip, limit),
-    queryFn: () => setsApi.getMyItems(skip, limit),
+    queryKey: [...itemKeys.mine(skip, limit), query ?? ''],
+    queryFn: () => setsApi.getMyItems(skip, limit, query),
     staleTime: 60_000,
+    placeholderData: (prev) => prev,
   });
 }
 

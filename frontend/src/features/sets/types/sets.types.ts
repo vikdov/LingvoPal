@@ -4,8 +4,8 @@ export type ContentStatus = 'DRAFT' | 'COMMUNITY' | 'APPROVED' | 'OFFICIAL';
 // Mirrors backend PartOfSpeech enum
 export type PartOfSpeech =
   | 'noun' | 'verb' | 'adjective' | 'adverb'
-  | 'pronoun' | 'preposition' | 'conjunction'
-  | 'interjection' | 'article' | 'other';
+  | 'preposition' | 'conjunction'
+  | 'phrase' | 'idiom' | 'phrasal_verb' | 'collocation';
 
 export interface SetResponse {
   id: number;
@@ -80,6 +80,7 @@ export interface ItemResponse {
   lemma: string | null;
   image_url: string | null;
   audio_url: string | null;
+  context_audio_url: string | null;
   status: ContentStatus;
   creator_id: number | null;
   verified_by: number | null;
@@ -125,6 +126,7 @@ export interface ItemCreateRequest {
   lemma?: string;
   image_url?: string;
   audio_url?: string;
+  context_audio_url?: string;
 }
 
 export interface ItemUpdateRequest {
@@ -135,6 +137,7 @@ export interface ItemUpdateRequest {
   lemma?: string | null;
   image_url?: string | null;
   audio_url?: string | null;
+  context_audio_url?: string | null;
 }
 
 export interface TranslationCreateRequest {

@@ -5,6 +5,7 @@ import {
   PencilIcon,
   LayersIcon,
   BookOpenIcon,
+  PlusIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,26 +14,29 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia } from '@/components/ui/empty';
 import { PaginationBar } from '@/components/ui/pagination-bar';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useAllLanguages } from '@/features/languages';
 import type { LanguageRef } from '@/features/languages';
-import { useMyItems, useDeleteItem, useMyLibrary } from '../hooks/useSetsQuery';
+import { useMyItems, useDeleteItem, useMyLibrary, useMySets } from '../hooks/useSetsQuery';
 import { ItemEditModal } from '../components/ItemEditModal';
-import type { ItemDetailResponse } from '../types/sets.types';
+import { LibraryEntryCard } from './SetsListView';
+import type { ItemDetailResponse, SetResponse } from '../types/sets.types';
+import { langName, difficultyLabel } from '../utils/formatters';
 
 type PageSize = 20 | 50 | 100;
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function langName(id: number | null | undefined, languages: LanguageRef[]): string {
-  if (id == null) return '';
-  return languages.find((l) => l.id === id)?.name ?? String(id);
-}
-
-function difficultyLabel(difficulty: number | null): string {
-  if (difficulty === null) return '';
-  const labels = ['', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'Native'];
-  return labels[difficulty] ?? String(difficulty);
-}
 
 // ── Skeletons ─────────────────────────────────────────────────────────────────
 
@@ -139,6 +143,68 @@ function ExpressionCard({ item, languages, onEdit, onDelete }: ExpressionCardPro
   );
 }
 
+// ── New expression card ───────────────────────────────────────────────────────
+
+function NewExpressionCard({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="group flex aspect-square w-full self-center flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-transparent text-muted-foreground/50 transition-all hover:border-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <div className="flex size-10 items-center justify-center rounded-full border-2 border-dashed border-current transition-transform group-hover:scale-110">
+        <PlusIcon className="size-5" />
+      </div>
+      <span className="text-sm font-medium">New expression</span>
+    </button>
+  );
+}
+
+// ── Set picker dialog ─────────────────────────────────────────────────────────
+
+interface SetPickerDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  sets: SetResponse[];
+  onConfirm: (setId: number) => void;
+}
+
+function SetPickerDialog({ open, onOpenChange, sets, onConfirm }: SetPickerDialogProps) {
+  const [selectedSetId, setSelectedSetId] = useState<string>(
+    sets.length > 0 ? String(sets[0].id) : ''
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Add to which set?</DialogTitle>
+        </DialogHeader>
+        <Select value={selectedSetId} onValueChange={setSelectedSetId}>
+          <SelectTrigger>
+            <SelectValue placeholder="Choose a set…" />
+          </SelectTrigger>
+          <SelectContent>
+            {sets.map((s) => (
+              <SelectItem key={s.id} value={String(s.id)}>
+                {s.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button
+            disabled={!selectedSetId}
+            onClick={() => { onConfirm(Number(selectedSetId)); onOpenChange(false); }}
+          >
+            Continue
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── My Expressions tab ────────────────────────────────────────────────────────
 
 function MyExpressionsTab({ languages }: { languages: LanguageRef[] }) {
@@ -148,16 +214,41 @@ function MyExpressionsTab({ languages }: { languages: LanguageRef[] }) {
 
   const { data, isLoading, isFetching } = useMyItems(skip, pageSize);
   const deleteItem = useDeleteItem();
+  const { data: setsData } = useMySets(0, 100);
+  const sets = setsData?.data ?? [];
 
   const [editingItem, setEditingItem] = useState<ItemDetailResponse | undefined>(undefined);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editModalSetId, setEditModalSetId] = useState<number>(0);
+  const [setPickerOpen, setSetPickerOpen] = useState(false);
 
   const items = data?.data ?? [];
   const total = data?.total ?? 0;
   const pages = data?.pages ?? 0;
 
+  function handleNewExpression() {
+    if (sets.length === 0) {
+      toast.error('Create a set first before adding expressions.');
+      return;
+    }
+    if (sets.length === 1) {
+      setEditingItem(undefined);
+      setEditModalSetId(sets[0].id);
+      setEditModalOpen(true);
+    } else {
+      setSetPickerOpen(true);
+    }
+  }
+
+  function handleSetPicked(setId: number) {
+    setEditingItem(undefined);
+    setEditModalSetId(setId);
+    setEditModalOpen(true);
+  }
+
   function handleEdit(item: ItemDetailResponse) {
     setEditingItem(item);
+    setEditModalSetId(0);
     setEditModalOpen(true);
   }
 
@@ -181,21 +272,16 @@ function MyExpressionsTab({ languages }: { languages: LanguageRef[] }) {
     );
   }
 
-  if (items.length === 0) {
-    return (
-      <Empty>
-        <EmptyMedia variant="icon"><LayersIcon className="size-4" /></EmptyMedia>
-        <EmptyHeader>
-          <EmptyTitle>No expressions yet</EmptyTitle>
-          <EmptyDescription>Expressions you create in your sets will appear here.</EmptyDescription>
-        </EmptyHeader>
-      </Empty>
-    );
-  }
-
   return (
     <>
       <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 transition-opacity duration-150 ${isFetching ? 'opacity-60' : 'opacity-100'}`}>
+        <NewExpressionCard onClick={handleNewExpression} />
+        {items.length === 0 && !isLoading && (
+          <div className="col-span-full flex flex-col items-center justify-center gap-1 py-12 text-center text-muted-foreground">
+            <LayersIcon className="size-8 opacity-30" />
+            <p className="text-sm">No expressions yet. Create your first one.</p>
+          </div>
+        )}
         {items.map((item) => (
           <ExpressionCard
             key={item.id}
@@ -218,10 +304,17 @@ function MyExpressionsTab({ languages }: { languages: LanguageRef[] }) {
         onPageSizeChange={(s) => { setPageSize(s as PageSize); setPage(1); }}
       />
 
+      <SetPickerDialog
+        open={setPickerOpen}
+        onOpenChange={setSetPickerOpen}
+        sets={sets}
+        onConfirm={handleSetPicked}
+      />
+
       <ItemEditModal
         open={editModalOpen}
         onOpenChange={setEditModalOpen}
-        setId={0}
+        setId={editModalSetId}
         item={editingItem}
       />
     </>
@@ -231,45 +324,33 @@ function MyExpressionsTab({ languages }: { languages: LanguageRef[] }) {
 // ── In My Sets tab ────────────────────────────────────────────────────────────
 
 function InMySetsTab({ languages }: { languages: LanguageRef[] }) {
-  const { data, isLoading } = useMyLibrary(0, 20);
-  const sets = data?.data ?? [];
+  const { data, isLoading } = useMyLibrary(0, 50);
+  const entries = data?.data ?? [];
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {Array.from({ length: 4 }).map((_, i) => <ExpressionCardSkeleton key={i} />)}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => <ExpressionCardSkeleton key={i} />)}
       </div>
     );
   }
 
-  if (sets.length === 0) {
+  if (entries.length === 0) {
     return (
       <Empty>
         <EmptyMedia variant="icon"><BookOpenIcon className="size-4" /></EmptyMedia>
         <EmptyHeader>
           <EmptyTitle>No sets in library</EmptyTitle>
-          <EmptyDescription>Add sets to your library to see their expressions here.</EmptyDescription>
+          <EmptyDescription>Add sets to your library to see them here.</EmptyDescription>
         </EmptyHeader>
       </Empty>
     );
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      {sets.map((entry) => (
-        <div key={entry.set.id} className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <h3 className="font-medium">{entry.set.title}</h3>
-            <Badge variant="outline" className="text-xs">
-              {langName(entry.set.source_lang_id, languages)}
-              {entry.set.target_lang_id ? ` → ${langName(entry.set.target_lang_id, languages)}` : ''}
-            </Badge>
-            <span className="text-xs text-muted-foreground">{entry.set.item_count} expressions</span>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Open the set to manage individual expressions.
-          </p>
-        </div>
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {entries.map((entry) => (
+        <LibraryEntryCard key={entry.set_id} entry={entry} languages={languages} />
       ))}
     </div>
   );

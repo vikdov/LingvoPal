@@ -115,8 +115,11 @@ export const setsApi = {
     return api.get<PaginatedResponse<ItemSummaryResponse>>(`/items/public?${qs}`);
   },
 
-  getMyItems: (skip = 0, limit = 20) =>
-    api.get<PaginatedResponse<ItemDetailResponse>>(`/items/mine?skip=${skip}&limit=${limit}`),
+  getMyItems: (skip = 0, limit = 20, query?: string) => {
+    const qs = new URLSearchParams({ skip: String(skip), limit: String(limit) });
+    if (query) qs.set('query', query);
+    return api.get<PaginatedResponse<ItemDetailResponse>>(`/items/mine?${qs}`);
+  },
 
   deleteItem: (itemId: number) =>
     api.delete<undefined>(`/items/${itemId}`),
