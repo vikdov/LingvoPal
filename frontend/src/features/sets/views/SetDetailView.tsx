@@ -10,14 +10,18 @@ import {
   BookmarkMinusIcon,
   LayersIcon,
   BookOpenIcon,
+  SearchIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia } from '@/components/ui/empty';
 import { PaginationBar } from '@/components/ui/pagination-bar';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuthStore } from '@/features/auth';
 import { useAllLanguages } from '@/features/languages';
 import type { LanguageRef } from '@/features/languages';
@@ -30,23 +34,122 @@ import {
   useDeleteSet,
   useRemoveItem,
   useTouchSet,
+  useMyItems,
+  usePublicItems,
+  useAddExistingItemToSet,
 } from '../hooks/useSetsQuery';
 import { SetEditor } from '../components/SetEditor';
 import { ItemEditModal } from '../components/ItemEditModal';
 import { SetStatsPanel } from '@/features/stats/components/SetStatsPanel';
-import type { SetResponse, ItemDetailResponse } from '../types/sets.types';
+import type { SetResponse, ItemDetailResponse, ItemSummaryResponse } from '../types/sets.types';
+import { langName, difficultyLabel } from '../utils/formatters';
 
 type PageSize = 20 | 50 | 100;
 
-function langName(id: number | null | undefined, languages: LanguageRef[]): string {
-  if (id == null) return '';
-  return languages.find((l) => l.id === id)?.name ?? String(id);
+// ── FindAndAddDialog ──────────────────────────────────────────────────────────
+
+interface FindAndAddDialogProps {
+  setId: number;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-function difficultyLabel(difficulty: number | null): string {
-  if (difficulty === null) return 'Any';
-  const labels = ['', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'Native'];
-  return labels[difficulty] ?? String(difficulty);
+function FindAndAddDialog({ setId, open, onOpenChange }: FindAndAddDialogProps) {
+  const [query, setQuery] = useState('');
+  const [tab, setTab] = useState<'mine' | 'public'>('mine');
+  const { data: languages = [] } = useAllLanguages();
+  const addItem = useAddExistingItemToSet();
+
+  const { data: myData, isFetching: myFetching } = useMyItems(0, 20, query || undefined);
+  const { data: publicData, isFetching: publicFetching } = usePublicItems({
+    query: query || undefined,
+    skip: 0,
+    limit: 20,
+  });
+
+  const myItems = myData?.data ?? [];
+  const publicItems = publicData?.data ?? [];
+  const isFetching = tab === 'mine' ? myFetching : publicFetching;
+
+  function handleAdd(itemId: number, term: string) {
+    addItem.mutate(
+      { setId, itemId },
+      {
+        onSuccess: () => toast.success(`"${term}" added to set.`),
+        onError: (err) => toast.error(err.message),
+      },
+    );
+  }
+
+  function renderItem(item: ItemDetailResponse | ItemSummaryResponse) {
+    return (
+      <div key={item.id} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium text-sm">{item.term}</p>
+          {item.context && (
+            <p className="truncate text-xs text-muted-foreground italic">{item.context}</p>
+          )}
+          <div className="mt-1 flex gap-1">
+            <Badge variant="outline" className="text-xs">{langName(item.language_id, languages)}</Badge>
+            {item.part_of_speech && <Badge variant="outline" className="text-xs">{item.part_of_speech}</Badge>}
+          </div>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={addItem.isPending}
+          onClick={() => handleAdd(item.id, item.term)}
+        >
+          <PlusIcon className="size-3.5" />
+          Add
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[672px] max-w-[calc(100vw-2rem)] sm:max-w-[672px]">
+        <DialogHeader>
+          <DialogTitle>Find & Add Expression</DialogTitle>
+        </DialogHeader>
+
+        <div className="relative">
+          <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-8"
+            placeholder="Search expressions…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            autoFocus
+          />
+        </div>
+
+        <Tabs value={tab} onValueChange={(v) => setTab(v as 'mine' | 'public')}>
+          <TabsList className="w-full">
+            <TabsTrigger value="mine" className="flex-1">My Expressions</TabsTrigger>
+            <TabsTrigger value="public" className="flex-1">Public</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="mine" className="mt-3 flex flex-col gap-2 max-h-96 overflow-y-auto">
+            {myFetching && <p className="text-sm text-muted-foreground text-center py-4">Searching…</p>}
+            {!myFetching && myItems.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">No expressions found.</p>
+            )}
+            {myItems.map(renderItem)}
+          </TabsContent>
+
+          <TabsContent value="public" className="mt-3 flex flex-col gap-2 max-h-96 overflow-y-auto">
+            {publicFetching && <p className="text-sm text-muted-foreground text-center py-4">Searching…</p>}
+            {!publicFetching && publicItems.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">No expressions found.</p>
+            )}
+            {publicItems.map(renderItem)}
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 // ── Skeletons ─────────────────────────────────────────────────────────────────
@@ -329,6 +432,7 @@ export function SetDetailView() {
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [itemModalOpen, setItemModalOpen] = useState(false);
+  const [findAndAddOpen, setFindAndAddOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ItemDetailResponse | undefined>(undefined);
 
   const isOwner = !!user && !!set && set.creator_id === user.id;
@@ -427,7 +531,11 @@ export function SetDetailView() {
               <OwnerActions set={set} onEdit={() => setEditorOpen(true)} />
               <Button size="sm" onClick={handleAddItem}>
                 <PlusIcon className="size-3.5" />
-                Add Item
+                New
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setFindAndAddOpen(true)}>
+                <SearchIcon className="size-3.5" />
+                Find & Add
               </Button>
             </>
           ) : (
@@ -521,6 +629,12 @@ export function SetDetailView() {
         item={editingItem}
         defaultLanguageId={set.source_lang_id}
         defaultTranslationLanguageId={set.target_lang_id}
+      />
+
+      <FindAndAddDialog
+        setId={setId}
+        open={findAndAddOpen}
+        onOpenChange={setFindAndAddOpen}
       />
     </div>
   );

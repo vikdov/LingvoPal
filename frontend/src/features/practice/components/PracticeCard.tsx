@@ -42,11 +42,11 @@ export function PracticeCard() {
   useEffect(() => {
     if (!currentItem || !store.config.auto_play_audio) return;
     const lifecycle = currentAnswer?.lifecycle;
-    const audioUrl = currentItem.audio_url;
-    if (lifecycle === 'correct' && audioUrl) {
-      playAudio(audioUrl);
-    } else if (lifecycle === 'retrying' && audioUrl && !hasAutoplayed) {
-      playAudio(audioUrl);
+    if (lifecycle === 'correct') {
+      const url = currentItem.context_audio_url ?? currentItem.audio_url;
+      if (url) playAudio(url);
+    } else if (lifecycle === 'retrying' && currentItem.audio_url && !hasAutoplayed) {
+      playAudio(currentItem.audio_url);
       setHasAutoplayed(true);
     }
   }, [currentAnswer?.lifecycle, currentItem, store.config.auto_play_audio, hasAutoplayed, playAudio]);
@@ -107,8 +107,13 @@ export function PracticeCard() {
         <div className="flex flex-col items-center gap-3">
           <MediaPanel
             imageUrl={store.config.show_images ? currentItem.image_url : null}
-            showSoundIcon={answered && !!currentItem.audio_url}
-            onSoundClick={() => currentItem.audio_url && playAudio(currentItem.audio_url)}
+            showSoundIcon={answered && !!(currentItem.audio_url || currentItem.context_audio_url)}
+            onSoundClick={() => {
+              const url = lifecycle === 'correct' || lifecycle === 'corrected'
+                ? (currentItem.context_audio_url ?? currentItem.audio_url)
+                : currentItem.audio_url;
+              if (url) playAudio(url);
+            }}
           />
           {store.config.show_part_of_speech && currentItem.part_of_speech && (
             <span className={`text-sm font-medium px-3 py-1 rounded-full ${posColor.bg} ${posColor.text}`}>
