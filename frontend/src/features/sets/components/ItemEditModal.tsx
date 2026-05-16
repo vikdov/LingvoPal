@@ -12,6 +12,7 @@ import {
   Volume2Icon,
   SearchIcon,
   ChevronDownIcon,
+  SparklesIcon,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -35,6 +36,8 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useAllLanguages } from '@/features/languages';
+import { useSuggestItemMetadata } from '../hooks/useSuggestItemMetadata';
+import { mapCefrToValue } from '../utils/cefrMapping';
 import {
   useCreateItem,
   useUpdateItem,
@@ -63,12 +66,12 @@ const POS_OPTIONS: { value: PartOfSpeech; label: string }[] = [
   { value: 'verb', label: 'Verb' },
   { value: 'adjective', label: 'Adjective' },
   { value: 'adverb', label: 'Adverb' },
-  { value: 'pronoun', label: 'Pronoun' },
   { value: 'preposition', label: 'Preposition' },
   { value: 'conjunction', label: 'Conjunction' },
-  { value: 'interjection', label: 'Interjection' },
-  { value: 'article', label: 'Article' },
-  { value: 'other', label: 'Other' },
+  { value: 'phrase', label: 'Phrase' },
+  { value: 'idiom', label: 'Idiom' },
+  { value: 'phrasal_verb', label: 'Phrasal Verb' },
+  { value: 'collocation', label: 'Collocation' },
 ];
 
 const DIFFICULTY_OPTIONS = [
@@ -88,6 +91,15 @@ interface PendingTranslation {
   language_id: number;
   term_trans: string;
   context_trans: string;
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // Replace standalone _ with the actual word (e.g. "She _ home" → "She went home")
@@ -315,7 +327,7 @@ function AudioUploadRow({ audioUrl, pendingFileName, isPending, onSelect, onClea
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
 function ContextDisplay({ text }: { text: string }) {
-  const html = text.replace(/\{([^}]+)\}/g, '<strong class="font-semibold not-italic">$1</strong>');
+  const html = escapeHtml(text).replace(/\{([^}]+)\}/g, '<strong class="font-semibold not-italic">$1</strong>');
   return <span className="mt-0.5 text-xs text-muted-foreground" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
@@ -350,7 +362,7 @@ function ContextEdit({ value, onChange, disabled }: ContextEditProps) {
   }
 
   const preview = value.includes('{')
-    ? value.replace(/\{([^}]+)\}/g, '<mark class="bg-primary/20 text-primary font-semibold rounded px-0.5">$1</mark>')
+    ? escapeHtml(value).replace(/\{([^}]+)\}/g, '<mark class="bg-primary/20 text-primary font-semibold rounded px-0.5">$1</mark>')
     : '';
 
   return (
@@ -824,8 +836,20 @@ interface ItemEditModalProps {
   item?: ItemDetailResponse;
   defaultLanguageId?: number;
   defaultTranslationLanguageId?: number | null;
+  initialData?: {
+    term?: string;
+    context?: string;
+    part_of_speech?: string | null;
+    difficulty?: string;
+    lemma?: string;
+    image_url?: string | null;
+    audio_url?: string | null;
+    translations?: Array<{ text: string; language?: string }>;
+    synonyms?: string[];
+  };
   onSuccess?: () => void;
 }
+
 
 export function ItemEditModal({
   open,
@@ -834,6 +858,7 @@ export function ItemEditModal({
   item,
   defaultLanguageId,
   defaultTranslationLanguageId,
+  initialData,
   onSuccess,
 }: ItemEditModalProps) {
   const isEditing = !!item;
@@ -860,8 +885,15 @@ export function ItemEditModal({
 
   const [showAdvanced, setShowAdvanced] = useState(false);
 
+  // S3 URLs pre-filled from suggestions (create mode only)
+  const [suggestedImageUrl, setSuggestedImageUrl] = useState<string | null>(null);
+  const [suggestedAudioUrl, setSuggestedAudioUrl] = useState<string | null>(null);
+  const [suggestedContextAudioUrl, setSuggestedContextAudioUrl] = useState<string | null>(null);
+
   // Covers the entire create-then-enrich async sequence
   const [isSaving, setIsSaving] = useState(false);
+
+  const suggest = useSuggestItemMetadata();
 
   const createItem = useCreateItem();
   const updateItem = useUpdateItem(setId);
@@ -870,7 +902,7 @@ export function ItemEditModal({
 
   const isPending = isEditing
     ? updateItem.isPending || uploadImage.isPending || uploadAudio.isPending
-    : isSaving;
+    : isSaving || suggest.isPending;
 
   // Derive object URL from pending image file
   useEffect(() => {
@@ -894,20 +926,71 @@ export function ItemEditModal({
       setDifficulty(item.difficulty != null ? String(item.difficulty) : '');
       setLangId(String(item.language_id));
     } else {
-      setTerm('');
-      setContext('');
-      setLemma('');
-      setPartOfSpeech('');
-      setDifficulty('');
+      setTerm(initialData?.term ?? '');
+      setContext(initialData?.context ?? '');
+      setLemma(initialData?.lemma ?? '');
+      setPartOfSpeech(initialData?.part_of_speech ?? '');
+      setDifficulty(initialData?.difficulty ?? '');
       setLangId(defaultLanguageId ? String(defaultLanguageId) : '');
+      setSuggestedImageUrl(initialData?.image_url ?? null);
+      setSuggestedAudioUrl(initialData?.audio_url ?? null);
+      setSuggestedContextAudioUrl(null);
+      setPendingImage(null);
+      setPendingAudio(null);
+      setPendingAudioName(null);
+      setPendingSynonyms(initialData?.synonyms ?? []);
+      setPendingTranslations(
+        initialData?.translations?.length && defaultTranslationLanguageId
+          ? initialData.translations.map((t) => ({
+              _key: crypto.randomUUID(),
+              language_id: defaultTranslationLanguageId,
+              term_trans: t.text,
+              context_trans: '',
+            }))
+          : [],
+      );
+      setShowAdvanced(false);
     }
-    setPendingImage(null);
-    setPendingAudio(null);
-    setPendingAudioName(null);
-    setPendingTranslations([]);
-    setPendingSynonyms([]);
-    setShowAdvanced(false);
-  }, [open, item, defaultLanguageId]);
+  }, [open, item, defaultLanguageId, defaultTranslationLanguageId, initialData]);
+
+  async function handleSuggest() {
+    if (!term.trim() || !langId) return;
+    const sourceLang = languages.find((l) => l.id === Number(langId));
+    if (!sourceLang) return;
+    const targetLang = defaultTranslationLanguageId
+      ? languages.find((l) => l.id === defaultTranslationLanguageId)
+      : undefined;
+
+    try {
+      const result = await suggest.mutateAsync({
+        term: term.trim(),
+        source_language: sourceLang.name,
+        source_language_code: sourceLang.code,
+        target_language: targetLang?.name,
+      });
+
+      if (result.context) setContext(result.context);
+      if (result.lemma) setLemma(result.lemma);
+      if (result.part_of_speech) setPartOfSpeech(result.part_of_speech);
+      if (result.cefr_level) setDifficulty(mapCefrToValue(result.cefr_level));
+      if (result.tts_audio_url) setSuggestedAudioUrl(result.tts_audio_url);
+      if (result.context_tts_audio_url) setSuggestedContextAudioUrl(result.context_tts_audio_url);
+      if (result.image_suggestions[0]?.url) setSuggestedImageUrl(result.image_suggestions[0].url);
+      if (result.synonyms.length) setPendingSynonyms(result.synonyms);
+      if (result.translations.length && defaultTranslationLanguageId) {
+        setPendingTranslations(
+          result.translations.map((t) => ({
+            _key: crypto.randomUUID(),
+            language_id: defaultTranslationLanguageId,
+            term_trans: t.text,
+            context_trans: '',
+          })),
+        );
+      }
+    } catch {
+      // onError in useSuggestItemMetadata already toasts the error
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -954,6 +1037,10 @@ export function ItemEditModal({
           part_of_speech: pos ?? undefined,
           difficulty: diff ?? undefined,
           lemma: lemma.trim() || undefined,
+          // Use S3 URLs from suggestions when user hasn't uploaded a replacement file
+          image_url: pendingImage ? undefined : (suggestedImageUrl ?? undefined),
+          audio_url: pendingAudio ? undefined : (suggestedAudioUrl ?? undefined),
+          context_audio_url: suggestedContextAudioUrl ?? undefined,
         },
       });
 
@@ -1016,8 +1103,8 @@ export function ItemEditModal({
     );
   }
 
-  const imagePreviewUrl = isEditing ? (item?.image_url ?? null) : pendingImageUrl;
-  const liveAudioUrl = isEditing ? (item?.audio_url ?? null) : null;
+  const imagePreviewUrl = isEditing ? (item?.image_url ?? null) : (pendingImageUrl ?? suggestedImageUrl);
+  const liveAudioUrl = isEditing ? (item?.audio_url ?? null) : suggestedAudioUrl;
   const existingTranslationLangIds = isEditing
     ? (item?.translations.map((t) => t.language_id) ?? [])
     : pendingTranslations.map((pt) => pt.language_id);
@@ -1047,16 +1134,44 @@ export function ItemEditModal({
                   <Label htmlFor="item-term">
                     Expression <span className="text-destructive">*</span>
                   </Label>
-                  <Input
-                    id="item-term"
-                    value={term}
-                    onChange={(e) => setTerm(e.target.value)}
-                    placeholder="e.g. walked, went, children"
-                    className="h-11 text-base"
-                    disabled={isPending}
-                    autoFocus
-                  />
-                  <p className="text-xs text-muted-foreground">Exact form as it appears in the sentence</p>
+                  <div className="flex gap-2">
+                    <Input
+                      id="item-term"
+                      value={term}
+                      onChange={(e) => setTerm(e.target.value)}
+                      placeholder="e.g. walked, went, children"
+                      className="h-11 text-base flex-1"
+                      disabled={isPending || suggest.isPending}
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !isEditing && term.trim() && langId && !suggest.isPending) {
+                          e.preventDefault();
+                          handleSuggest();
+                        }
+                      }}
+                    />
+                    {!isEditing && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        className="h-11 w-11 shrink-0"
+                        title="Auto-fill with AI suggestions"
+                        disabled={!term.trim() || !langId || suggest.isPending || isPending}
+                        onClick={handleSuggest}
+                      >
+                        {suggest.isPending
+                          ? <Loader2Icon className="size-4 animate-spin" />
+                          : <SparklesIcon className="size-4" />
+                        }
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {!isEditing
+                      ? 'Type the expression then click ✨ to auto-fill context, audio, and images'
+                      : 'Exact form as it appears in the sentence'}
+                  </p>
                 </div>
 
                 {!isEditing && (
@@ -1219,10 +1334,10 @@ export function ItemEditModal({
                     onAdd={
                       !isEditing
                         ? (pt) =>
-                            setPendingTranslations((prev) => [
-                              ...prev,
-                              { ...pt, _key: crypto.randomUUID() },
-                            ])
+                          setPendingTranslations((prev) => [
+                            ...prev,
+                            { ...pt, _key: crypto.randomUUID() },
+                          ])
                         : undefined
                     }
                   />
