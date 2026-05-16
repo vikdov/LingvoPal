@@ -207,24 +207,28 @@ class ItemRepository:
         return result.scalar_one()
 
     async def get_created_by_user(
-        self, user_id: int, *, skip: int = 0, limit: int = 20
+        self, user_id: int, *, query: str | None = None, skip: int = 0, limit: int = 20
     ) -> Sequence[Item]:
-        result = await self._session.execute(
+        stmt = (
             select(Item)
             .where(Item.creator_id == user_id, Item.deleted_at.is_(None))
             .options(selectinload(Item.translations))
             .order_by(Item.created_at.desc())
-            .offset(skip)
-            .limit(limit)
         )
+        if query:
+            stmt = stmt.where(Item.term.ilike(f"%{query}%"))
+        result = await self._session.execute(stmt.offset(skip).limit(limit))
         return result.scalars().all()
 
-    async def count_created_by_user(self, user_id: int) -> int:
-        result = await self._session.execute(
+    async def count_created_by_user(self, user_id: int, *, query: str | None = None) -> int:
+        stmt = (
             select(func.count())
             .select_from(Item)
             .where(Item.creator_id == user_id, Item.deleted_at.is_(None))
         )
+        if query:
+            stmt = stmt.where(Item.term.ilike(f"%{query}%"))
+        result = await self._session.execute(stmt)
         return result.scalar_one()
 
     async def count_external_set_memberships(self, item_id: int, owner_id: int) -> int:
@@ -264,6 +268,7 @@ class ItemRepository:
         lemma: str | None = None,
         image_url: str | None = None,
         audio_url: str | None = None,
+        context_audio_url: str | None = None,
         status: ContentStatus = ContentStatus.DRAFT,
         content_hash: str | None = None,
     ) -> Item:
@@ -277,6 +282,7 @@ class ItemRepository:
             lemma=lemma,
             image_url=image_url,
             audio_url=audio_url,
+            context_audio_url=context_audio_url,
             status=status,
             content_hash=content_hash,
         )
@@ -288,7 +294,7 @@ class ItemRepository:
         """Update item fields. Pass None to clear a nullable field."""
         allowed = frozenset({
             "term", "context", "difficulty", "part_of_speech",
-            "lemma", "image_url", "audio_url",
+            "lemma", "image_url", "audio_url", "context_audio_url",
         })
         values = {k: v for k, v in kwargs.items() if k in allowed}
         if not values:

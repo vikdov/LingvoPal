@@ -26,7 +26,7 @@ from app.schemas.item import (
 )
 from app.services.storage import StorageService
 
-_PUBLIC_STATUSES = (ContentStatus.APPROVED, ContentStatus.OFFICIAL)
+_PUBLIC_STATUSES = (ContentStatus.COMMUNITY, ContentStatus.APPROVED, ContentStatus.OFFICIAL)
 _ALLOWED_IMAGE_TYPES = frozenset({
     "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"
 })
@@ -92,6 +92,7 @@ class ItemService:
             lemma=data.lemma,
             image_url=data.image_url,
             audio_url=data.audio_url,
+            context_audio_url=data.context_audio_url,
             status=ContentStatus.DRAFT,
         )
         set_item = await self._items.add_to_set(set_id, item.id)
@@ -116,7 +117,7 @@ class ItemService:
     ) -> Item:
         item = await self._require_owned_item(user_id, item_id)
         values = data.model_dump(exclude_unset=True)
-        for field in ("context", "lemma", "audio_url"):
+        for field in ("context", "lemma", "audio_url", "context_audio_url"):
             if field in values and values[field] == "":
                 values[field] = None
         if values:
@@ -134,10 +135,10 @@ class ItemService:
         await self._session.commit()
 
     async def get_my_items(
-        self, user_id: int, *, skip: int = 0, limit: int = 20
+        self, user_id: int, *, query: str | None = None, skip: int = 0, limit: int = 20
     ) -> tuple[list[Item], int]:
-        items = list(await self._items.get_created_by_user(user_id, skip=skip, limit=limit))
-        total = await self._items.count_created_by_user(user_id)
+        items = list(await self._items.get_created_by_user(user_id, query=query, skip=skip, limit=limit))
+        total = await self._items.count_created_by_user(user_id, query=query)
         return items, total
 
     async def submit_item(self, user_id: int, item_id: int) -> Item:
@@ -274,6 +275,7 @@ class ItemService:
             lemma=source.lemma,
             image_url=source.image_url,
             audio_url=source.audio_url,
+            context_audio_url=source.context_audio_url,
             status=ContentStatus.DRAFT,
         )
         set_item = await self._items.add_to_set(set_id, forked.id)
