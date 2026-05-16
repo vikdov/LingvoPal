@@ -3,9 +3,15 @@
 
 from typing import NoReturn
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, status
 
-from app.core.dependencies import ComplaintServiceDep, CurrentUser, ItemServiceDep, StorageDep
+from app.core.dependencies import (
+    ComplaintServiceDep,
+    CurrentUser,
+    ItemServiceDep,
+    StorageDep,
+    ItemSuggestionServiceDep,
+)
 from app.core.exceptions import (
     BusinessRuleViolationError,
     DuplicateResourceError,
@@ -13,6 +19,7 @@ from app.core.exceptions import (
     NotAuthorizedError,
     ResourceNotFoundError,
 )
+from app.core.limiter import limiter
 from app.models.enums import PartOfSpeech
 from app.schemas.complaint import ComplaintRequest, ComplaintResponse
 from app.schemas.common import PaginatedResponse
@@ -28,6 +35,8 @@ from app.schemas.item import (
     TranslationCreateRequest,
     TranslationResponse,
     TranslationUpdateRequest,
+    SuggestItemMetadataRequest,
+    ItemMetadataSuggestion,
 )
 
 items_router = APIRouter(prefix="/items", tags=["items"])
@@ -52,8 +61,43 @@ def _handle(exc: LingvoPalError) -> NoReturn:
 
 
 # ============================================================================
-# MY ITEMS  (/items/mine)
+# STATIC ROUTES (before /{item_id} catch-all)
 # ============================================================================
+# ⚠️ IMPORTANT: These routes must come BEFORE /{item_id} parameterized routes
+# to avoid FastAPI matching "/suggestions" as item_id="suggestions"
+
+
+@items_router.post(
+    "/suggestions",
+    response_model=ItemMetadataSuggestion,
+    summary="Auto-fill item metadata, audio, and images",
+    description=(
+        "Generate complete item metadata in parallel:\n\n"
+        "- **Linguistic enrichment** (AI): lemma, POS, CEFR, translations, synonyms\n"
+        "- **Audio** (TTS): natural pronunciation\n"
+        "- **Images**: visual reference suggestions\n\n"
+        "All run in parallel. Partial failures don't block the response.\n"
+        "User can accept, reject, or modify any suggestion before saving."
+    ),
+)
+@limiter.limit("20/minute")
+async def suggest_item_metadata(
+    request: Request,
+    body: SuggestItemMetadataRequest,
+    user: CurrentUser,
+    service: ItemSuggestionServiceDep,
+) -> ItemMetadataSuggestion:
+    """Generate complete suggestions for a vocabulary item."""
+    try:
+        suggestion = await service.suggest_complete(
+            term=body.term,
+            source_language=body.source_language,
+            source_language_code=body.source_language_code,
+            target_language=body.target_language,
+        )
+        return ItemMetadataSuggestion(**suggestion)
+    except LingvoPalError as exc:
+        _handle(exc)
 
 
 @items_router.get(
@@ -64,23 +108,17 @@ def _handle(exc: LingvoPalError) -> NoReturn:
 async def get_my_items(
     user: CurrentUser,
     service: ItemServiceDep,
+    query: str | None = Query(None, max_length=200),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse[ItemDetailResponse]:
-    items, total = await service.get_my_items(user.id, skip=skip, limit=limit)
-    pages = -(-total // limit)
+    items, total = await service.get_my_items(user.id, query=query, skip=skip, limit=limit)
     return PaginatedResponse(
         data=[ItemDetailResponse.model_validate(i) for i in items],
         total=total,
         page=(skip // limit) + 1,
-        pages=pages,
-        limit=limit,
+        page_size=limit,
     )
-
-
-# ============================================================================
-# DISCOVERY  (/items/public)
-# ============================================================================
 
 
 @items_router.get(
@@ -106,17 +144,29 @@ async def search_public_items(
         skip=skip,
         limit=limit,
     )
-    page = skip // limit + 1 if limit else 1
     return PaginatedResponse(
         data=[ItemSummaryResponse.model_validate(i) for i in items],
         total=total,
-        page=page,
+        page=(skip // limit) + 1,
         page_size=limit,
     )
 
 
+@items_router.get(
+    "/synonym-suggestions",
+    response_model=list[str],
+    summary="Autocomplete synonym term suggestions",
+)
+async def get_synonym_suggestions(
+    service: ItemServiceDep,
+    language_id: int = Query(..., gt=0),
+    q: str = Query(..., min_length=1),
+) -> list[str]:
+    return await service.search_synonym_suggestions(language_id, q)
+
+
 # ============================================================================
-# ITEM CRUD  (/items/{item_id})
+# ITEM CRUD — /{item_id} parameterized routes (after static routes)
 # ============================================================================
 
 
@@ -209,9 +259,37 @@ async def upload_item_image(
         _handle(exc)
 
 
-# ============================================================================
-# TRANSLATIONS  (/items/{item_id}/translations)
-# ============================================================================
+@items_router.get(
+    "/{item_id}/synonyms",
+    response_model=list[str],
+    summary="List synonym terms of an item",
+)
+async def get_item_synonyms(
+    item_id: int,
+    user: CurrentUser,
+    service: ItemServiceDep,
+) -> list[str]:
+    try:
+        return await service.get_synonyms(user.id, item_id)
+    except LingvoPalError as exc:
+        _handle(exc)
+
+
+@items_router.put(
+    "/{item_id}/synonyms",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Replace all synonym terms for an item",
+)
+async def set_item_synonyms(
+    item_id: int,
+    body: SynonymTermsRequest,
+    user: CurrentUser,
+    service: ItemServiceDep,
+) -> None:
+    try:
+        await service.set_synonyms(user.id, item_id, body.terms)
+    except LingvoPalError as exc:
+        _handle(exc)
 
 
 @items_router.post(
@@ -287,6 +365,33 @@ async def submit_translation(
         _handle(exc)
 
 
+@items_router.post(
+    "/{item_id}/report",
+    response_model=ComplaintResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Report a community item",
+    description=(
+        "File a complaint against a COMMUNITY item. "
+        "One report per user per item. "
+        "Requires at least one completed study session. "
+        "Rate-limited to MAX_COMPLAINTS_PER_DAY per day."
+    ),
+)
+async def report_item(
+    item_id: int,
+    body: ComplaintRequest,
+    user: CurrentUser,
+    svc: ComplaintServiceDep,
+) -> ComplaintResponse:
+    try:
+        complaint = await svc.file_item_complaint(
+            user.id, item_id, body.reason, body.details
+        )
+        return ComplaintResponse.model_validate(complaint)
+    except LingvoPalError as exc:
+        _handle(exc)
+
+
 # ============================================================================
 # ITEMS WITHIN A SET  (/sets/{set_id}/items/*)
 # ============================================================================
@@ -305,7 +410,9 @@ async def get_set_items(
     limit: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse[SetItemResponse]:
     try:
-        set_items, total = await service.get_set_items(user.id, set_id, skip=skip, limit=limit)
+        set_items, total = await service.get_set_items(
+            user.id, set_id, skip=skip, limit=limit
+        )
         return PaginatedResponse[SetItemResponse](
             data=[SetItemResponse.model_validate(si) for si in set_items],
             total=total,
@@ -388,83 +495,5 @@ async def fork_item_into_set(
     try:
         item, _ = await service.fork_item_into_set(user.id, set_id, item_id)
         return ItemDetailResponse.model_validate(item)
-    except LingvoPalError as exc:
-        _handle(exc)
-
-
-# ============================================================================
-# SYNONYMS
-# ============================================================================
-
-# /synonym-suggestions must be defined before /{item_id} routes
-@items_router.get(
-    "/synonym-suggestions",
-    response_model=list[str],
-    summary="Autocomplete synonym term suggestions",
-)
-async def get_synonym_suggestions(
-    language_id: int = Query(..., gt=0),
-    q: str = Query(..., min_length=1),
-    service: ItemServiceDep = ...,
-) -> list[str]:
-    return await service.search_synonym_suggestions(language_id, q)
-
-
-@items_router.get(
-    "/{item_id}/synonyms",
-    response_model=list[str],
-    summary="List synonym terms of an item",
-)
-async def get_item_synonyms(
-    item_id: int,
-    user: CurrentUser,
-    service: ItemServiceDep,
-) -> list[str]:
-    try:
-        return await service.get_synonyms(user.id, item_id)
-    except LingvoPalError as exc:
-        _handle(exc)
-
-
-@items_router.put(
-    "/{item_id}/synonyms",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Replace all synonym terms for an item",
-)
-async def set_item_synonyms(
-    item_id: int,
-    body: SynonymTermsRequest,
-    user: CurrentUser,
-    service: ItemServiceDep,
-) -> None:
-    try:
-        await service.set_synonyms(user.id, item_id, body.terms)
-    except LingvoPalError as exc:
-        _handle(exc)
-
-
-@items_router.post(
-    "/{item_id}/report",
-    response_model=ComplaintResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Report a community item",
-    description=(
-        "File a complaint against a COMMUNITY item. "
-        "One report per user per item. "
-        "Requires at least one completed study session. "
-        f"Rate-limited to MAX_COMPLAINTS_PER_DAY per day."
-    ),
-)
-async def report_item(
-    item_id: int,
-    body: ComplaintRequest,
-    user: CurrentUser,
-    svc: ComplaintServiceDep,
-) -> ComplaintResponse:
-    try:
-        complaint = await svc.file_item_complaint(
-            user.id, item_id, body.reason, body.details
-        )
-        return ComplaintResponse.model_validate(complaint)
     except LingvoPalError as exc:
         _handle(exc)

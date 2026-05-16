@@ -21,8 +21,10 @@ def _get_session() -> aioboto3.Session:
 
 class StorageService:
     def __init__(self) -> None:
-        self._settings = get_settings()
+        settings = get_settings()
+        self._settings = settings
         self._session = _get_session()
+        self._base_url = settings.MEDIA_BASE_URL.rstrip("/")
 
     def _client(self):
         return self._session.client(
@@ -34,20 +36,33 @@ class StorageService:
         )
 
     async def upload_image(self, data: bytes, content_type: str, ext: str) -> str:
-        """Upload image bytes, return public URL."""
-        key = f"items/{uuid.uuid4().hex}.{ext}"
-        async with self._client() as s3:
-            await s3.put_object(
-                Bucket=self._settings.S3_BUCKET,
-                Key=key,
-                Body=data,
-                ContentType=content_type,
-            )
-        return f"{self._settings.MEDIA_BASE_URL.rstrip('/')}/{key}"
+        """Upload image bytes to a random key, return public URL."""
+        return await self.upload_at_key(
+            data, f"items/{uuid.uuid4().hex}.{ext}", content_type
+        )
 
     async def upload_audio(self, data: bytes, content_type: str, ext: str) -> str:
-        """Upload audio bytes, return public URL."""
-        key = f"audio/{uuid.uuid4().hex}.{ext}"
+        """Upload audio bytes to a random key, return public URL."""
+        return await self.upload_at_key(
+            data, f"audio/{uuid.uuid4().hex}.{ext}", content_type
+        )
+
+    async def get_url_if_exists(self, key: str) -> str | None:
+        """Return public URL if key exists in bucket, else None. Used for cache checks."""
+        async with self._client() as s3:
+            try:
+                await s3.head_object(Bucket=self._settings.S3_BUCKET, Key=key)
+                return f"{self._base_url}/{key}"
+            except ClientError as e:
+                code = e.response["Error"]["Code"]
+                if code in ("404", "NoSuchKey"):
+                    return None
+                raise
+
+    async def upload_at_key(
+        self, data: bytes, key: str, content_type: str = "application/octet-stream"
+    ) -> str:
+        """Upload bytes to a specific deterministic key, return public URL."""
         async with self._client() as s3:
             await s3.put_object(
                 Bucket=self._settings.S3_BUCKET,
@@ -55,11 +70,11 @@ class StorageService:
                 Body=data,
                 ContentType=content_type,
             )
-        return f"{self._settings.MEDIA_BASE_URL.rstrip('/')}/{key}"
+        return f"{self._base_url}/{key}"
 
     async def delete(self, url: str) -> None:
         """Delete object by public URL. No-op if URL doesn't belong to this bucket."""
-        prefix = self._settings.MEDIA_BASE_URL.rstrip("/") + "/"
+        prefix = self._base_url + "/"
         if not url.startswith(prefix):
             return
         key = url[len(prefix):]

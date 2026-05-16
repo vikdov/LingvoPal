@@ -66,7 +66,7 @@ async def preview_anki_import(
             detail="File must be an Anki package (.apkg)",
         )
 
-    file_bytes = await file.read()
+    file_bytes = await file.read(_MAX_APKG_BYTES + 1)
     if len(file_bytes) > _MAX_APKG_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
