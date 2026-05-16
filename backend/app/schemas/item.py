@@ -1,10 +1,20 @@
 # backend/app/schemas/item.py
 """Item schemas — request/response only, no business logic."""
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from app.models.enums import ContentStatus, PartOfSpeech
 from app.schemas.common import BaseResponseWithDeleted, BaseResponseWithUpdated
+
+_BLOCKED_URL_SCHEMES = ("javascript:", "data:", "vbscript:", "file:")
+
+
+def _validate_media_url(v: str | None) -> str | None:
+    if v is None:
+        return v
+    if v.lower().lstrip().startswith(_BLOCKED_URL_SCHEMES):
+        raise ValueError("URL scheme not allowed")
+    return v
 
 
 # ============================================================================
@@ -25,6 +35,12 @@ class ItemCreateRequest(BaseModel):
     lemma: str | None = Field(None, max_length=500)
     image_url: str | None = Field(None, max_length=2048)
     audio_url: str | None = Field(None, max_length=2048)
+    context_audio_url: str | None = Field(None, max_length=2048)
+
+    @field_validator("image_url", "audio_url", "context_audio_url", mode="before")
+    @classmethod
+    def _check_url_scheme(cls, v: str | None) -> str | None:
+        return _validate_media_url(v)
 
 
 class ItemUpdateRequest(BaseModel):
@@ -39,6 +55,12 @@ class ItemUpdateRequest(BaseModel):
     lemma: str | None = Field(None, max_length=500)
     image_url: str | None = Field(None, max_length=2048)
     audio_url: str | None = Field(None, max_length=2048)
+    context_audio_url: str | None = Field(None, max_length=2048)
+
+    @field_validator("image_url", "audio_url", "context_audio_url", mode="before")
+    @classmethod
+    def _check_url_scheme(cls, v: str | None) -> str | None:
+        return _validate_media_url(v)
 
 
 class AddExistingItemRequest(BaseModel):
@@ -107,6 +129,7 @@ class ItemResponse(BaseResponseWithUpdated):
     lemma: str | None
     image_url: str | None
     audio_url: str | None
+    context_audio_url: str | None
     status: ContentStatus
     creator_id: int | None
     verified_by: int | None
@@ -153,6 +176,54 @@ class SetItemResponse(BaseModel):
     item: ItemDetailResponse
 
 
+class TranslationSuggestion(BaseModel):
+    """Suggested translation."""
+
+    text: str
+    language: str | None = None
+
+
+class ImageSuggestion(BaseModel):
+    """Suggested image with metadata."""
+
+    url: str
+    thumbnail_url: str | None = None
+    source: str | None = None
+
+
+class SuggestItemMetadataRequest(BaseModel):
+    """Request suggestions for item metadata."""
+
+    term: str = Field(..., min_length=1, max_length=500)
+    source_language: str = Field(..., min_length=1, max_length=100)
+    source_language_code: str = Field(..., min_length=2, max_length=10)
+    target_language: str | None = Field(None, max_length=100)
+
+
+class ItemMetadataSuggestion(BaseModel):
+    """AI-suggested metadata (ready to fill item form)."""
+
+    # System use
+    lemma: str | None = None
+
+    # Practice UI
+    part_of_speech: str | None = None
+    cefr_level: str | None = None
+    context: str | None = None
+
+    # Collections
+    translations: list[TranslationSuggestion] = Field(default_factory=list)
+    synonyms: list[str] = Field(default_factory=list)
+
+    # Media
+    tts_audio_url: str | None = None
+    context_tts_audio_url: str | None = None
+    image_suggestions: list[ImageSuggestion] = Field(default_factory=list)
+
+    # Diagnostics
+    warnings: list[str] = Field(default_factory=list)
+
+
 __all__ = [
     "ItemCreateRequest",
     "ItemUpdateRequest",
@@ -165,4 +236,8 @@ __all__ = [
     "ItemDetailResponse",
     "TranslationResponse",
     "SetItemResponse",
+    "TranslationSuggestion",
+    "ImageSuggestion",
+    "SuggestItemMetadataRequest",
+    "ItemMetadataSuggestion",
 ]
