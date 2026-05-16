@@ -276,6 +276,7 @@ class PracticeRepository:
                     Item.context.label("context"),
                     Item.image_url.label("image_url"),
                     Item.audio_url.label("audio_url"),
+                    Item.context_audio_url.label("context_audio_url"),
                     Item.part_of_speech.label("part_of_speech"),
                     func.coalesce(PinnedT.id, LangT.id).label("resolved_trans_id"),
                     func.coalesce(PinnedT.term_trans, LangT.term_trans).label("prompt"),
@@ -320,6 +321,7 @@ class PracticeRepository:
                     Item.context.label("context"),
                     Item.image_url.label("image_url"),
                     Item.audio_url.label("audio_url"),
+                    Item.context_audio_url.label("context_audio_url"),
                     Item.part_of_speech.label("part_of_speech"),
                     LangT.id.label("resolved_trans_id"),
                     LangT.term_trans.label("prompt"),
@@ -361,6 +363,7 @@ class PracticeRepository:
                 "context_trans": row.context_trans,
                 "image_url": row.image_url,
                 "audio_url": row.audio_url,
+                "context_audio_url": row.context_audio_url,
                 "part_of_speech": pos,
                 "translation_id": row.resolved_trans_id,
                 "last_reviewed": (

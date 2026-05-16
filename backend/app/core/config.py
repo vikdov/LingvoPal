@@ -279,6 +279,44 @@ class Settings(BaseSettings):
     # Minimum global success rate for OFFICIAL promotion (soft gate)
     OFFICIAL_MIN_SUCCESS_RATE: float = 0.70
 
+    # =========================================================================
+    # AI / LLM (for item suggestions)
+    # =========================================================================
+    AI_PROVIDER: Literal["google", "groq"] = Field("groq", description="LLM provider: 'groq' or 'google'")
+    AI_API_KEY: str = Field(..., description="API key for the selected AI provider")
+    AI_MODEL: str = Field("llama-3.3-70b-versatile", description="Model ID (groq: llama-3.3-70b-versatile | google: gemini-2.0-flash-lite)")
+
+    # =========================================================================
+    # TTS (Text-to-Speech)
+    #
+    # google_cloud: set GOOGLE_APPLICATION_CREDENTIALS to the path of the
+    #   service account JSON file downloaded from Google Cloud Console.
+    #   TTS_API_KEY is ignored.
+    #
+    # elevenlabs: set TTS_API_KEY to your ElevenLabs API key.
+    #   GOOGLE_APPLICATION_CREDENTIALS is ignored.
+    # =========================================================================
+    TTS_ENABLED: bool = Field(True, description="Set False to skip TTS credential validation and disable TTS features.")
+    TTS_PROVIDER: Literal["google_cloud", "elevenlabs"] = "google_cloud"
+    GOOGLE_APPLICATION_CREDENTIALS: str | None = Field(
+        None,
+        description="Path to Google Cloud service account JSON file (google_cloud provider only)",
+    )
+    TTS_API_KEY: str | None = Field(
+        None,
+        description="ElevenLabs API key (elevenlabs provider only)",
+    )
+    TTS_LANGUAGE_CODE: str = "en-US"  # Default; can be overridden per request
+
+    # =========================================================================
+    # Image Search
+    # =========================================================================
+    IMAGE_SEARCH_PROVIDER: Literal["unsplash", "pexels", "pixabay"] = "unsplash"
+    IMAGE_SEARCH_API_KEY: str = Field(
+        ..., description="API key for image search provider"
+    )
+    IMAGE_COUNT: int = 1
+
     @computed_field
     @property
     def S3_ENDPOINT_URL(self) -> str:
@@ -366,6 +404,25 @@ class Settings(BaseSettings):
     # order. All production checks are co-located so the full constraint surface
     # is visible in one place.
     # =========================================================================
+
+    @model_validator(mode="after")
+    def validate_tts_credentials(self) -> "Settings":
+        """Fail fast if TTS provider credentials are missing."""
+        if not self.TTS_ENABLED:
+            return self
+        if self.TTS_PROVIDER == "google_cloud" and not self.GOOGLE_APPLICATION_CREDENTIALS:
+            raise ValueError(
+                "TTS_PROVIDER=google_cloud requires GOOGLE_APPLICATION_CREDENTIALS "
+                "to be set to the path of your service account JSON file.\n"
+                "Download it from: Google Cloud Console → IAM → Service Accounts → Keys\n"
+                "Set TTS_ENABLED=false to disable TTS entirely."
+            )
+        if self.TTS_PROVIDER == "elevenlabs" and not self.TTS_API_KEY:
+            raise ValueError(
+                "TTS_PROVIDER=elevenlabs requires TTS_API_KEY to be set.\n"
+                "Set TTS_ENABLED=false to disable TTS entirely."
+            )
+        return self
 
     @model_validator(mode="after")
     def validate_production_constraints(self) -> "Settings":

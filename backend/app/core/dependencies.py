@@ -35,7 +35,12 @@ from app.services.practice_service import PracticeService
 from app.services.set_service import SetService
 from app.services.storage import StorageService
 from app.services.user_settings_service import UserSettingsService
-from app.core.security import decode_token as decode_access_token, TokenExpiredError, TokenInvalidError
+from app.services.item_suggestion_service import ItemSuggestionService
+from app.core.security import (
+    decode_token as decode_access_token,
+    TokenExpiredError,
+    TokenInvalidError,
+)
 
 # ============================================================================
 # OAuth2 Scheme
@@ -98,7 +103,9 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token expired",
-            headers={"WWW-Authenticate": 'Bearer error="invalid_token", error_description="Token expired"'},
+            headers={
+                "WWW-Authenticate": 'Bearer error="invalid_token", error_description="Token expired"'
+            },
         )
     except TokenInvalidError:
         raise credentials_exception
@@ -275,6 +282,15 @@ def get_email_service() -> EmailService:
     return EmailService(get_settings())
 
 
+async def get_item_suggestion_service():
+    """Get item suggestion service (orchestrates AI + TTS + images)."""
+    service = ItemSuggestionService()
+    try:
+        yield service
+    finally:
+        await service.close()
+
+
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 StatsServiceDep = Annotated[StatsService, Depends(get_stats_service)]
 SetServiceDep = Annotated[SetService, Depends(get_set_service)]
@@ -286,11 +302,17 @@ PracticeServiceDep = Annotated[PracticeService, Depends(get_practice_service)]
 ModerationServiceDep = Annotated[ModerationService, Depends(get_moderation_service)]
 ComplaintServiceDep = Annotated[ComplaintService, Depends(get_complaint_service)]
 StorageDep = Annotated[StorageService, Depends(get_storage_service)]
-EmailVerifServiceDep = Annotated[EmailVerificationService, Depends(get_email_verif_service)]
-PasswordResetServiceDep = Annotated[PasswordResetService, Depends(get_password_reset_service)]
+EmailVerifServiceDep = Annotated[
+    EmailVerificationService, Depends(get_email_verif_service)
+]
+PasswordResetServiceDep = Annotated[
+    PasswordResetService, Depends(get_password_reset_service)
+]
 EmailServiceDep = Annotated[EmailService, Depends(get_email_service)]
 RedisDep = Annotated[aioredis.Redis, Depends(get_redis_client)]
-
+ItemSuggestionServiceDep = Annotated[
+    ItemSuggestionService, Depends(get_item_suggestion_service)
+]
 
 __all__ = [
     "oauth2_scheme",
@@ -299,7 +321,6 @@ __all__ = [
     "get_current_user",
     "get_current_verified_user",
     "get_current_admin",
-    "get_db_for_writes",
     # Type aliases
     "DBSession",
     "WriteDBSession",
@@ -329,4 +350,5 @@ __all__ = [
     "PasswordResetServiceDep",
     "EmailServiceDep",
     "RedisDep",
+    "ItemSuggestionServiceDep",
 ]

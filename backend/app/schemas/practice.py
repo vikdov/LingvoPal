@@ -50,6 +50,7 @@ class ItemHintSchema(BaseModel):
     context_trans: str | None = None
     image_url: str | None = None
     audio_url: str | None = None
+    context_audio_url: str | None = None
     part_of_speech: str | None = None
     synonyms: list[str] = Field(default_factory=list)
     last_reviewed: datetime | None = None

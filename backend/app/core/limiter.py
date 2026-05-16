@@ -10,8 +10,13 @@ logger = logging.getLogger(__name__)
 
 
 def get_limiter_storage() -> str:
+    settings = get_settings()
+    if settings.ENV == "production":
+        # In production, in-memory fallback silently breaks distributed rate limiting.
+        # Fail loud so misconfiguration is caught at startup, not silently bypassed.
+        return settings.REDIS_URL
     try:
-        return get_settings().REDIS_URL
+        return settings.REDIS_URL
     except Exception as e:
         logger.warning(f"Rate limiter falling back to in-memory storage: {e}")
         return "memory://"
