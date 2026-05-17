@@ -86,6 +86,20 @@ class ComplaintRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one()
 
+    async def get_by_id(self, complaint_id: int) -> ContentComplaint | None:
+        result = await self._session.execute(
+            select(ContentComplaint).where(ContentComplaint.id == complaint_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def delete_by_id(self, complaint_id: int) -> bool:
+        from sqlalchemy import delete as sa_delete
+
+        result = await self._session.execute(
+            sa_delete(ContentComplaint).where(ContentComplaint.id == complaint_id)
+        )
+        return result.rowcount > 0
+
     async def count_for_targets_batch(
         self, target_type: ModerationTargetType, target_ids: list[int]
     ) -> dict[int, int]:

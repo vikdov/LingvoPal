@@ -30,6 +30,12 @@ class RepairStatsRequest(BaseModel):
     language_id: int | None = Field(None, description="Repair for specific language")
 
 
+class AdminDeleteContentRequest(BaseModel):
+    """DELETE (via POST body) /api/v1/admin/items/{id} or /sets/{id}"""
+
+    reason: str = Field(..., min_length=1, max_length=500, description="Reason for removal (shown to creator)")
+
+
 class PromoteToOfficialRequest(BaseModel):
     """POST /api/v1/admin/items/{item_id}/promote"""
 
@@ -61,6 +67,7 @@ class AuditLogEntry(BaseModel):
 __all__ = [
     "UserListQueryParams",
     "RepairStatsRequest",
+    "AdminDeleteContentRequest",
     "PromoteToOfficialRequest",
     "AdminOverviewStats",
     "AuditLogEntry",

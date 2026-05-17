@@ -57,6 +57,24 @@ class ModerationRepository:
         )
         return result.scalars().all()
 
+    async def get_latest_for_creator_and_target(
+        self,
+        creator_id: int,
+        target_type: ModerationTargetType,
+        target_id: int,
+    ) -> PendingModeration | None:
+        result = await self._session.execute(
+            select(PendingModeration)
+            .where(
+                PendingModeration.creator_id == creator_id,
+                PendingModeration.target_type == target_type,
+                PendingModeration.target_id == target_id,
+            )
+            .order_by(PendingModeration.created_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def count_by_creator(self, creator_id: int) -> int:
         result = await self._session.execute(
             select(func.count())
