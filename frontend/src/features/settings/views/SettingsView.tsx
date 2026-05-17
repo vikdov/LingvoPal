@@ -4,11 +4,13 @@ import { LearningTab } from '../components/LearningTab';
 import { PreferencesTab } from '../components/PreferencesTab';
 import { AdvancedTab } from '../components/AdvancedTab';
 import { DangerZoneTab } from '../components/DangerZoneTab';
+import { SubmissionsTab } from '../components/SubmissionsTab';
 
 const TABS = [
   { value: 'account', label: 'Account' },
   { value: 'learning', label: 'Learning' },
   { value: 'preferences', label: 'Preferences' },
+  { value: 'submissions', label: 'Submissions' },
   { value: 'advanced', label: 'Advanced' },
   { value: 'danger', label: 'Danger zone' },
 ] as const;
@@ -42,6 +44,9 @@ export function SettingsView() {
         </TabsContent>
         <TabsContent value="preferences">
           <PreferencesTab />
+        </TabsContent>
+        <TabsContent value="submissions">
+          <SubmissionsTab />
         </TabsContent>
         <TabsContent value="advanced">
           <AdvancedTab />

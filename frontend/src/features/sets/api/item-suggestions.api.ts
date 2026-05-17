@@ -44,6 +44,9 @@ export interface TranslationSuggestion {
   /** Translated text */
   text: string;
 
+  /** Translated context sentence with the translated term wrapped in {curly braces} */
+  context_trans?: string;
+
   /** Optional language name/code */
   language?: string;
 }
@@ -70,40 +73,23 @@ export interface ImageSuggestion {
  * Request payload for AI-powered item metadata suggestions.
  */
 export interface SuggestItemMetadataRequest {
-  /**
-   * Exact user-entered expression.
-   *
-   * Examples:
-   * - "wanderlust"
-   * - "take into account"
-   * - "by the way"
-   */
   term: string;
-
-  /**
-   * Language name of the expression.
-   *
-   * Examples:
-   * - "English"
-   * - "Spanish"
-   * - "Japanese"
-   */
   source_language: string;
-
-  /**
-   * BCP-47 language code used for TTS generation.
-   *
-   * Examples:
-   * - "en-US"
-   * - "es-ES"
-   * - "ja-JP"
-   */
   source_language_code: string;
-
-  /**
-   * Optional learner/native language used for translations.
-   */
   target_language?: string;
+  /** User's existing context sentence — used for image search and context TTS */
+  context?: string;
+}
+
+export interface GenerateAudioRequest {
+  term: string;
+  language_code: string;
+  context?: string;
+}
+
+export interface GenerateAudioResponse {
+  audio_url: string | null;
+  context_audio_url: string | null;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -170,6 +156,8 @@ export interface ItemMetadataSuggestion {
    * Suggested visual reference images.
    */
   image_suggestions: ImageSuggestion[];
+  /** Query used for image search — pass back to /search_images for more results */
+  image_query: string | null;
 
   /* ------------------------------- Diagnostics ---------------------------- */
 
@@ -201,6 +189,23 @@ export async function suggestItemMetadata(
   request: SuggestItemMetadataRequest,
 ): Promise<ItemMetadataSuggestion> {
   return api.post('/items/suggestions', request);
+}
+
+export async function generateItemAudio(
+  request: GenerateAudioRequest,
+): Promise<GenerateAudioResponse> {
+  return api.post('/items/generate_audio', request);
+}
+
+export interface SearchImagesRequest {
+  query: string;
+  count?: number;
+}
+
+export async function searchItemImages(
+  request: SearchImagesRequest,
+): Promise<ImageSuggestion[]> {
+  return api.post('/items/search_images', request);
 }
 
 /* -------------------------------------------------------------------------- */

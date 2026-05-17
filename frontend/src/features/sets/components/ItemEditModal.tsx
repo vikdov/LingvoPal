@@ -13,8 +13,14 @@ import {
   SearchIcon,
   ChevronDownIcon,
   SparklesIcon,
+  RefreshCwIcon,
+  AlertTriangleIcon,
+  FlagIcon,
+  SendIcon,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/features/auth/hooks/useAuth';
+import { ReportDialog } from './ReportDialog';
 import {
   Dialog,
   DialogContent,
@@ -36,21 +42,24 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useAllLanguages } from '@/features/languages';
-import { useSuggestItemMetadata } from '../hooks/useSuggestItemMetadata';
+import { useSuggestItemMetadata, useGenerateAudio, useSearchImages } from '../hooks/useSuggestItemMetadata';
 import { mapCefrToValue } from '../utils/cefrMapping';
 import {
   useCreateItem,
   useUpdateItem,
   useUploadItemImage,
   useUploadItemAudio,
+  useUploadItemContextAudio,
   useCreateTranslation,
   useUpdateTranslation,
   useDeleteTranslation,
   useItemSynonyms,
   useSetSynonyms,
   useSynonymSuggestions,
+  useSubmitItemForReview,
   setKeys,
 } from '../hooks/useSetsQuery';
+import { SubmitReviewDialog } from './SubmitReviewDialog';
 import { setsApi } from '../api/sets.api';
 import type {
   ItemDetailResponse,
@@ -126,9 +135,12 @@ interface ImageUploadZoneProps {
   canClear: boolean;
   onSelect: (file: File) => void;
   onClear: () => void;
+  suggestionCount?: number;
+  suggestionIndex?: number;
+  onCycleNext?: () => void;
 }
 
-function ImageUploadZone({ previewUrl, isPending, canClear, onSelect, onClear }: ImageUploadZoneProps) {
+function ImageUploadZone({ previewUrl, isPending, canClear, onSelect, onClear, suggestionCount, suggestionIndex, onCycleNext }: ImageUploadZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const zoneRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -221,16 +233,26 @@ function ImageUploadZone({ previewUrl, isPending, canClear, onSelect, onClear }:
 
       {previewUrl && (
         <div className="flex gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="flex-1"
-            onClick={() => inputRef.current?.click()}
-            disabled={isPending}
-          >
-            Replace
-          </Button>
+          {onCycleNext ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="flex-1"
+              onClick={onCycleNext}
+              disabled={isPending}
+            >
+              {isPending
+                ? <Loader2Icon className="size-3.5 animate-spin" />
+                : <RefreshCwIcon className="size-3.5" />
+              }
+              {isPending ? 'Fetching…' : (
+                suggestionIndex !== undefined && suggestionCount && suggestionCount > 1
+                  ? `Try another (${suggestionIndex + 1}/${suggestionCount})`
+                  : 'Try another'
+              )}
+            </Button>
+          ) : null}
           {canClear && (
             <Button
               type="button"
@@ -252,18 +274,21 @@ function ImageUploadZone({ previewUrl, isPending, canClear, onSelect, onClear }:
 // ── AudioUploadRow ────────────────────────────────────────────────────────────
 
 interface AudioUploadRowProps {
+  label: string;
   audioUrl: string | null;
   pendingFileName: string | null;
   isPending: boolean;
+  isStale?: boolean;
   onSelect: (file: File) => void;
   onClearPending: () => void;
 }
 
-function AudioUploadRow({ audioUrl, pendingFileName, isPending, onSelect, onClearPending }: AudioUploadRowProps) {
+function AudioUploadRow({ label, audioUrl, pendingFileName, isPending, isStale, onSelect, onClearPending }: AudioUploadRowProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs text-muted-foreground">{label}</span>
       <input
         ref={inputRef}
         type="file"
@@ -277,10 +302,15 @@ function AudioUploadRow({ audioUrl, pendingFileName, isPending, onSelect, onClea
       />
 
       {audioUrl ? (
-        <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3">
+        <div className={cn('flex flex-col gap-2 rounded-lg border bg-muted/30 p-3', isStale ? 'border-amber-400/60' : 'border-border')}>
           <div className="flex items-center gap-2">
             <Volume2Icon className="size-4 shrink-0 text-muted-foreground" />
             <audio controls className="h-8 flex-1 min-w-0" src={audioUrl} />
+            {isStale && (
+              <span title="Context changed — regenerate audio" className="shrink-0 text-amber-500">
+                <AlertTriangleIcon className="size-3.5" />
+              </span>
+            )}
           </div>
           <Button
             type="button"
@@ -290,7 +320,7 @@ function AudioUploadRow({ audioUrl, pendingFileName, isPending, onSelect, onClea
             disabled={isPending}
           >
             {isPending ? <Loader2Icon className="size-3.5 animate-spin" /> : <MicIcon className="size-3.5" />}
-            {isPending ? 'Uploading…' : 'Replace Audio'}
+            {isPending ? 'Uploading…' : 'Upload custom'}
           </Button>
         </div>
       ) : pendingFileName ? (
@@ -758,8 +788,6 @@ function SynonymsSection({ itemId, languageId, pendingTerms, onChangePending }: 
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
       addTerm(input);
-    } else if (e.key === 'Backspace' && !input && activeTerms.length > 0) {
-      removeTerm(activeTerms[activeTerms.length - 1]);
     }
   }
 
@@ -821,7 +849,7 @@ function SynonymsSection({ itemId, languageId, pendingTerms, onChangePending }: 
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Enter or comma to add · Backspace to remove last
+        Enter or comma to add · click × to remove
       </p>
     </div>
   );
@@ -863,7 +891,11 @@ export function ItemEditModal({
 }: ItemEditModalProps) {
   const isEditing = !!item;
   const qc = useQueryClient();
+  const { user } = useAuth();
   const { data: languages = [] } = useAllLanguages();
+  const [reportOpen, setReportOpen] = useState(false);
+  const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
+  const submitItem = useSubmitItemForReview();
 
   // Core fields
   const [term, setTerm] = useState('');
@@ -878,31 +910,54 @@ export function ItemEditModal({
   const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
   const [pendingAudio, setPendingAudio] = useState<File | null>(null);
   const [pendingAudioName, setPendingAudioName] = useState<string | null>(null);
+  const [pendingContextAudio, setPendingContextAudio] = useState<File | null>(null);
+  const [pendingContextAudioName, setPendingContextAudioName] = useState<string | null>(null);
 
   // Pending translations + synonyms — create mode only
   const [pendingTranslations, setPendingTranslations] = useState<PendingTranslation[]>([]);
   const [pendingSynonyms, setPendingSynonyms] = useState<string[]>([]);
 
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showCustomAudio, setShowCustomAudio] = useState(false);
 
   // S3 URLs pre-filled from suggestions (create mode only)
   const [suggestedImageUrl, setSuggestedImageUrl] = useState<string | null>(null);
   const [suggestedAudioUrl, setSuggestedAudioUrl] = useState<string | null>(null);
   const [suggestedContextAudioUrl, setSuggestedContextAudioUrl] = useState<string | null>(null);
+  const [imageSuggestions, setImageSuggestions] = useState<{ url: string }[]>([]);
+  const [imageSuggestionIndex, setImageSuggestionIndex] = useState(0);
+  const [imageSearchQuery, setImageSearchQuery] = useState<string | null>(null);
 
-  // Covers the entire create-then-enrich async sequence
+  // Tracks which context was active when audio was last generated (stale detection)
+  const [audioGeneratedForContext, setAudioGeneratedForContext] = useState<string | null>(null);
+
+  // AI-suggested improvement to user's context sentence
+  const [aiContextHint, setAiContextHint] = useState<string | null>(null);
+
+  // Unsaved-changes confirmation (edit mode only)
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
+  // Covers save sequences (both create and edit mode)
   const [isSaving, setIsSaving] = useState(false);
 
   const suggest = useSuggestItemMetadata();
+  const generateAudio = useGenerateAudio();
+  const searchImages = useSearchImages();
 
   const createItem = useCreateItem();
   const updateItem = useUpdateItem(setId);
+  const setSynonymsMutation = useSetSynonyms();
   const uploadImage = useUploadItemImage(setId);
   const uploadAudio = useUploadItemAudio(setId);
+  const uploadContextAudio = useUploadItemContextAudio(setId);
+
+  // Fetch existing synonyms for edit mode so we can defer their save
+  const { data: existingSynonyms } = useItemSynonyms(isEditing ? item?.id : undefined);
+  const synonymsInitializedRef = useRef(false);
 
   const isPending = isEditing
-    ? updateItem.isPending || uploadImage.isPending || uploadAudio.isPending
-    : isSaving || suggest.isPending;
+    ? isSaving || uploadImage.isPending || uploadAudio.isPending || uploadContextAudio.isPending || generateAudio.isPending
+    : isSaving || suggest.isPending || generateAudio.isPending;
 
   // Derive object URL from pending image file
   useEffect(() => {
@@ -925,6 +980,13 @@ export function ItemEditModal({
       setPartOfSpeech(item.part_of_speech ?? '');
       setDifficulty(item.difficulty != null ? String(item.difficulty) : '');
       setLangId(String(item.language_id));
+      setSuggestedAudioUrl(null);
+      setSuggestedContextAudioUrl(null);
+      setAudioGeneratedForContext(null);
+      setAiContextHint(null);
+      setShowDiscardConfirm(false);
+      synonymsInitializedRef.current = false;
+      setPendingSynonyms([]);
     } else {
       setTerm(initialData?.term ?? '');
       setContext(initialData?.context ?? '');
@@ -935,9 +997,17 @@ export function ItemEditModal({
       setSuggestedImageUrl(initialData?.image_url ?? null);
       setSuggestedAudioUrl(initialData?.audio_url ?? null);
       setSuggestedContextAudioUrl(null);
+      setImageSuggestions([]);
+      setImageSuggestionIndex(0);
+      setImageSearchQuery(null);
       setPendingImage(null);
       setPendingAudio(null);
       setPendingAudioName(null);
+      setPendingContextAudio(null);
+      setPendingContextAudioName(null);
+      setAudioGeneratedForContext(null);
+      setAiContextHint(null);
+      setShowCustomAudio(false);
       setPendingSynonyms(initialData?.synonyms ?? []);
       setPendingTranslations(
         initialData?.translations?.length && defaultTranslationLanguageId
@@ -953,6 +1023,44 @@ export function ItemEditModal({
     }
   }, [open, item, defaultLanguageId, defaultTranslationLanguageId, initialData]);
 
+  // Initialize pendingSynonyms from server data when edit modal opens
+  useEffect(() => {
+    if (!open || !isEditing || existingSynonyms === undefined) return;
+    if (synonymsInitializedRef.current) return;
+    setPendingSynonyms(existingSynonyms);
+    synonymsInitializedRef.current = true;
+  }, [open, isEditing, existingSynonyms]);
+
+  const isDirty = isEditing && !!item && (
+    term !== item.term ||
+    context !== (item.context ?? '') ||
+    lemma !== (item.lemma ?? '') ||
+    partOfSpeech !== (item.part_of_speech ?? '') ||
+    difficulty !== (item.difficulty != null ? String(item.difficulty) : '') ||
+    JSON.stringify([...pendingSynonyms].sort()) !== JSON.stringify([...(existingSynonyms ?? [])].sort())
+  );
+
+  function handleDialogOpenChange(nextOpen: boolean) {
+    if (!nextOpen && isDirty) {
+      setShowDiscardConfirm(true);
+      return;
+    }
+    setShowDiscardConfirm(false);
+    onOpenChange(nextOpen);
+  }
+
+  function handleDiscard() {
+    if (item) {
+      setTerm(item.term);
+      setContext(item.context ?? '');
+      setLemma(item.lemma ?? '');
+      setPartOfSpeech(item.part_of_speech ?? '');
+      setDifficulty(item.difficulty != null ? String(item.difficulty) : '');
+    }
+    setShowDiscardConfirm(false);
+    onOpenChange(false);
+  }
+
   async function handleSuggest() {
     if (!term.trim() || !langId) return;
     const sourceLang = languages.find((l) => l.id === Number(langId));
@@ -961,34 +1069,73 @@ export function ItemEditModal({
       ? languages.find((l) => l.id === defaultTranslationLanguageId)
       : undefined;
 
+    const userContext = context.trim();
+
     try {
       const result = await suggest.mutateAsync({
         term: term.trim(),
         source_language: sourceLang.name,
         source_language_code: sourceLang.code,
         target_language: targetLang?.name,
+        context: userContext || undefined,
       });
 
-      if (result.context) setContext(result.context);
-      if (result.lemma) setLemma(result.lemma);
-      if (result.part_of_speech) setPartOfSpeech(result.part_of_speech);
-      if (result.cefr_level) setDifficulty(mapCefrToValue(result.cefr_level));
-      if (result.tts_audio_url) setSuggestedAudioUrl(result.tts_audio_url);
-      if (result.context_tts_audio_url) setSuggestedContextAudioUrl(result.context_tts_audio_url);
-      if (result.image_suggestions[0]?.url) setSuggestedImageUrl(result.image_suggestions[0].url);
-      if (result.synonyms.length) setPendingSynonyms(result.synonyms);
-      if (result.translations.length && defaultTranslationLanguageId) {
+      // Only fill empty fields — never overwrite what the user typed
+      if (result.context && !userContext) setContext(result.context);
+      if (result.lemma && !lemma.trim()) setLemma(result.lemma);
+      if (result.part_of_speech && !partOfSpeech) setPartOfSpeech(result.part_of_speech);
+      if (result.cefr_level && !difficulty) setDifficulty(mapCefrToValue(result.cefr_level));
+      if (result.image_suggestions.length > 0 && !suggestedImageUrl && !pendingImage) {
+        setImageSuggestions(result.image_suggestions);
+        setImageSuggestionIndex(0);
+        setSuggestedImageUrl(result.image_suggestions[0].url);
+        setImageSearchQuery(result.image_query ?? null);
+      }
+      if (result.synonyms.length && pendingSynonyms.length === 0) setPendingSynonyms(result.synonyms);
+      if (result.translations.length && pendingTranslations.length === 0 && defaultTranslationLanguageId) {
         setPendingTranslations(
           result.translations.map((t) => ({
             _key: crypto.randomUUID(),
             language_id: defaultTranslationLanguageId,
             term_trans: t.text,
-            context_trans: '',
+            context_trans: t.context_trans ?? '',
           })),
         );
       }
+
+      // If user has their own context and AI suggests something different, show hint
+      if (userContext && result.context && result.context !== userContext) {
+        setAiContextHint(result.context);
+      }
     } catch {
       // onError in useSuggestItemMetadata already toasts the error
+    }
+  }
+
+  async function handleGenerateAudio() {
+    if (!term.trim() || !langId) return;
+    const sourceLang = languages.find((l) => l.id === Number(langId));
+    if (!sourceLang) return;
+    const currentContext = context.trim();
+
+    try {
+      const result = await generateAudio.mutateAsync({
+        term: term.trim(),
+        language_code: sourceLang.code,
+        context: currentContext || undefined,
+      });
+      if (result.audio_url) setSuggestedAudioUrl(result.audio_url);
+      if (result.context_audio_url) setSuggestedContextAudioUrl(result.context_audio_url);
+      setAudioGeneratedForContext(currentContext);
+
+      if (isEditing && item && (result.audio_url || result.context_audio_url)) {
+        const audioBody: { audio_url?: string; context_audio_url?: string } = {};
+        if (result.audio_url) audioBody.audio_url = result.audio_url;
+        if (result.context_audio_url) audioBody.context_audio_url = result.context_audio_url;
+        await updateItem.mutateAsync({ itemId: item.id, body: audioBody });
+      }
+    } catch {
+      // onError in useGenerateAudio already toasts the error
     }
   }
 
@@ -1004,20 +1151,28 @@ export function ItemEditModal({
     const resolvedContext = context.trim() ? resolveContext(context.trim(), term.trim()) : null;
 
     if (isEditing) {
-      updateItem.mutate(
-        {
+      setIsSaving(true);
+      try {
+        await updateItem.mutateAsync({
           itemId: item.id,
           body: { term: term.trim(), context: resolvedContext, part_of_speech: pos, difficulty: diff, lemma: lemma.trim() || null },
-        },
-        {
-          onSuccess: () => {
-            toast.success('Item updated.');
-            onSuccess?.();
-            onOpenChange(false);
-          },
-          onError: (err) => toast.error(err.message),
-        },
-      );
+        });
+
+        const synonymsChanged =
+          JSON.stringify([...pendingSynonyms].sort()) !==
+          JSON.stringify([...(existingSynonyms ?? [])].sort());
+        if (synonymsChanged) {
+          await setSynonymsMutation.mutateAsync({ itemId: item.id, terms: pendingSynonyms });
+        }
+
+        toast.success('Item updated.');
+        onSuccess?.();
+        onOpenChange(false);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to update item.');
+      } finally {
+        setIsSaving(false);
+      }
       return;
     }
 
@@ -1040,13 +1195,14 @@ export function ItemEditModal({
           // Use S3 URLs from suggestions when user hasn't uploaded a replacement file
           image_url: pendingImage ? undefined : (suggestedImageUrl ?? undefined),
           audio_url: pendingAudio ? undefined : (suggestedAudioUrl ?? undefined),
-          context_audio_url: suggestedContextAudioUrl ?? undefined,
+          context_audio_url: pendingContextAudio ? undefined : (suggestedContextAudioUrl ?? undefined),
         },
       });
 
       const enrichments = await Promise.allSettled([
         pendingImage ? setsApi.uploadItemImage(created.id, pendingImage) : Promise.resolve(null),
         pendingAudio ? setsApi.uploadItemAudio(created.id, pendingAudio) : Promise.resolve(null),
+        pendingContextAudio ? setsApi.uploadItemContextAudio(created.id, pendingContextAudio) : Promise.resolve(null),
         ...pendingTranslations.map((pt) =>
           setsApi.createTranslation(created.id, {
             language_id: pt.language_id,
@@ -1103,14 +1259,56 @@ export function ItemEditModal({
     );
   }
 
+  function handleContextAudioSelect(file: File) {
+    if (!isEditing) {
+      setPendingContextAudio(file);
+      setPendingContextAudioName(file.name);
+      return;
+    }
+    uploadContextAudio.mutate(
+      { itemId: item!.id, file },
+      {
+        onSuccess: () => toast.success('Context audio uploaded.'),
+        onError: (err) => toast.error(err.message),
+      },
+    );
+  }
+
+  async function handleCycleImage() {
+    const nextIndex = imageSuggestionIndex + 1;
+    if (nextIndex < imageSuggestions.length) {
+      setImageSuggestionIndex(nextIndex);
+      setSuggestedImageUrl(imageSuggestions[nextIndex].url);
+      setPendingImage(null);
+      return;
+    }
+    // Exhausted stored suggestions — fetch fresh batch
+    if (!imageSearchQuery) return;
+    try {
+      const fresh = await searchImages.mutateAsync({ query: imageSearchQuery, count: 4 });
+      if (fresh.length > 0) {
+        setImageSuggestions(fresh);
+        setImageSuggestionIndex(0);
+        setSuggestedImageUrl(fresh[0].url);
+        setPendingImage(null);
+      }
+    } catch {
+      // onError in useSearchImages already toasts
+    }
+  }
+
   const imagePreviewUrl = isEditing ? (item?.image_url ?? null) : (pendingImageUrl ?? suggestedImageUrl);
-  const liveAudioUrl = isEditing ? (item?.audio_url ?? null) : suggestedAudioUrl;
+  const liveAudioUrl = isEditing ? (suggestedAudioUrl ?? item?.audio_url ?? null) : suggestedAudioUrl;
+  const liveContextAudioUrl = isEditing ? (suggestedContextAudioUrl ?? item?.context_audio_url ?? null) : suggestedContextAudioUrl;
+  const hasAudio = !!(liveAudioUrl || pendingAudioName);
+  const isAudioStale = !isEditing && hasAudio && audioGeneratedForContext !== null && context.trim() !== audioGeneratedForContext;
+  const canGenerateAudio = !!term.trim() && !!langId;
   const existingTranslationLangIds = isEditing
     ? (item?.translations.map((t) => t.language_id) ?? [])
     : pendingTranslations.map((pt) => pt.language_id);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent
         className="sm:max-w-[920px] max-h-[90vh] flex flex-col !p-0 !gap-0 overflow-hidden"
         showCloseButton
@@ -1150,27 +1348,25 @@ export function ItemEditModal({
                         }
                       }}
                     />
-                    {!isEditing && (
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="outline"
-                        className="h-11 w-11 shrink-0"
-                        title="Auto-fill with AI suggestions"
-                        disabled={!term.trim() || !langId || suggest.isPending || isPending}
-                        onClick={handleSuggest}
-                      >
-                        {suggest.isPending
-                          ? <Loader2Icon className="size-4 animate-spin" />
-                          : <SparklesIcon className="size-4" />
-                        }
-                      </Button>
-                    )}
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      className="h-11 w-11 shrink-0"
+                      title="Auto-fill empty fields with AI suggestions"
+                      disabled={!term.trim() || !langId || suggest.isPending || isPending}
+                      onClick={handleSuggest}
+                    >
+                      {suggest.isPending
+                        ? <Loader2Icon className="size-4 animate-spin" />
+                        : <SparklesIcon className="size-4" />
+                      }
+                    </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {!isEditing
-                      ? 'Type the expression then click ✨ to auto-fill context, audio, and images'
-                      : 'Exact form as it appears in the sentence'}
+                    {isEditing
+                      ? 'Click ✨ to fill any empty fields with AI suggestions'
+                      : 'Type the expression then click ✨ to auto-fill context, audio, and images'}
                   </p>
                 </div>
 
@@ -1208,6 +1404,31 @@ export function ItemEditModal({
                     <p className="rounded-md bg-muted/60 px-3 py-2 text-sm text-muted-foreground">
                       Preview: <span className="text-foreground">{resolveContext(context, term.trim())}</span>
                     </p>
+                  )}
+                  {aiContextHint && (
+                    <div className="flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
+                      <SparklesIcon className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-muted-foreground">AI suggestion: </span>
+                        <span className="italic">{aiContextHint}</span>
+                      </div>
+                      <div className="flex shrink-0 gap-1">
+                        <button
+                          type="button"
+                          onClick={() => { setContext(aiContextHint); setAiContextHint(null); }}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          Use
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAiContextHint(null)}
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <XIcon className="size-3" />
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -1277,21 +1498,98 @@ export function ItemEditModal({
                   <SectionHeading>Media</SectionHeading>
                   <ImageUploadZone
                     previewUrl={imagePreviewUrl}
-                    isPending={uploadImage.isPending}
+                    isPending={uploadImage.isPending || searchImages.isPending}
                     canClear={!isEditing}
                     onSelect={handleImageSelect}
-                    onClear={() => setPendingImage(null)}
+                    onClear={() => { setPendingImage(null); setSuggestedImageUrl(null); }}
+                    suggestionCount={!isEditing && !pendingImage ? imageSuggestions.length : undefined}
+                    suggestionIndex={!isEditing && !pendingImage ? imageSuggestionIndex : undefined}
+                    onCycleNext={!isEditing && !pendingImage && imageSearchQuery ? handleCycleImage : undefined}
                   />
-                  <AudioUploadRow
-                    audioUrl={liveAudioUrl}
-                    pendingFileName={pendingAudioName}
-                    isPending={uploadAudio.isPending}
-                    onSelect={handleAudioSelect}
-                    onClearPending={() => {
-                      setPendingAudio(null);
-                      setPendingAudioName(null);
-                    }}
-                  />
+
+                  {/* Audio players — always visible when audio exists */}
+                  {(liveAudioUrl || pendingAudioName) && (
+                    <AudioUploadRow
+                      label="Term pronunciation"
+                      audioUrl={liveAudioUrl}
+                      pendingFileName={pendingAudioName}
+                      isPending={uploadAudio.isPending}
+                      isStale={isAudioStale}
+                      onSelect={handleAudioSelect}
+                      onClearPending={() => { setPendingAudio(null); setPendingAudioName(null); }}
+                    />
+                  )}
+                  {(liveContextAudioUrl || pendingContextAudioName) && (
+                    <AudioUploadRow
+                      label="Context audio"
+                      audioUrl={liveContextAudioUrl}
+                      pendingFileName={pendingContextAudioName}
+                      isPending={uploadContextAudio.isPending}
+                      isStale={isAudioStale}
+                      onSelect={handleContextAudioSelect}
+                      onClearPending={() => { setPendingContextAudio(null); setPendingContextAudioName(null); }}
+                    />
+                  )}
+
+                  {canGenerateAudio && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={hasAudio ? 'ghost' : 'outline'}
+                      className="w-full"
+                      disabled={generateAudio.isPending}
+                      onClick={handleGenerateAudio}
+                    >
+                      {generateAudio.isPending
+                        ? <Loader2Icon className="size-3.5 animate-spin" />
+                        : hasAudio
+                          ? <RefreshCwIcon className="size-3.5" />
+                          : <MicIcon className="size-3.5" />
+                      }
+                      {generateAudio.isPending
+                        ? 'Generating…'
+                        : hasAudio
+                          ? 'Regenerate Audio'
+                          : 'Generate Audio'
+                      }
+                    </Button>
+                  )}
+
+                  {/* Custom upload — collapsed by default */}
+                  {!isEditing && (
+                    <button
+                      type="button"
+                      onClick={() => setShowCustomAudio((v) => !v)}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors w-fit"
+                    >
+                      <ChevronDownIcon className={cn('size-3 transition-transform', showCustomAudio && 'rotate-180')} />
+                      Upload custom audio
+                    </button>
+                  )}
+                  {(isEditing || showCustomAudio) && (
+                    <div className="flex flex-col gap-2">
+                      {!liveAudioUrl && !pendingAudioName && (
+                        <AudioUploadRow
+                          label="Term pronunciation"
+                          audioUrl={null}
+                          pendingFileName={pendingAudioName}
+                          isPending={uploadAudio.isPending}
+                          onSelect={handleAudioSelect}
+                          onClearPending={() => { setPendingAudio(null); setPendingAudioName(null); }}
+                        />
+                      )}
+                      {!liveContextAudioUrl && !pendingContextAudioName && (
+                        <AudioUploadRow
+                          label="Context audio"
+                          audioUrl={null}
+                          pendingFileName={pendingContextAudioName}
+                          isPending={uploadContextAudio.isPending}
+                          onSelect={handleContextAudioSelect}
+                          onClearPending={() => { setPendingContextAudio(null); setPendingContextAudioName(null); }}
+                        />
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-2.5">
@@ -1345,18 +1643,11 @@ export function ItemEditModal({
 
                 <div className="flex flex-col gap-2.5 min-w-0">
                   <SectionHeading>Synonyms</SectionHeading>
-                  {isEditing ? (
-                    <SynonymsSection
-                      itemId={item.id}
-                      languageId={item.language_id}
-                    />
-                  ) : (
-                    <SynonymsSection
-                      languageId={langId ? Number(langId) : null}
-                      pendingTerms={pendingSynonyms}
-                      onChangePending={setPendingSynonyms}
-                    />
-                  )}
+                  <SynonymsSection
+                    languageId={isEditing ? item.language_id : (langId ? Number(langId) : null)}
+                    pendingTerms={pendingSynonyms}
+                    onChangePending={setPendingSynonyms}
+                  />
                 </div>
               </div>
             </div>
@@ -1365,15 +1656,80 @@ export function ItemEditModal({
 
         {/* Footer */}
         <DialogFooter className="shrink-0 !mx-0 !mb-0">
-          <Button type="submit" form="item-edit-form" disabled={isPending}>
-            {isPending
-              ? isEditing
-                ? 'Saving…'
-                : 'Adding…'
-              : isEditing
-                ? 'Save Changes'
-                : 'Add Item'}
-          </Button>
+          {isEditing && item.status !== 'draft' && item.creator_id !== user?.id && (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="mr-auto text-muted-foreground hover:text-destructive"
+                onClick={() => setReportOpen(true)}
+              >
+                <FlagIcon className="size-3.5" />
+                Report
+              </Button>
+              <ReportDialog
+                targetId={item.id}
+                targetType="item"
+                open={reportOpen}
+                onOpenChange={setReportOpen}
+              />
+            </>
+          )}
+          {isEditing && item.status === 'draft' && item.creator_id === user?.id && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mr-auto border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-950/30"
+                onClick={() => setSubmitDialogOpen(true)}
+              >
+                <SendIcon className="size-3.5" />
+                Submit for Review
+              </Button>
+              <SubmitReviewDialog
+                open={submitDialogOpen}
+                onOpenChange={setSubmitDialogOpen}
+                targetLabel={item.term}
+                isPending={submitItem.isPending}
+                onSubmit={(feedback) => {
+                  submitItem.mutate(
+                    { itemId: item.id, feedback },
+                    {
+                      onSuccess: () => {
+                        toast.success(`"${item.term}" submitted for review.`);
+                        setSubmitDialogOpen(false);
+                        qc.invalidateQueries({ queryKey: ['sets'] });
+                      },
+                      onError: (err) => toast.error(err.message),
+                    },
+                  );
+                }}
+              />
+            </>
+          )}
+          {showDiscardConfirm ? (
+            <>
+              <p className="mr-auto self-center text-sm text-muted-foreground">Discard unsaved changes?</p>
+              <Button type="button" variant="ghost" onClick={handleDiscard}>
+                Discard
+              </Button>
+              <Button type="submit" form="item-edit-form" disabled={isPending}>
+                Save Changes
+              </Button>
+            </>
+          ) : (
+            <Button type="submit" form="item-edit-form" disabled={isPending}>
+              {isPending
+                ? isEditing
+                  ? 'Saving…'
+                  : 'Adding…'
+                : isEditing
+                  ? 'Save Changes'
+                  : 'Add Item'}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
