@@ -92,6 +92,19 @@ class UserRepository:
         )
         return result.scalar_one_or_none() is not None
 
+    async def get_usernames_batch(self, user_ids: list[int]) -> dict[int, str]:
+        """Return {user_id: username} for all given ids that have a username set."""
+        if not user_ids:
+            return {}
+        result = await self._session.execute(
+            select(User.id, User.username).where(
+                User.id.in_(user_ids),
+                User.username.is_not(None),
+                User.deleted_at.is_(None),
+            )
+        )
+        return {row.id: row.username for row in result}
+
     # ------------------------------------------------------------------
     # Writes
     # ------------------------------------------------------------------

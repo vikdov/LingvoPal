@@ -137,6 +137,28 @@ class PracticeRepository:
             stmt = stmt.where(UserProgress.item_id.notin_(exclude_ids))
         return [row[0] for row in (await self._db.execute(stmt)).fetchall()]
 
+    async def count_due_items_by_set(
+        self, user_id: int, set_ids: list[int]
+    ) -> dict[int, int]:
+        """Return {set_id: due_count} for items currently due for review."""
+        if not set_ids:
+            return {}
+        now = datetime.now(timezone.utc)
+        result = await self._db.execute(
+            select(SetItem.set_id, func.count(UserProgress.item_id).label("due_count"))
+            .join(UserProgress, UserProgress.item_id == SetItem.item_id)
+            .join(Item, Item.id == SetItem.item_id)
+            .where(
+                UserProgress.user_id == user_id,
+                SetItem.set_id.in_(set_ids),
+                Item.deleted_at.is_(None),
+                UserProgress.next_review <= now,
+            )
+            .group_by(SetItem.set_id)
+        )
+        counts = {row.set_id: row.due_count for row in result.fetchall()}
+        return {sid: counts.get(sid, 0) for sid in set_ids}
+
     async def get_next_review_at(self, user_id: int, set_id: int) -> datetime | None:
         stmt = (
             select(func.min(UserProgress.next_review))
@@ -278,6 +300,8 @@ class PracticeRepository:
                     Item.audio_url.label("audio_url"),
                     Item.context_audio_url.label("context_audio_url"),
                     Item.part_of_speech.label("part_of_speech"),
+                    Item.creator_id.label("creator_id"),
+                    Item.status.label("item_status"),
                     func.coalesce(PinnedT.id, LangT.id).label("resolved_trans_id"),
                     func.coalesce(PinnedT.term_trans, LangT.term_trans).label("prompt"),
                     func.coalesce(
@@ -323,6 +347,8 @@ class PracticeRepository:
                     Item.audio_url.label("audio_url"),
                     Item.context_audio_url.label("context_audio_url"),
                     Item.part_of_speech.label("part_of_speech"),
+                    Item.creator_id.label("creator_id"),
+                    Item.status.label("item_status"),
                     LangT.id.label("resolved_trans_id"),
                     LangT.term_trans.label("prompt"),
                     LangT.context_trans.label("context_trans"),
@@ -365,6 +391,8 @@ class PracticeRepository:
                 "audio_url": row.audio_url,
                 "context_audio_url": row.context_audio_url,
                 "part_of_speech": pos,
+                "creator_id": row.creator_id,
+                "item_status": row.item_status.value if row.item_status is not None else "DRAFT",
                 "translation_id": row.resolved_trans_id,
                 "last_reviewed": (
                     row.last_reviewed.isoformat() if row.last_reviewed else None

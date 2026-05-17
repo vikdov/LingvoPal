@@ -247,7 +247,10 @@ class SessionState:
             current_index=d["current_index"],
             config=BatchConfig.from_dict(d["config"]),
             started_at=d["started_at"],
-            item_hints=d.get("item_hints", {}),
+            item_hints={
+                k: {**v, "synonyms": v["synonyms"] if isinstance(v.get("synonyms"), list) else []}
+                for k, v in d.get("item_hints", {}).items()
+            },
             last_answered_at=d.get("last_answered_at"),
         )
 
