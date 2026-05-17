@@ -13,8 +13,14 @@ import { toast } from 'sonner';
 
 import {
   suggestItemMetadata,
+  generateItemAudio,
+  searchItemImages,
   type SuggestItemMetadataRequest,
   type ItemMetadataSuggestion,
+  type GenerateAudioRequest,
+  type GenerateAudioResponse,
+  type SearchImagesRequest,
+  type ImageSuggestion,
 } from '../api/item-suggestions.api';
 
 /**
@@ -55,14 +61,36 @@ export function useSuggestItemMetadata(): UseMutationResult<
   return useMutation({
     mutationFn: (request: SuggestItemMetadataRequest) =>
       suggestItemMetadata(request),
-
     retry: 1,
     retryDelay: 1000,
-
-    // Handle errors with user feedback
     onError: (error: Error) => {
-      const message = error.message || 'Failed to get suggestions';
-      toast.error(message);
+      toast.error(error.message || 'Failed to get suggestions');
+    },
+  });
+}
+
+export function useGenerateAudio(): UseMutationResult<
+  GenerateAudioResponse,
+  Error,
+  GenerateAudioRequest
+> {
+  return useMutation({
+    mutationFn: (request: GenerateAudioRequest) => generateItemAudio(request),
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to generate audio');
+    },
+  });
+}
+
+export function useSearchImages(): UseMutationResult<
+  ImageSuggestion[],
+  Error,
+  SearchImagesRequest
+> {
+  return useMutation({
+    mutationFn: (request: SearchImagesRequest) => searchItemImages(request),
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to fetch images');
     },
   });
 }
