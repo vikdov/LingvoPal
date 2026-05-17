@@ -11,32 +11,35 @@ interface ClozeSentenceProps {
   lifecycle: AnswerLifecycle;
   userAnswer: string;
   posColorClass: string;
+  posBorderClass: string;
+  posHexColor: string;
   inputValue: string;
   onInputChange: (v: string) => void;
   onSubmit: () => void;
   isSubmitting: boolean;
 }
 
-const INPUT_FONT_CLASSES = 'text-3xl font-medium';
+const INPUT_FONT_CLASSES = 'text-3xl font-semibold';
 
-// All 4 borders always allocated (transparent when unfocused) — no layout shift on focus
+// pl-1 pr-2 = 4px left + 8px right → caret sits close to left but text has room
+// py-1 + leading-none → box is font-size + 8px tall, caret is font-size tall → shorter caret
 const BASE_INPUT_CLASSES =
-  'inline border-2 border-t-transparent border-l-transparent border-r-transparent border-b-foreground bg-transparent ' +
-  'text-center outline-none focus:border-primary transition-colors';
+  'inline border-[2px] bg-white pl-1 pr-2 py-1 leading-none outline-none transition-colors ' +
+  '[&:not(:focus)]:border-t-transparent [&:not(:focus)]:border-l-transparent [&:not(:focus)]:border-r-transparent';
 
 function ColorCodedAnswer({ answer, userAnswer }: { answer: string; userAnswer: string }) {
   return (
     <>
       {answer.split('').map((char, i) => {
         const userChar = userAnswer[i];
-        const colorClass =
+        const color =
           userChar === undefined
-            ? 'text-muted-foreground'
+            ? 'text-[#f5a79b]'
             : userChar.toLowerCase() === char.toLowerCase()
-              ? 'text-emerald-600'
-              : 'text-red-500';
+              ? 'text-[#009687]'
+              : 'text-[#f5a79b]';
         return (
-          <span key={i} className={colorClass}>
+          <span key={i} className={color}>
             {char}
           </span>
         );
@@ -54,6 +57,8 @@ export function ClozeSentence({
   lifecycle,
   userAnswer,
   posColorClass,
+  posBorderClass,
+  posHexColor,
   inputValue,
   onInputChange,
   onSubmit,
@@ -76,17 +81,16 @@ export function ClozeSentence({
   const capitalize = clozePrefix === '';
   const displayAnswer = capitalize ? answer.charAt(0).toUpperCase() + answer.slice(1) : answer;
 
-  const widthPx = `${Math.max(inputWidth + 12, 28)}px`;
+  const widthPx = `${Math.max(inputWidth + 16, 24)}px`;
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') {
       e.preventDefault();
       e.stopPropagation();
-      if (!isSubmitting && inputValue.trim()) onSubmit();
+      if (!isSubmitting) onSubmit();
     }
   }
 
-  // Normal input slot (unanswered state)
   const clozeInput = (
     <span className="inline-flex items-end mx-1">
       <input
@@ -101,8 +105,8 @@ export function ClozeSentence({
         autoCorrect="off"
         autoCapitalize="off"
         spellCheck={false}
-        style={{ width: widthPx }}
-        className={cn(BASE_INPUT_CLASSES, INPUT_FONT_CLASSES, isSubmitting && 'opacity-50 cursor-not-allowed')}
+        style={{ width: widthPx, caretColor: posHexColor, color: posHexColor }}
+        className={cn(BASE_INPUT_CLASSES, INPUT_FONT_CLASSES, posBorderClass, isSubmitting && 'opacity-50 cursor-not-allowed')}
       />
     </span>
   );
@@ -135,12 +139,12 @@ export function ClozeSentence({
         autoCorrect="off"
         autoCapitalize="off"
         spellCheck={false}
-        style={{ width: widthPx }}
+        style={{ width: widthPx, caretColor: posHexColor, color: posHexColor }}
         className={cn(
           BASE_INPUT_CLASSES,
           INPUT_FONT_CLASSES,
-          // Hide typed text while showing colored overlay; caret remains visible
-          inputValue === '' && 'text-transparent caret-foreground',
+          posBorderClass,
+          inputValue === '' && 'text-transparent',
           isSubmitting && 'opacity-50 cursor-not-allowed',
         )}
       />
@@ -152,14 +156,14 @@ export function ClozeSentence({
   if (lifecycle === 'unanswered') {
     if (clozePrefix !== null && clozeWord !== null && clozeSuffix !== null) {
       content = (
-        <p className="text-3xl text-center leading-relaxed">
+        <p className="text-3xl font-semibold text-center leading-relaxed text-navy">
           {clozePrefix}{clozeInput}{clozeSuffix}
         </p>
       );
     } else {
       content = (
         <div className="flex flex-col items-center gap-3">
-          {context && <p className="text-3xl text-center leading-relaxed">{context}</p>}
+          {context && <p className="text-3xl font-semibold text-center leading-relaxed text-navy">{context}</p>}
           <div className="flex items-center gap-2">{clozeInput}</div>
         </div>
       );
@@ -169,7 +173,7 @@ export function ClozeSentence({
     const displayWord = capitalize ? baseWord.charAt(0).toUpperCase() + baseWord.slice(1) : baseWord;
     if (clozePrefix !== null && clozeSuffix !== null) {
       content = (
-        <p className="text-3xl text-center leading-relaxed">
+        <p className="text-3xl font-semibold text-center leading-relaxed text-navy">
           {clozePrefix}
           <span className={cn('mx-1 font-semibold underline underline-offset-4', posColorClass)}>
             {displayWord}
@@ -180,23 +184,22 @@ export function ClozeSentence({
     } else {
       content = (
         <div className="flex flex-col items-center gap-2">
-          {context && <p className="text-3xl text-center leading-relaxed">{context}</p>}
+          {context && <p className="text-3xl font-semibold text-center leading-relaxed text-navy">{context}</p>}
           <span className={cn('text-3xl font-semibold', posColorClass)}>{displayWord}</span>
         </div>
       );
     }
   } else {
-    // retrying — same inline slot, colored answer overlaid in the input field
     if (clozePrefix !== null && clozeWord !== null && clozeSuffix !== null) {
       content = (
-        <p className="text-3xl text-center leading-relaxed">
+        <p className="text-3xl font-semibold text-center leading-relaxed text-navy">
           {clozePrefix}{retrySlot}{clozeSuffix}
         </p>
       );
     } else {
       content = (
         <div className="flex flex-col items-center gap-3">
-          {context && <p className="text-3xl text-center leading-relaxed">{context}</p>}
+          {context && <p className="text-3xl font-semibold text-center leading-relaxed text-navy">{context}</p>}
           <div className="flex items-center gap-2">{retrySlot}</div>
         </div>
       );
@@ -208,7 +211,7 @@ export function ClozeSentence({
       <span
         ref={rulerRef}
         aria-hidden
-        className={cn('fixed top-0 left-0 invisible pointer-events-none whitespace-pre', INPUT_FONT_CLASSES)}
+        className={cn('fixed top-0 left-0 invisible pointer-events-none whitespace-pre leading-none', INPUT_FONT_CLASSES)}
       >
         {displayAnswer}
       </span>

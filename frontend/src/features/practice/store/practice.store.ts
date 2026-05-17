@@ -9,6 +9,7 @@ import type {
   AnswerLifecycle,
   SessionSummary,
   SessionPhase,
+  SubmitAnswerRequest,
 } from '../types/practice.types';
 
 const DEFAULT_CONFIG: ComparisonConfig = {
@@ -20,6 +21,46 @@ const DEFAULT_CONFIG: ComparisonConfig = {
   show_part_of_speech: true,
   auto_play_audio: false,
 };
+
+// ── Persistence helpers ───────────────────────────────────────────────────────
+
+const SESSION_KEY = 'lingvopal_practice_session';
+const CONFIG_KEY  = 'lingvopal_practice_config';
+
+function loadUserConfig(): Partial<ComparisonConfig> {
+  try {
+    const raw = localStorage.getItem(CONFIG_KEY);
+    return raw ? (JSON.parse(raw) as Partial<ComparisonConfig>) : {};
+  } catch { return {}; }
+}
+
+function saveUserConfig(config: ComparisonConfig) {
+  try { localStorage.setItem(CONFIG_KEY, JSON.stringify(config)); } catch { /* ignore */ }
+}
+
+type PersistedSession = Pick<
+  PracticeState,
+  'sessionId' | 'setId' | 'practiceAllMode' | 'sourceLangId' | 'items' | 'config' | 'currentIndex' | 'answers' | 'phase'
+>;
+
+function loadSession(): Partial<PracticeState> | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PersistedSession;
+    if (parsed.phase !== 'active') return null;
+    return { ...parsed, itemStartedAt: Date.now(), pendingPayload: null, summary: null, error: null, nextReviewAt: null };
+  } catch { return null; }
+}
+
+function saveSession(state: PracticeState) {
+  try {
+    if (state.phase !== 'active') { sessionStorage.removeItem(SESSION_KEY); return; }
+    const { sessionId, setId, practiceAllMode, sourceLangId, items, config, currentIndex, answers, phase } = state;
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ sessionId, setId, practiceAllMode, sourceLangId, items, config, currentIndex, answers, phase }));
+  } catch { /* ignore quota errors */ }
+}
+
 
 interface PendingPayload {
   sessionId: number;
@@ -51,6 +92,7 @@ interface PracticeState {
   finalise:              () => Promise<void>;
   abandon:               () => Promise<void>;
   reset:                 () => void;
+  updateConfig:          (patch: Partial<ComparisonConfig>) => void;
 }
 
 const RESET_STATE = {
@@ -60,8 +102,13 @@ const RESET_STATE = {
   itemStartedAt: null, pendingPayload: null,
 };
 
+const _initialState = (() => {
+  const restored = loadSession();
+  return restored ? { ...RESET_STATE, ...restored } : RESET_STATE;
+})();
+
 export const usePracticeStore = create<PracticeState>()((set, get) => ({
-  ...RESET_STATE,
+  ..._initialState,
 
   startSession: async (setId, force = false) => {
     set({ phase: 'loading', error: null, nextReviewAt: null, setId, practiceAllMode: false, sourceLangId: null });
@@ -70,7 +117,7 @@ export const usePracticeStore = create<PracticeState>()((set, get) => ({
       set({
         sessionId:    data.session_id,
         items:        data.items,
-        config:       data.comparison_config,
+        config:       { ...data.comparison_config, ...loadUserConfig() },
         currentIndex: data.current_index,
         answers:      {},
         phase:        'active',
@@ -94,7 +141,7 @@ export const usePracticeStore = create<PracticeState>()((set, get) => ({
       set({
         sessionId:    data.session_id,
         items:        data.items,
-        config:       data.comparison_config,
+        config:       { ...data.comparison_config, ...loadUserConfig() },
         currentIndex: data.current_index,
         answers:      {},
         phase:        'active',
@@ -217,4 +264,14 @@ export const usePracticeStore = create<PracticeState>()((set, get) => ({
   },
 
   reset: () => set(RESET_STATE),
+
+  updateConfig: (patch) => {
+    set((s) => {
+      const updated = { ...s.config, ...patch };
+      saveUserConfig(updated);
+      return { config: updated };
+    });
+  },
 }));
+
+usePracticeStore.subscribe(saveSession);

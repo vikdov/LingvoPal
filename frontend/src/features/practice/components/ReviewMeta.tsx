@@ -18,7 +18,7 @@ export function ReviewMeta({ lastReviewed, estimatedNext, answered }: ReviewMeta
   }
 
   return (
-    <span className="text-sm text-muted-foreground select-none">
+    <span className="text-sm font-semibold text-navy select-none">
       {label}
     </span>
   );
