@@ -55,6 +55,8 @@ class ItemHintSchema(BaseModel):
     synonyms: list[str] = Field(default_factory=list)
     last_reviewed: datetime | None = None
     translation_id: int | None = None
+    creator_id: int | None = None
+    item_status: str = "DRAFT"
     # Cloze split — backend guarantees no UTF-16/code-point index mismatch
     cloze_prefix: str | None = None
     cloze_word: str | None = None

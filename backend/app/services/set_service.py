@@ -25,7 +25,9 @@ from app.models.set import Set
 from app.models.study_session import StudySession
 from app.models.user_set_library import UserSetLibrary
 from app.repositories.item_repo import ItemRepository
+from app.repositories.practice_repo import PracticeRepository
 from app.repositories.set_repo import SetRepository
+from app.repositories.user_repo import UserRepository
 from app.schemas.set import SetCreateRequest, SetUpdateRequest
 
 _PUBLIC_STATUSES = (ContentStatus.APPROVED, ContentStatus.OFFICIAL)
@@ -41,6 +43,8 @@ class SetService:
         self._session = session
         self._sets = SetRepository(session)
         self._items = ItemRepository(session)
+        self._users = UserRepository(session)
+        self._practice = PracticeRepository(session)
 
     # ------------------------------------------------------------------
     # CRUD
@@ -66,17 +70,21 @@ class SetService:
         await self._session.refresh(s)
         return s, 0
 
-    async def get_set(self, user_id: int, set_id: int) -> tuple[Set, int]:
+    async def get_set(self, user_id: int, set_id: int) -> tuple[Set, int, str | None]:
         """
         Fetch a single set visible to the user.
         Raises ResourceNotFoundError if not found or not accessible.
-        Returns (set, item_count).
+        Returns (set, item_count, creator_username).
         """
         s = await self._sets.get_by_id(set_id)
         if not s or not _is_visible_to(s, user_id):
             raise ResourceNotFoundError("Set", set_id)
         item_count = await self._sets.count_items(set_id)
-        return s, item_count
+        creator_username: str | None = None
+        if s.creator_id is not None:
+            usernames = await self._users.get_usernames_batch([s.creator_id])
+            creator_username = usernames.get(s.creator_id)
+        return s, item_count, creator_username
 
     async def get_my_sets(
         self,
@@ -177,10 +185,10 @@ class SetService:
         difficulty: int | None = None,
         skip: int = 0,
         limit: int = 20,
-    ) -> tuple[list[tuple[Set, int]], int]:
+    ) -> tuple[list[tuple[Set, int, str | None]], int]:
         """
         Search public (APPROVED/OFFICIAL) sets with optional filters.
-        Returns ([(set, item_count), ...], total).
+        Returns ([(set, item_count, creator_username), ...], total).
         """
         sets = await self._sets.search_public(
             query=query,
@@ -197,7 +205,9 @@ class SetService:
             difficulty=difficulty,
         )
         counts = await self._sets.count_items_batch([s.id for s in sets])
-        results = [(s, counts[s.id]) for s in sets]
+        creator_ids = [s.creator_id for s in sets if s.creator_id is not None]
+        usernames = await self._users.get_usernames_batch(creator_ids)
+        results = [(s, counts[s.id], usernames.get(s.creator_id) if s.creator_id else None) for s in sets]
         return results, total
 
     # ------------------------------------------------------------------
@@ -210,13 +220,18 @@ class SetService:
         *,
         skip: int = 0,
         limit: int = 20,
-    ) -> tuple[list[tuple[UserSetLibrary, int]], int]:
-        """Return (entry, item_count) pairs and total count."""
+    ) -> tuple[list[tuple[UserSetLibrary, int, int]], int]:
+        """Return (entry, item_count, due_count) triples and total count."""
         entries = list(await self._sets.get_user_library(user_id, skip=skip, limit=limit))
         total = await self._sets.count_user_library(user_id)
         set_ids = [e.set_id for e in entries]
         counts = await self._sets.count_items_batch(set_ids)
-        return [(e, counts.get(e.set_id, 0)) for e in entries], total
+        due_counts = await self._practice.count_due_items_by_set(user_id, set_ids)
+        return [(e, counts.get(e.set_id, 0), due_counts.get(e.set_id, 0)) for e in entries], total
+
+    async def is_in_library(self, user_id: int, set_id: int) -> bool:
+        entry = await self._sets.get_library_entry(user_id, set_id)
+        return entry is not None
 
     async def save_set_to_library(
         self, user_id: int, set_id: int

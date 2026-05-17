@@ -68,6 +68,7 @@ class SetResponse(BaseResponseWithUpdated):
     difficulty: int | None
     status: ContentStatus
     creator_id: int | None
+    creator_username: str | None = None
     source_lang_id: int
     target_lang_id: int | None
     item_count: int = Field(default=0, description="Number of active items in the set")
@@ -97,6 +98,7 @@ class SetSummaryResponse(BaseModel):
     source_lang_id: int
     target_lang_id: int | None
     item_count: int = 0
+    creator_username: str | None = None
 
 
 class CreatedSetSummaryResponse(SetSummaryResponse):
@@ -121,6 +123,11 @@ class SetLibraryEntryResponse(BaseModel):
     last_opened_at: datetime | None
     is_pinned: bool
     set: SetSummaryResponse
+    due_count: int = 0
+
+
+class SetLibraryStatusResponse(BaseModel):
+    in_library: bool
 
 
 __all__ = [
@@ -132,4 +139,5 @@ __all__ = [
     "SetResponse",
     "SetDetailResponse",
     "SetLibraryEntryResponse",
+    "SetLibraryStatusResponse",
 ]

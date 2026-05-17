@@ -47,7 +47,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
     data: list[T] = Field(default_factory=list, description="Items in this page")
     total: int = Field(..., ge=0, description="Total items across all pages")
     page: int = Field(default=1, ge=1, description="Current page number (1-indexed)")
-    page_size: int = Field(default=20, ge=1, le=100, description="Items per page")
+    page_size: int = Field(default=20, ge=1, le=200, description="Items per page")
 
     # Computed fields (not required in input, always present in output)
     pages: int = Field(default=0, ge=0, description="Total number of pages")
@@ -118,7 +118,7 @@ class ListQueryParams(BaseModel):
     """Base for query parameters"""
 
     page: int = Field(default=1, ge=1)
-    page_size: int = Field(default=20, ge=1, le=100)
+    page_size: int = Field(default=20, ge=1, le=200)
 
 
 __all__ = [
