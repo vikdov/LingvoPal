@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PenLine, BookOpen, Compass, Flame, CheckCircle2, Sparkles, AlertTriangle } from 'lucide-react';
+import { PenLine, BookOpen, Compass, Flame, Sparkles, AlertTriangle, ArrowRight } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
@@ -34,25 +33,55 @@ function formatDate() {
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
 
-function StatCard({ label, value, icon: Icon, sub }: {
+function StatCard({ label, value, icon: Icon, sub, highlight }: {
   label: string;
   value: string | number;
   icon: React.ComponentType<{ className?: string }>;
   sub?: string;
+  highlight?: boolean;
 }) {
   return (
-    <Card className="bg-card border-border">
+    <Card className={highlight ? 'bg-primary/5 border-primary/30' : 'bg-card border-border'}>
       <CardContent className="pt-5 pb-4 flex flex-col gap-1">
         <div className="flex items-center justify-between">
-          <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          <span className={`font-mono text-[10px] uppercase tracking-widest ${highlight ? 'text-primary/80' : 'text-muted-foreground'}`}>
             {label}
           </span>
-          <Icon className="size-3.5 text-muted-foreground" />
+          <Icon className={`size-3.5 ${highlight ? 'text-primary' : 'text-muted-foreground'}`} />
         </div>
-        <span className="text-2xl font-bold tracking-tight text-foreground">{value}</span>
-        {sub && <span className="text-[11px] text-muted-foreground">{sub}</span>}
+        <span className={`text-2xl font-bold tracking-tight ${highlight ? 'text-primary' : 'text-foreground'}`}>{value}</span>
+        {sub && <span className="text-xs text-muted-foreground">{sub}</span>}
       </CardContent>
     </Card>
+  );
+}
+
+// ── Words due CTA card ────────────────────────────────────────────────────────
+
+function DueCard({ dueNow }: { dueNow: number }) {
+  const due = dueNow > 0;
+  return (
+    <Link
+      to="/practice"
+      className={`rounded-xl border transition-all ${due ? 'bg-primary/5 border-primary/30 hover:bg-primary/10' : 'bg-card border-border pointer-events-none'}`}
+    >
+      <div className="pt-5 pb-4 px-4 flex flex-col gap-1">
+        <div className="flex items-center justify-between">
+          <span className={`font-mono text-[10px] uppercase tracking-widest ${due ? 'text-primary/80' : 'text-muted-foreground'}`}>
+            Words due
+          </span>
+          <PenLine className={`size-3.5 ${due ? 'text-primary' : 'text-muted-foreground'}`} />
+        </div>
+        <span className={`text-2xl font-bold tracking-tight ${due ? 'text-primary' : 'text-foreground'}`}>{dueNow}</span>
+        {due ? (
+          <span className="text-[11px] text-primary/80 flex items-center gap-1 font-medium">
+            Start review <ArrowRight className="size-3" />
+          </span>
+        ) : (
+          <span className="text-[11px] text-muted-foreground">all caught up</span>
+        )}
+      </div>
+    </Link>
   );
 }
 
@@ -86,15 +115,15 @@ function EmptyState() {
 
       <div className="flex flex-col sm:flex-row gap-3">
         <Button asChild>
-          <Link to="/sets">
-            <BookOpen className="size-4" />
-            Browse my sets
+          <Link to="/sets/discover">
+            <Compass className="size-4" />
+            Find a set to study
           </Link>
         </Button>
         <Button variant="outline" asChild>
-          <Link to="/sets/discover">
-            <Compass className="size-4" />
-            Discover sets
+          <Link to="/sets">
+            <BookOpen className="size-4" />
+            Create my own
           </Link>
         </Button>
       </div>
@@ -163,6 +192,17 @@ export function DashboardView() {
   const activeLang = languages.find((l) => l.language_id === selectedLangId);
   const activeTotals = totalsList.find((t) => t.language_id === selectedLangId);
 
+  // Aggregate values for "overall" scope
+  const aggStreak    = Math.max(0, ...languages.map((l) => l.streak_days));
+  const aggNewToday  = languages.reduce((s, l) => s + (l.today_new_words ?? 0), 0);
+  const aggLearned   = totalsList.reduce((s, t) => s + (t.total_words_learned ?? 0), 0);
+  const aggHours     = totalsList.reduce((s, t) => s + (t.total_hours ?? 0), 0);
+
+  const displayStreak  = scope === 'overall' ? aggStreak  : (activeTotals?.streak_days ?? activeLang?.streak_days ?? 0);
+  const displayNew     = scope === 'overall' ? aggNewToday : (activeLang?.today_new_words ?? 0);
+  const displayLearned = scope === 'overall' ? aggLearned  : (activeTotals?.total_words_learned ?? 0);
+  const displayHours   = scope === 'overall' ? aggHours    : (activeTotals?.total_hours ?? 0);
+
   if (loadingOverview || loadingTotals) return <LoadingSkeleton />;
 
   return (
@@ -179,28 +219,17 @@ export function DashboardView() {
 
         <div className="flex items-center gap-2">
           <Select value={scope} onValueChange={setScope}>
-            <SelectTrigger className="h-8 text-xs font-mono w-36 border-border">
+            <SelectTrigger className="h-8 text-xs font-mono w-44 border-border">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="overall" className="text-xs font-mono">Overall</SelectItem>
-              <SelectItem value="sets" className="text-xs font-mono">All user sets</SelectItem>
+              <SelectItem value="overall" className="text-xs font-mono">All languages</SelectItem>
+              <SelectItem value="language" className="text-xs font-mono">
+                {activeLang ? `${activeLang.language_name ?? 'Language'} only` : 'Active language'}
+              </SelectItem>
             </SelectContent>
           </Select>
 
-          {hasData && overview && overview.total_due_now > 0 && (
-            <Button asChild size="sm" style={{ boxShadow: '0 0 20px -6px oklch(from var(--primary) l c h / 0.5)' }}>
-              <Link to="/practice">
-                <PenLine className="size-4" />
-                {overview.total_due_now} due now
-              </Link>
-            </Button>
-          )}
-          {hasData && overview?.total_due_now === 0 && (
-            <Badge variant="outline" className="gap-1.5 text-xs font-mono">
-              <CheckCircle2 className="size-3 text-primary" /> All caught up
-            </Badge>
-          )}
         </div>
       </div>
 
@@ -212,28 +241,22 @@ export function DashboardView() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <StatCard
               label="Streak"
-              value={`${activeTotals?.streak_days ?? activeLang?.streak_days ?? 0}d`}
+              value={`${displayStreak}d`}
               icon={Flame}
-              sub="current streak"
+              sub={scope === 'overall' ? 'best streak' : 'current streak'}
             />
             <StatCard
               label="New today"
-              value={activeLang?.today_new_words ?? 0}
+              value={displayNew}
               icon={Sparkles}
-              sub={`${activeLang?.today_correct ?? 0} correct today`}
             />
             <StatCard
               label="Total practiced"
-              value={activeTotals?.total_words_learned ?? 0}
+              value={displayLearned}
               icon={BookOpen}
-              sub={`${(activeTotals?.total_hours ?? 0).toFixed(1)}h total`}
+              sub={`${displayHours.toFixed(1)}h total`}
             />
-            <StatCard
-              label="Words due"
-              value={overview?.total_due_now ?? 0}
-              icon={PenLine}
-              sub="ready for review"
-            />
+            <DueCard dueNow={overview?.total_due_now ?? 0} />
           </div>
 
           {/* Daily activity chart */}
@@ -242,11 +265,12 @@ export function DashboardView() {
             selectedDays={selectedDays}
             onDaysChange={setSelectedDays}
             isLoading={loadingRange}
+            langLabel={activeLang?.language_name ?? undefined}
           />
 
           {/* Maturity + milestones */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <MaturityDonut data={maturity} isLoading={loadingMaturity} />
+            <MaturityDonut data={maturity} isLoading={loadingMaturity} langLabel={activeLang?.language_name ?? undefined} />
             <RecentlyStabilized data={maturity} isLoading={loadingMaturity} />
           </div>
 
