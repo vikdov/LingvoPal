@@ -1,7 +1,8 @@
 import { type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/sonner';
-import { UnauthorizedError } from '@/services/api';
+import { toast } from 'sonner';
+import { ApiError, UnauthorizedError } from '@/services/api';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 
 // One QueryClient for the whole app. Created outside the component so it
@@ -11,17 +12,17 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 1000 * 60, // 1 min — avoids refetching on every focus
       retry: (failureCount, error) => {
-        // Never retry auth failures — the token is gone, retrying is pointless.
-        if (error instanceof UnauthorizedError) return false;
+        // Don't retry auth failures or any client errors (4xx).
+        if (error instanceof ApiError && error.status < 500) return false;
         return failureCount < 2;
       },
     },
     mutations: {
       onError: (error) => {
         if (error instanceof UnauthorizedError) {
-          // Token expired mid-session. Clear state; the router guard will
-          // redirect to /auth/login on the next render.
           useAuthStore.getState().clearAuth();
+        } else if (error instanceof ApiError && error.status === 429) {
+          toast.error('Too many requests — slow down a moment.');
         }
       },
     },
@@ -33,6 +34,8 @@ const queryClient = new QueryClient({
 queryClient.getQueryCache().config.onError = (error) => {
   if (error instanceof UnauthorizedError) {
     useAuthStore.getState().clearAuth();
+  } else if (error instanceof ApiError && error.status === 429) {
+    toast.error('Too many requests — slow down a moment.');
   }
 };
 

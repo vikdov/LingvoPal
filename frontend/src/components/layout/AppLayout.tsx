@@ -7,24 +7,21 @@ import {
 import { LingvoLogo } from '@/components/LingvoLogo';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import {
-  LayoutDashboard, BookOpen, Compass, PenLine, Settings, LogOut, TextSearch, AlertCircle, Library,
+  LayoutDashboard, BookOpen, Compass, PenLine, Settings, LogOut, AlertCircle, ShieldCheck,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { LanguageSwitcher } from '@/features/languages/components/LanguageSwitcher';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const NAV_MAIN = [
-  { label: 'Dashboard',     to: '/dashboard',      icon: LayoutDashboard },
-  { label: 'My Sets',       to: '/sets',            icon: BookOpen },
-  { label: 'My Expressions',  to: '/words',           icon: Library },
-  { label: 'Discover Sets',   to: '/sets/discover',   icon: Compass },
-  { label: 'Find Expressions', to: '/items/discover', icon: TextSearch },
-  { label: 'Practice',      to: '/practice',        icon: PenLine },
+  { label: 'Dashboard', to: '/dashboard',     icon: LayoutDashboard },
+  { label: 'Library',   to: '/sets',          icon: BookOpen },
+  { label: 'Discover',  to: '/sets/discover', icon: Compass },
+  { label: 'Practice',  to: '/practice',      icon: PenLine },
 ];
 
 export function AppLayout() {
   const { user, logout } = useAuth();
-
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
@@ -47,11 +44,26 @@ export function AppLayout() {
                         }
                       >
                         <Icon className="size-4" />
-                        <span>{label}</span>
+                        <span className="flex-1">{label}</span>
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
+                {user?.is_admin && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to="/admin"
+                        className={({ isActive }) =>
+                          isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''
+                        }
+                      >
+                        <ShieldCheck className="size-4" />
+                        <span>Admin</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
               </SidebarMenu>
             </SidebarGroup>
           </SidebarContent>
