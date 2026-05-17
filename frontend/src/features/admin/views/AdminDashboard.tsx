@@ -10,6 +10,8 @@ import {
   ClockIcon,
   FlagIcon,
   ArrowRightIcon,
+  Trash2Icon,
+  MessageSquareIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -56,6 +58,8 @@ import {
   usePromoteToOfficial,
   useAdminComplaints,
   useAuditLog,
+  useDismissComplaint,
+  useDeleteContent,
 } from '../hooks/useAdmin';
 import type {
   PendingModerationEntry,
@@ -219,6 +223,133 @@ function RejectDialog({ entry, open, onOpenChange }: RejectDialogProps) {
   );
 }
 
+// ── Approve dialog (with optional feedback) ───────────────────────────────────
+
+interface ApproveDialogProps {
+  entry: PendingModerationEntry;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+function ApproveDialog({ entry, open, onOpenChange }: ApproveDialogProps) {
+  const [feedback, setFeedback] = useState('');
+  const approve = useApprove();
+
+  function handleApprove() {
+    approve.mutate(
+      { id: entry.id, feedback: feedback.trim() || undefined },
+      {
+        onSuccess: () => {
+          toast.success('Approved.');
+          onOpenChange(false);
+          setFeedback('');
+        },
+        onError: (err) => toast.error(err.message),
+      },
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Approve submission</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3 py-1">
+          <p className="text-sm text-muted-foreground">
+            Content will become publicly visible. Optionally leave a note for the creator.
+          </p>
+          <Textarea
+            placeholder="Approval note (optional)…"
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
+            rows={3}
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={approve.isPending}>
+            Cancel
+          </Button>
+          <Button onClick={handleApprove} disabled={approve.isPending}>
+            <CheckIcon className="size-3.5" />
+            {approve.isPending ? 'Approving…' : 'Approve'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Delete content dialog ─────────────────────────────────────────────────────
+
+interface DeleteContentDialogProps {
+  entry: PendingModerationEntry;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+function DeleteContentDialog({ entry, open, onOpenChange }: DeleteContentDialogProps) {
+  const [reason, setReason] = useState('');
+  const deleteContent = useDeleteContent();
+
+  const targetType = entry.target_type === 'item' || entry.target_type === 'set'
+    ? entry.target_type
+    : null;
+
+  function handleDelete() {
+    if (!reason.trim() || !targetType) return;
+    deleteContent.mutate(
+      { targetType, id: entry.target_id, reason: reason.trim() },
+      {
+        onSuccess: () => {
+          toast.success(`${entry.target_type} #${entry.target_id} deleted.`);
+          onOpenChange(false);
+          setReason('');
+        },
+        onError: (err) => toast.error(err.message),
+      },
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-destructive">
+            Delete {entry.target_type} #{entry.target_id}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3 py-1">
+          <p className="text-sm text-muted-foreground">
+            This permanently removes the content. The creator will see your reason.
+            Any pending moderation entry is auto-rejected.
+          </p>
+          <Textarea
+            placeholder="Removal reason (required)…"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
+            autoFocus
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={deleteContent.isPending}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={!reason.trim() || !targetType || deleteContent.isPending}
+          >
+            <Trash2Icon className="size-3.5" />
+            {deleteContent.isPending ? 'Deleting…' : 'Delete'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Moderation entry card ─────────────────────────────────────────────────────
 
 interface ModerationEntryCardProps {
@@ -227,10 +358,12 @@ interface ModerationEntryCardProps {
 
 function ModerationEntryCard({ entry }: ModerationEntryCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [approveOpen, setApproveOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
-  const approve = useApprove();
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const qm = entry.quality_metrics;
+  const canDelete = entry.target_type === 'item' || entry.target_type === 'set';
 
   return (
     <>
@@ -305,43 +438,43 @@ function ModerationEntryCard({ entry }: ModerationEntryCardProps) {
             </div>
             {entry.resolution_feedback && (
               <p className="mt-2 text-xs text-muted-foreground">
-                Resolution note: {entry.resolution_feedback}
+                <MessageSquareIcon className="inline size-3 mr-1" />
+                {entry.resolution_feedback}
               </p>
             )}
           </CardContent>
         )}
 
-        {entry.status === 'pending' && (
-          <CardFooter className="gap-2 pt-2">
+        <CardFooter className="gap-2 pt-2 flex-wrap">
+          {entry.status === 'pending' && (
+            <>
+              <Button size="sm" onClick={() => setApproveOpen(true)}>
+                <CheckIcon className="size-3.5" />
+                Approve
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setRejectOpen(true)}>
+                <XIcon className="size-3.5" />
+                Reject
+              </Button>
+            </>
+          )}
+          {canDelete && (
             <Button
               size="sm"
-              onClick={() =>
-                approve.mutate(
-                  { id: entry.id },
-                  {
-                    onSuccess: () => toast.success('Approved.'),
-                    onError: (err) => toast.error(err.message),
-                  },
-                )
-              }
-              disabled={approve.isPending}
+              variant="ghost"
+              className="ml-auto text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              onClick={() => setDeleteOpen(true)}
             >
-              <CheckIcon className="size-3.5" />
-              Approve
+              <Trash2Icon className="size-3.5" />
+              Delete content
             </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => setRejectOpen(true)}
-            >
-              <XIcon className="size-3.5" />
-              Reject
-            </Button>
-          </CardFooter>
-        )}
+          )}
+        </CardFooter>
       </Card>
 
+      <ApproveDialog entry={entry} open={approveOpen} onOpenChange={setApproveOpen} />
       <RejectDialog entry={entry} open={rejectOpen} onOpenChange={setRejectOpen} />
+      <DeleteContentDialog entry={entry} open={deleteOpen} onOpenChange={setDeleteOpen} />
     </>
   );
 }
@@ -420,6 +553,8 @@ function ModerationQueueTab() {
 // ── Complaints tab ────────────────────────────────────────────────────────────
 
 function ComplaintRow({ complaint }: { complaint: ComplaintResponse }) {
+  const dismiss = useDismissComplaint();
+
   return (
     <TableRow>
       <TableCell className="font-mono text-xs">
@@ -441,6 +576,23 @@ function ComplaintRow({ complaint }: { complaint: ComplaintResponse }) {
       </TableCell>
       <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
         {fmt(complaint.created_at)}
+      </TableCell>
+      <TableCell>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+          disabled={dismiss.isPending}
+          onClick={() =>
+            dismiss.mutate(complaint.id, {
+              onSuccess: () => toast.success('Complaint dismissed.'),
+              onError: (err) => toast.error(err.message),
+            })
+          }
+        >
+          <XIcon className="size-3.5" />
+          Dismiss
+        </Button>
       </TableCell>
     </TableRow>
   );
@@ -500,6 +652,7 @@ function ComplaintsTab() {
                 <TableHead>Details</TableHead>
                 <TableHead>Reporter</TableHead>
                 <TableHead>Date</TableHead>
+                <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>

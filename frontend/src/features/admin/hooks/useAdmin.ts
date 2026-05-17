@@ -73,3 +73,20 @@ export function usePromoteToOfficial() {
     onSuccess: () => qc.invalidateQueries({ queryKey: adminKeys.all }),
   });
 }
+
+export function useDismissComplaint() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => adminApi.dismissComplaint(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: adminKeys.all }),
+  });
+}
+
+export function useDeleteContent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ targetType, id, reason }: { targetType: 'item' | 'set'; id: number; reason: string }) =>
+      targetType === 'item' ? adminApi.deleteItem(id, reason) : adminApi.deleteSet(id, reason),
+    onSuccess: () => qc.invalidateQueries({ queryKey: adminKeys.all }),
+  });
+}

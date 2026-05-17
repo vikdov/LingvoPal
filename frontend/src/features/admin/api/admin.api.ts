@@ -47,6 +47,15 @@ export const adminApi = {
     return api.get(`/admin/complaints?${qs}`);
   },
 
+  dismissComplaint: (id: number): Promise<void> =>
+    api.delete(`/admin/complaints/${id}`),
+
+  deleteItem: (id: number, reason: string): Promise<void> =>
+    api.delete(`/admin/items/${id}?${new URLSearchParams({ reason })}`),
+
+  deleteSet: (id: number, reason: string): Promise<void> =>
+    api.delete(`/admin/sets/${id}?${new URLSearchParams({ reason })}`),
+
   listAuditLog: (params: { table_name?: string; action?: string; skip?: number; limit?: number } = {}): Promise<PaginatedResponse<AuditLogEntry>> => {
     const qs = new URLSearchParams();
     if (params.table_name) qs.set('table_name', params.table_name);
