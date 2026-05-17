@@ -1,37 +1,32 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { PlusIcon, BookmarkIcon, BookmarkCheckIcon, BookOpenIcon, LayersIcon, DownloadIcon, PinIcon, PlayIcon } from 'lucide-react';
+import { PlusIcon, BookmarkIcon, BookmarkCheckIcon, BookOpenIcon, LayersIcon, DownloadIcon, PlayIcon, SearchIcon, LibraryIcon, MoreHorizontalIcon, Trash2Icon } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia } from '@/components/ui/empty';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationPrevious,
-  PaginationNext,
-} from '@/components/ui/pagination';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useAllLanguages } from '@/features/languages';
 import { useLanguageStore } from '@/features/languages/store/language.store';
 import type { LanguageRef } from '@/features/languages';
+import { Link } from 'react-router-dom';
 import { useMyLibrary, useCreatedSets, useRemoveFromLibrary, usePinSet, useTouchSet } from '../hooks/useSetsQuery';
 import { langAccentColor } from '../components/SetCover';
 import { SetEditor } from '../components/SetEditor';
 import { AnkiImportModal } from '../components/AnkiImportModal';
 import type { SetLibraryEntry, CreatedSetSummaryResponse } from '../types/sets.types';
 import { langName, difficultyLabel } from '../utils/formatters';
-
-const PAGE_SIZE = 12;
-
-function formatDate(iso: string | null): string {
-  if (!iso) return 'Never';
-  return new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(new Date(iso));
-}
 
 // ── Language filter bar ───────────────────────────────────────────────────────
 
@@ -46,22 +41,24 @@ function LangFilterBar({ langIds, languages, value, onChange }: LangFilterBarPro
   if (langIds.length < 2) return null;
 
   return (
-    <ToggleGroup
-      type="single"
-      variant="outline"
-      size="sm"
-      spacing={1}
-      value={value == null ? 'all' : String(value)}
-      onValueChange={(v) => onChange(v === 'all' || v === '' ? null : Number(v))}
-      className="flex-wrap"
-    >
-      <ToggleGroupItem value="all">All</ToggleGroupItem>
-      {langIds.map((id) => (
-        <ToggleGroupItem key={id} value={String(id)}>
-          {langName(id, languages)}
-        </ToggleGroupItem>
-      ))}
-    </ToggleGroup>
+    <div className="flex items-center h-8">
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        size="sm"
+        spacing={1}
+        value={value == null ? 'all' : String(value)}
+        onValueChange={(v) => onChange(v === 'all' || v === '' ? null : Number(v))}
+        className="flex-wrap"
+      >
+        <ToggleGroupItem value="all">All</ToggleGroupItem>
+        {langIds.map((id) => (
+          <ToggleGroupItem key={id} value={String(id)}>
+            {langName(id, languages)}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+    </div>
   );
 }
 
@@ -74,14 +71,13 @@ function LibraryCardSkeleton() {
         <Skeleton className="h-5 w-3/4" />
         <Skeleton className="h-4 w-1/2" />
       </CardHeader>
-      <CardContent className="flex gap-2">
-        <Skeleton className="h-5 w-12" />
-        <Skeleton className="h-5 w-16" />
-      </CardContent>
-      <CardFooter className="gap-2">
+      <CardContent className="flex flex-col gap-3">
+        <div className="flex gap-2">
+          <Skeleton className="h-5 w-12" />
+          <Skeleton className="h-5 w-16" />
+        </div>
         <Skeleton className="h-8 w-20" />
-        <Skeleton className="h-8 w-24" />
-      </CardFooter>
+      </CardContent>
     </Card>
   );
 }
@@ -96,12 +92,12 @@ export function LibraryEntryCard({ entry, languages }: LibraryEntryCardProps) {
   const removeFromLibrary = useRemoveFromLibrary();
   const pinSet = usePinSet();
   const touchSet = useTouchSet();
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const { set } = entry;
 
-  function handleRemove() {
-    if (!window.confirm(`Remove "${set.title}" from your library?`)) return;
+  function handleRemoveConfirmed() {
     removeFromLibrary.mutate(entry.set_id, {
-      onSuccess: () => toast.success('Removed from library.'),
+      onSuccess: () => { setConfirmOpen(false); toast.success('Removed from library.'); },
       onError: (err) => toast.error(err.message),
     });
   }
@@ -119,83 +115,125 @@ export function LibraryEntryCard({ entry, languages }: LibraryEntryCardProps) {
   );
 
   return (
-    <Card
-      className="h-full border-l-4 cursor-pointer transition-shadow hover:shadow-md"
-      style={{ borderLeftColor: accentColor }}
-      onClick={() => { touchSet.mutate(entry.set_id); navigate(`/sets/${entry.set_id}`); }}
-    >
-      <CardHeader>
-        <div className="flex items-start justify-between gap-2">
-          <CardTitle className="line-clamp-2 flex-1">{set.title}</CardTitle>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            onClick={(e) => { e.stopPropagation(); handlePinToggle(); }}
-            disabled={pinSet.isPending}
-            title={entry.is_pinned ? 'Unpin' : 'Pin'}
-          >
-            {entry.is_pinned ? (
-              <BookmarkCheckIcon className="size-4 text-primary" />
-            ) : (
-              <PinIcon className="size-4" />
+    <>
+      <Card
+        className="h-full border-l-4 cursor-pointer transition-shadow hover:shadow-md"
+        style={{ borderLeftColor: accentColor }}
+        onClick={() => { touchSet.mutate(entry.set_id); navigate(`/sets/${entry.set_id}`); }}
+      >
+        <CardHeader className="gap-2">
+          <div className="flex items-start justify-between gap-2">
+            <CardTitle className="line-clamp-2 flex-1">{set.title}</CardTitle>
+            <div className="flex items-center gap-0.5 shrink-0">
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                onClick={(e) => { e.stopPropagation(); handlePinToggle(); }}
+                disabled={pinSet.isPending}
+                title={entry.is_pinned ? 'Unpin' : 'Save'}
+              >
+                {entry.is_pinned ? (
+                  <BookmarkCheckIcon className="size-4 text-primary" />
+                ) : (
+                  <BookmarkIcon className="size-4" />
+                )}
+                <span className="sr-only">{entry.is_pinned ? 'Unpin' : 'Save'}</span>
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <MoreHorizontalIcon className="size-4" />
+                    <span className="sr-only">More options</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onSelect={() => setConfirmOpen(true)}
+                  >
+                    <Trash2Icon className="size-4" />
+                    Remove from library
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 text-sm text-foreground/65">
+            <span className="flex items-center gap-1">
+              <LayersIcon className="size-3" />
+              {set.item_count} {set.item_count === 1 ? 'item' : 'items'}
+            </span>
+            {entry.due_count > 0 && (
+              <span className="text-primary font-medium">
+                {entry.due_count} due
+              </span>
             )}
-            <span className="sr-only">{entry.is_pinned ? 'Unpin' : 'Pin'}</span>
-          </Button>
-        </div>
-        <CardDescription>
-          Last opened: {formatDate(entry.last_opened_at)}
-        </CardDescription>
-      </CardHeader>
+          </div>
+        </CardHeader>
 
-      <CardContent className="flex flex-wrap gap-2">
-        {set.difficulty !== null && (
-          <Badge variant="secondary">{difficultyLabel(set.difficulty)}</Badge>
-        )}
-        <Badge variant="outline" className="text-xs">
-          <BookOpenIcon className="size-3" />
-          {langName(set.source_lang_id, languages)}
-          {set.target_lang_id != null ? ` → ${langName(set.target_lang_id, languages)}` : ''}
-        </Badge>
-        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-          <LayersIcon className="size-3" />
-          {set.item_count} {set.item_count === 1 ? 'item' : 'items'}
-        </span>
-      </CardContent>
+        <CardContent className="flex flex-col gap-2">
+          <div className="flex flex-wrap gap-2">
+            {set.difficulty !== null && (
+              <Badge variant="secondary">{difficultyLabel(set.difficulty)}</Badge>
+            )}
+            <Badge variant="outline" className="text-xs">
+              <BookOpenIcon className="size-3" />
+              {langName(set.source_lang_id, languages)}
+              {set.target_lang_id != null ? ` → ${langName(set.target_lang_id, languages)}` : ''}
+            </Badge>
+          </div>
+          <div>
+            <Button
+              size="sm"
+              variant={entry.due_count > 0 ? 'default' : 'outline'}
+              className={entry.due_count === 0 ? 'border-foreground/25 text-foreground' : undefined}
+              onClick={(e) => { e.stopPropagation(); touchSet.mutate(entry.set_id); navigate(`/practice?setId=${entry.set_id}`); }}
+              disabled={set.item_count === 0}
+              title={set.item_count === 0 ? 'No items to study' : undefined}
+            >
+              {entry.due_count > 0 ? `Study (${entry.due_count} due)` : 'Review'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
-      <CardFooter className="gap-2">
-        <Button
-          size="sm"
-          onClick={(e) => { e.stopPropagation(); touchSet.mutate(entry.set_id); navigate(`/practice?setId=${entry.set_id}`); }}
-          disabled={set.item_count === 0}
-          title={set.item_count === 0 ? 'No items to study' : undefined}
-        >
-          Study
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="ml-auto text-destructive hover:text-destructive"
-          onClick={(e) => { e.stopPropagation(); handleRemove(); }}
-          disabled={removeFromLibrary.isPending}
-        >
-          Remove
-        </Button>
-      </CardFooter>
-    </Card>
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove from library</DialogTitle>
+            <DialogDescription>
+              Remove &ldquo;{set.title}&rdquo; from your library? Your progress is preserved.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={handleRemoveConfirmed}
+              disabled={removeFromLibrary.isPending}
+            >
+              {removeFromLibrary.isPending ? 'Removing…' : 'Remove'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
 function LibraryTab() {
-  const [page, setPage] = useState(1);
-  const skip = (page - 1) * PAGE_SIZE;
-  const { data, isLoading, isError, error } = useMyLibrary(skip, PAGE_SIZE);
+  const { data, isLoading, isError, error } = useMyLibrary(0, 200);
   const { data: languages = [] } = useAllLanguages();
   const activeLanguageId = useLanguageStore((s) => s.activeLanguageId);
   const [filterLangId, setFilterLangId] = useState<number | null>(activeLanguageId);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     setFilterLangId(activeLanguageId);
-    setPage(1);
   }, [activeLanguageId]);
 
   const uniqueLangIds = useMemo(() => {
@@ -205,13 +243,16 @@ function LibraryTab() {
 
   const filtered = useMemo(() => {
     if (!data) return [];
-    if (filterLangId == null) return data.data;
-    return data.data.filter((e) => e.set.source_lang_id === filterLangId);
-  }, [data, filterLangId]);
+    let result = filterLangId == null ? data.data : data.data.filter((e) => e.set.source_lang_id === filterLangId);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      result = result.filter((e) => e.set.title.toLowerCase().includes(q));
+    }
+    return result;
+  }, [data, filterLangId, search]);
 
   function handleFilterChange(id: number | null) {
     setFilterLangId(id);
-    setPage(1);
   }
 
   if (isLoading) {
@@ -253,48 +294,38 @@ function LibraryTab() {
 
   return (
     <div className="flex flex-col gap-4">
-      <LangFilterBar
-        langIds={uniqueLangIds}
-        languages={languages}
-        value={filterLangId}
-        onChange={handleFilterChange}
-      />
+      <div className="flex flex-col sm:flex-row items-center gap-3">
+        <div className="relative flex-1 max-w-xs">
+          <SearchIcon className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="Search sets…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8 h-8 text-sm"
+          />
+        </div>
+        <LangFilterBar
+          langIds={uniqueLangIds}
+          languages={languages}
+          value={filterLangId}
+          onChange={handleFilterChange}
+        />
+      </div>
 
       {filtered.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>No sets for this language</EmptyTitle>
-            <EmptyDescription>Try a different filter or add more sets to your library.</EmptyDescription>
+            <EmptyTitle>{search ? 'No matches' : 'No sets for this language'}</EmptyTitle>
+            <EmptyDescription>
+              {search ? 'Try a different search term.' : 'Try a different filter or add more sets to your library.'}
+            </EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
-        <div className="flex flex-col gap-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((entry) => (
-              <LibraryEntryCard key={entry.set_id} entry={entry} languages={languages} />
-            ))}
-          </div>
-
-          {data.pages > 1 && (
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    aria-disabled={page === 1}
-                    className={page === 1 ? 'pointer-events-none opacity-50' : ''}
-                  />
-                </PaginationItem>
-                <PaginationItem>
-                  <PaginationNext
-                    onClick={() => setPage((p) => Math.min(data.pages, p + 1))}
-                    aria-disabled={page === data.pages}
-                    className={page === data.pages ? 'pointer-events-none opacity-50' : ''}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          )}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((entry) => (
+            <LibraryEntryCard key={entry.set_id} entry={entry} languages={languages} />
+          ))}
         </div>
       )}
     </div>
@@ -331,7 +362,7 @@ function CreatedSetCard({ set, languages }: CreatedSetCardProps) {
       style={{ borderLeftColor: accentColor }}
       onClick={() => { touchSet.mutate(set.id); navigate(`/sets/${set.id}`); }}
     >
-      <CardHeader>
+      <CardHeader className="gap-2">
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="line-clamp-2 flex-1">{set.title}</CardTitle>
           <Button
@@ -339,32 +370,46 @@ function CreatedSetCard({ set, languages }: CreatedSetCardProps) {
             variant="ghost"
             onClick={(e) => { e.stopPropagation(); handlePinToggle(); }}
             disabled={pinSet.isPending}
-            title={set.is_pinned ? 'Unpin' : 'Pin'}
+            title={set.is_pinned ? 'Unpin' : 'Save'}
           >
             {set.is_pinned ? (
               <BookmarkCheckIcon className="size-4 text-primary" />
             ) : (
-              <PinIcon className="size-4" />
+              <BookmarkIcon className="size-4" />
             )}
-            <span className="sr-only">{set.is_pinned ? 'Unpin' : 'Pin'}</span>
+            <span className="sr-only">{set.is_pinned ? 'Unpin' : 'Save'}</span>
           </Button>
+        </div>
+        <div className="flex items-center gap-1 text-sm text-foreground/65">
+          <LayersIcon className="size-3" />
+          {set.item_count} {set.item_count === 1 ? 'item' : 'items'}
         </div>
       </CardHeader>
 
-      <CardContent className="flex flex-wrap gap-2">
-        {set.difficulty !== null && (
-          <Badge variant="secondary">{difficultyLabel(set.difficulty)}</Badge>
-        )}
-        <Badge variant="outline" className="text-xs">
-          <BookOpenIcon className="size-3" />
-          {langName(set.source_lang_id, languages)}
-          {set.target_lang_id != null ? ` → ${langName(set.target_lang_id, languages)}` : ''}
-        </Badge>
-        <Badge variant="outline">{set.status}</Badge>
-        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-          <LayersIcon className="size-3" />
-          {set.item_count} {set.item_count === 1 ? 'item' : 'items'}
-        </span>
+      <CardContent className="flex flex-col gap-2">
+        <div className="flex flex-wrap gap-2">
+          {set.difficulty !== null && (
+            <Badge variant="secondary">{difficultyLabel(set.difficulty)}</Badge>
+          )}
+          <Badge variant="outline" className="text-xs">
+            <BookOpenIcon className="size-3" />
+            {langName(set.source_lang_id, languages)}
+            {set.target_lang_id != null ? ` → ${langName(set.target_lang_id, languages)}` : ''}
+          </Badge>
+          <Badge variant="outline">{set.status}</Badge>
+        </div>
+        <div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-foreground/25 text-foreground"
+            onClick={(e) => { e.stopPropagation(); touchSet.mutate(set.id); navigate(`/practice?setId=${set.id}`); }}
+            disabled={set.item_count === 0}
+            title={set.item_count === 0 ? 'No items to study' : undefined}
+          >
+            Study
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -375,16 +420,14 @@ interface CreatedTabProps {
 }
 
 function CreatedTab({ onCreateClick }: CreatedTabProps) {
-  const [page, setPage] = useState(1);
-  const skip = (page - 1) * PAGE_SIZE;
-  const { data, isLoading, isError, error } = useCreatedSets(skip, PAGE_SIZE);
+  const { data, isLoading, isError, error } = useCreatedSets(0, 200);
   const { data: languages = [] } = useAllLanguages();
   const activeLanguageId = useLanguageStore((s) => s.activeLanguageId);
   const [filterLangId, setFilterLangId] = useState<number | null>(activeLanguageId);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     setFilterLangId(activeLanguageId);
-    setPage(1);
   }, [activeLanguageId]);
 
   const uniqueLangIds = useMemo(() => {
@@ -394,13 +437,16 @@ function CreatedTab({ onCreateClick }: CreatedTabProps) {
 
   const filtered = useMemo(() => {
     if (!data) return [];
-    if (filterLangId == null) return data.data;
-    return data.data.filter((s) => s.source_lang_id === filterLangId);
-  }, [data, filterLangId]);
+    let result = filterLangId == null ? data.data : data.data.filter((s) => s.source_lang_id === filterLangId);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      result = result.filter((s) => s.title.toLowerCase().includes(q));
+    }
+    return result;
+  }, [data, filterLangId, search]);
 
   function handleFilterChange(id: number | null) {
     setFilterLangId(id);
-    setPage(1);
   }
 
   if (isLoading) {
@@ -444,48 +490,38 @@ function CreatedTab({ onCreateClick }: CreatedTabProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <LangFilterBar
-        langIds={uniqueLangIds}
-        languages={languages}
-        value={filterLangId}
-        onChange={handleFilterChange}
-      />
+      <div className="flex flex-col sm:flex-row items-center gap-3">
+        <div className="relative flex-1 max-w-xs">
+          <SearchIcon className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="Search sets…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8 h-8 text-sm"
+          />
+        </div>
+        <LangFilterBar
+          langIds={uniqueLangIds}
+          languages={languages}
+          value={filterLangId}
+          onChange={handleFilterChange}
+        />
+      </div>
 
       {filtered.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>No sets for this language</EmptyTitle>
-            <EmptyDescription>Try a different filter or create a new set.</EmptyDescription>
+            <EmptyTitle>{search ? 'No matches' : 'No sets for this language'}</EmptyTitle>
+            <EmptyDescription>
+              {search ? 'Try a different search term.' : 'Try a different filter or create a new set.'}
+            </EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
-        <div className="flex flex-col gap-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((set) => (
-              <CreatedSetCard key={set.id} set={set} languages={languages} />
-            ))}
-          </div>
-
-          {data.pages > 1 && (
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    aria-disabled={page === 1}
-                    className={page === 1 ? 'pointer-events-none opacity-50' : ''}
-                  />
-                </PaginationItem>
-                <PaginationItem>
-                  <PaginationNext
-                    onClick={() => setPage((p) => Math.min(data.pages, p + 1))}
-                    aria-disabled={page === data.pages}
-                    className={page === data.pages ? 'pointer-events-none opacity-50' : ''}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          )}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((set) => (
+            <CreatedSetCard key={set.id} set={set} languages={languages} />
+          ))}
         </div>
       )}
     </div>
@@ -516,13 +552,19 @@ export function SetsListView() {
         </div>
         <div className="flex items-center gap-2">
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={handlePracticeAll}
             disabled={practiceAllDisabled}
             title={!activeLanguageId ? 'Select a learning language first' : libraryEmpty ? 'Add sets to your library first' : undefined}
           >
             <PlayIcon />
             Practice All
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to="/words">
+              <LibraryIcon />
+              My Expressions
+            </Link>
           </Button>
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <DownloadIcon />

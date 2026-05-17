@@ -5,7 +5,6 @@ import {
   PlusIcon,
   GitForkIcon,
   LayersIcon,
-  FlagIcon,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -48,88 +47,10 @@ import {
   useCreatedSets,
   useAddExistingItemToSet,
   useForkItemIntoSet,
-  useReportItem,
 } from '../hooks/useSetsQuery';
+import { ItemDetailSheet } from '../components/ItemDetailSheet';
+import { DiscoveryTabs } from '../components/DiscoveryTabs';
 import type { ItemSummaryResponse, PartOfSpeech } from '../types/sets.types';
-import type { ComplaintReason } from '@/features/admin/types/admin.types';
-import { Textarea } from '@/components/ui/textarea';
-
-const COMPLAINT_REASONS: { value: ComplaintReason; label: string }[] = [
-  { value: 'wrong_language', label: 'Wrong language' },
-  { value: 'incorrect_translation', label: 'Incorrect translation' },
-  { value: 'inappropriate', label: 'Inappropriate content' },
-  { value: 'spam', label: 'Spam' },
-  { value: 'duplicate', label: 'Duplicate' },
-  { value: 'other', label: 'Other' },
-];
-
-interface ReportItemDialogProps {
-  itemId: number;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
-
-function ReportItemDialog({ itemId, open, onOpenChange }: ReportItemDialogProps) {
-  const [reason, setReason] = useState<ComplaintReason | ''>('');
-  const [details, setDetails] = useState('');
-  const report = useReportItem();
-
-  function handleSubmit() {
-    if (!reason) return;
-    report.mutate(
-      { itemId, reason, details: details.trim() || undefined },
-      {
-        onSuccess: () => {
-          toast.success('Report submitted. Thank you.');
-          onOpenChange(false);
-          setReason('');
-          setDetails('');
-        },
-        onError: (err) => toast.error(err.message),
-      },
-    );
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Report this expression</DialogTitle>
-        </DialogHeader>
-        <div className="flex flex-col gap-3 py-1">
-          <Select value={reason} onValueChange={(v) => setReason(v as ComplaintReason)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select a reason…" />
-            </SelectTrigger>
-            <SelectContent>
-              {COMPLAINT_REASONS.map((r) => (
-                <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Textarea
-            placeholder="Additional details (optional)"
-            value={details}
-            onChange={(e) => setDetails(e.target.value)}
-            rows={3}
-          />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={report.isPending}>
-            Cancel
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={handleSubmit}
-            disabled={!reason || report.isPending}
-          >
-            {report.isPending ? 'Submitting…' : 'Report'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -307,15 +228,18 @@ interface DiscoveryItemCardProps {
 
 function DiscoveryItemCard({ item, languages }: DiscoveryItemCardProps) {
   const [dialogMode, setDialogMode] = useState<'add' | 'fork' | null>(null);
-  const [reportOpen, setReportOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
 
-  const langName =
+  const itemLangName =
     languages.find((l) => l.id === item.language_id)?.name ??
     `Language ${item.language_id}`;
 
   return (
     <>
-      <Card className="flex flex-col overflow-hidden">
+      <Card
+        className="flex flex-col overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+        onClick={() => setDetailOpen(true)}
+      >
         {item.image_url && (
           <div className="aspect-video w-full overflow-hidden">
             <img
@@ -337,7 +261,7 @@ function DiscoveryItemCard({ item, languages }: DiscoveryItemCardProps) {
 
         <CardContent className="flex flex-wrap gap-1.5 pb-3 pt-0">
           <Badge variant="outline" className="text-xs">
-            {langName}
+            {itemLangName}
           </Badge>
           {item.part_of_speech && (
             <Badge variant="outline" className="text-xs">
@@ -351,7 +275,7 @@ function DiscoveryItemCard({ item, languages }: DiscoveryItemCardProps) {
           )}
         </CardContent>
 
-        <CardFooter className="gap-2 pt-0">
+        <CardFooter className="gap-2 pt-0" onClick={(e) => e.stopPropagation()}>
           <Button size="sm" onClick={() => setDialogMode('add')}>
             <PlusIcon className="size-3.5" />
             Add to Set
@@ -360,16 +284,16 @@ function DiscoveryItemCard({ item, languages }: DiscoveryItemCardProps) {
             <GitForkIcon className="size-3.5" />
             Fork
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="ml-auto text-muted-foreground"
-            onClick={() => setReportOpen(true)}
-          >
-            <FlagIcon className="size-3.5" />
-          </Button>
         </CardFooter>
       </Card>
+
+      <ItemDetailSheet
+        item={item}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onAddToSet={() => { setDetailOpen(false); setDialogMode('add'); }}
+        onFork={() => { setDetailOpen(false); setDialogMode('fork'); }}
+      />
 
       {dialogMode && (
         <AddToSetDialog
@@ -379,12 +303,6 @@ function DiscoveryItemCard({ item, languages }: DiscoveryItemCardProps) {
           onOpenChange={(open) => !open && setDialogMode(null)}
         />
       )}
-
-      <ReportItemDialog
-        itemId={item.id}
-        open={reportOpen}
-        onOpenChange={setReportOpen}
-      />
     </>
   );
 }
@@ -460,11 +378,13 @@ export function ItemDiscoveryView() {
   return (
     <div className="flex flex-col gap-6 p-6">
       <div>
-        <h1 className="text-2xl font-semibold">Find Expressions</h1>
+        <h1 className="text-2xl font-semibold">Discover</h1>
         <p className="text-sm text-muted-foreground">
-          Search public vocabulary and add expressions to your sets.
+          Browse public vocabulary sets and expressions created by the community.
         </p>
       </div>
+
+      <DiscoveryTabs />
 
       {/* ── Filters ─────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap gap-3">

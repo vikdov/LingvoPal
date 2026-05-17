@@ -12,18 +12,26 @@ import type {
 import type { ComplaintReason } from '@/features/admin/types/admin.types';
 
 export const setKeys = {
-  all:         () => ['sets'] as const,
-  library:     (skip: number, limit: number) => ['sets', 'library', skip, limit] as const,
-  createdSets: (skip: number, limit: number) => ['sets', 'created', skip, limit] as const,
-  set:         (id: number) => ['sets', id] as const,
-  items:       (id: number, params?: { skip: number; limit: number }) =>
+  all:           () => ['sets'] as const,
+  library:       (skip: number, limit: number) => ['sets', 'library', skip, limit] as const,
+  libraryStatus: (id: number) => ['sets', id, 'library-status'] as const,
+  createdSets:   (skip: number, limit: number) => ['sets', 'created', skip, limit] as const,
+  set:           (id: number) => ['sets', id] as const,
+  items:         (id: number, params?: { skip: number; limit: number }) =>
     params ? ['sets', id, 'items', params] as const : ['sets', id, 'items'] as const,
-  public:      (params: object) => ['sets', 'public', params] as const,
+  public:        (params: object) => ['sets', 'public', params] as const,
+};
+
+export const moderationKeys = {
+  mySubmissions: (skip: number, limit: number) => ['moderation', 'my', skip, limit] as const,
+  latestSet:     (setId: number) => ['moderation', 'set', setId, 'latest'] as const,
+  latestItem:    (itemId: number) => ['moderation', 'item', itemId, 'latest'] as const,
 };
 
 export const itemKeys = {
   public:   (params: object) => ['items', 'public', params] as const,
   mine:     (skip: number, limit: number) => ['items', 'mine', skip, limit] as const,
+  detail:   (itemId: number) => ['items', itemId] as const,
   synonyms: (itemId: number) => ['items', itemId, 'synonyms'] as const,
 };
 
@@ -130,10 +138,10 @@ export function useTouchSet() {
   return useMutation({
     mutationFn: (setId: number) => setsApi.touchSet(setId),
     onMutate: (setId) => {
-      qc.setQueriesData<any>({ queryKey: ['sets', 'library'] }, (old) =>
+      qc.setQueriesData<any>({ queryKey: ['sets', 'library'] }, (old: any) =>
         old?.data ? { ...old, data: moveToFront(old.data, setId, 'set_id') } : old,
       );
-      qc.setQueriesData<any>({ queryKey: ['sets', 'created'] }, (old) =>
+      qc.setQueriesData<any>({ queryKey: ['sets', 'created'] }, (old: any) =>
         old?.data ? { ...old, data: moveToFront(old.data, setId, 'id') } : old,
       );
     },
@@ -156,12 +164,23 @@ export function usePinSet() {
   });
 }
 
+export function useIsInLibrary(setId: number) {
+  return useQuery({
+    queryKey: setKeys.libraryStatus(setId),
+    queryFn: () => setsApi.getLibraryStatus(setId),
+    enabled: setId > 0,
+    staleTime: 60_000,
+    select: (data) => data.in_library,
+  });
+}
+
 export function useAddToLibrary() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (setId: number) => setsApi.addToLibrary(setId),
-    onSuccess: () => {
+    onSuccess: (_data, setId) => {
       qc.invalidateQueries({ queryKey: ['sets', 'library'] });
+      qc.setQueryData(setKeys.libraryStatus(setId), { in_library: true });
     },
   });
 }
@@ -170,9 +189,37 @@ export function useRemoveFromLibrary() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (setId: number) => setsApi.removeFromLibrary(setId),
-    onSuccess: () => {
+    onSuccess: (_data, setId) => {
       qc.invalidateQueries({ queryKey: ['sets', 'library'] });
+      qc.setQueryData(setKeys.libraryStatus(setId), { in_library: false });
     },
+  });
+}
+
+export function useLatestSetModeration(setId: number) {
+  return useQuery({
+    queryKey: moderationKeys.latestSet(setId),
+    queryFn: () => setsApi.getLatestSetModeration(setId),
+    enabled: setId > 0,
+    staleTime: 30_000,
+  });
+}
+
+export function useLatestItemModeration(itemId: number | null) {
+  return useQuery({
+    queryKey: moderationKeys.latestItem(itemId ?? 0),
+    queryFn: () => setsApi.getLatestItemModeration(itemId!),
+    enabled: !!itemId,
+    staleTime: 30_000,
+  });
+}
+
+export function useMySubmissions(skip = 0, limit = 20) {
+  return useQuery({
+    queryKey: moderationKeys.mySubmissions(skip, limit),
+    queryFn: () => setsApi.getMySubmissions(skip, limit),
+    staleTime: 30_000,
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -203,6 +250,17 @@ export function useUploadItemAudio(setId?: number) {
   return useMutation({
     mutationFn: ({ itemId, file }: { itemId: number; file: File }) =>
       setsApi.uploadItemAudio(itemId, file),
+    onSuccess: () => {
+      if (setId) qc.invalidateQueries({ queryKey: setKeys.items(setId) });
+    },
+  });
+}
+
+export function useUploadItemContextAudio(setId?: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, file }: { itemId: number; file: File }) =>
+      setsApi.uploadItemContextAudio(itemId, file),
     onSuccess: () => {
       if (setId) qc.invalidateQueries({ queryKey: setKeys.items(setId) });
     },
@@ -361,6 +419,15 @@ export function useMyItems(skip = 0, limit = 20, query?: string) {
   });
 }
 
+export function useItemDetail(itemId: number | null) {
+  return useQuery({
+    queryKey: itemKeys.detail(itemId ?? 0),
+    queryFn: () => setsApi.getItem(itemId!),
+    enabled: itemId != null,
+    staleTime: 60_000,
+  });
+}
+
 export function useDeleteItem() {
   const qc = useQueryClient();
   return useMutation({
@@ -409,5 +476,30 @@ export function useSynonymSuggestions(languageId: number | null, q: string) {
     queryFn: () => setsApi.getSynonymSuggestions(languageId!, q),
     enabled: !!languageId && q.trim().length > 0,
     staleTime: 60_000,
+  });
+}
+
+export function useSubmitSetForReview() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ setId, feedback }: { setId: number; feedback?: string }) =>
+      setsApi.submitSetForReview(setId, feedback),
+    onSuccess: (_data, { setId }) => {
+      qc.invalidateQueries({ queryKey: setKeys.set(setId) });
+      qc.invalidateQueries({ queryKey: moderationKeys.latestSet(setId) });
+      qc.invalidateQueries({ queryKey: ['moderation', 'my'] });
+    },
+  });
+}
+
+export function useSubmitItemForReview() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, feedback }: { itemId: number; feedback?: string }) =>
+      setsApi.submitItemForReview(itemId, feedback),
+    onSuccess: (_data, { itemId }) => {
+      qc.invalidateQueries({ queryKey: itemKeys.detail(itemId) });
+      qc.invalidateQueries({ queryKey: ['sets'] });
+    },
   });
 }

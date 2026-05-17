@@ -1,5 +1,6 @@
 import { api } from '@/services/api';
 import type { PaginatedResponse } from '@/types/common.types';
+import type { ModerationSubmission } from '../types/sets.types';
 import type {
   SetResponse,
   SetSummaryResponse,
@@ -97,6 +98,12 @@ export const setsApi = {
     return api.postForm<ItemDetailResponse>(`/items/${itemId}/audio`, form);
   },
 
+  uploadItemContextAudio: (itemId: number, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.postForm<ItemDetailResponse>(`/items/${itemId}/context_audio`, form);
+  },
+
   searchPublicItems: (params: {
     query?: string;
     language_id?: number;
@@ -120,6 +127,9 @@ export const setsApi = {
     if (query) qs.set('query', query);
     return api.get<PaginatedResponse<ItemDetailResponse>>(`/items/mine?${qs}`);
   },
+
+  getItem: (itemId: number) =>
+    api.get<ItemDetailResponse>(`/items/${itemId}`),
 
   deleteItem: (itemId: number) =>
     api.delete<undefined>(`/items/${itemId}`),
@@ -148,6 +158,26 @@ export const setsApi = {
 
   reportSet: (setId: number, body: ComplaintRequest) =>
     api.post<ComplaintResponse>(`/sets/${setId}/report`, body),
+
+  // ── Library status ────────────────────────────────────────────────────────
+  getLibraryStatus: (setId: number) =>
+    api.get<{ in_library: boolean }>(`/sets/${setId}/library`),
+
+  // ── Moderation (user-facing submit) ──────────────────────────────────────
+  submitSetForReview: (setId: number, feedback?: string) =>
+    api.post<{ id: number; status: string }>(`/moderation/sets/${setId}/submit`, { feedback }),
+
+  submitItemForReview: (itemId: number, feedback?: string) =>
+    api.post<{ id: number; status: string }>(`/moderation/items/${itemId}/submit`, { feedback }),
+
+  getLatestSetModeration: (setId: number) =>
+    api.get<ModerationSubmission | null>(`/moderation/sets/${setId}/latest`),
+
+  getLatestItemModeration: (itemId: number) =>
+    api.get<ModerationSubmission | null>(`/moderation/items/${itemId}/latest`),
+
+  getMySubmissions: (skip = 0, limit = 20) =>
+    api.get<PaginatedResponse<ModerationSubmission>>(`/moderation/my?skip=${skip}&limit=${limit}`),
 
   // ── Synonyms ──────────────────────────────────────────────────────────────
   getItemSynonyms: (itemId: number) =>

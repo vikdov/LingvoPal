@@ -48,13 +48,13 @@ export function SetCover({ langCode, langName, setId }: SetCoverProps) {
 
   return (
     <div
-      className="h-24 rounded-t-lg flex flex-col items-center justify-center gap-0.5 select-none"
+      className="h-12 rounded-t-lg flex items-center px-3 gap-2 select-none"
       style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}
     >
-      <span className="text-4xl font-black text-white/90 uppercase tracking-wider leading-none">
+      <span className="text-base font-black text-white/90 uppercase tracking-wider leading-none">
         {code.toUpperCase()}
       </span>
-      <span className="text-[10px] font-semibold text-white/60 uppercase tracking-widest">
+      <span className="text-[10px] font-semibold text-white/60 uppercase tracking-widest truncate">
         {langName}
       </span>
     </div>
