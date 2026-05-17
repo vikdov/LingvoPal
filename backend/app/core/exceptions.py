@@ -43,6 +43,7 @@ class AuthErrorCode(str, Enum):
     ALREADY_VERIFIED = "already_verified"
     VERIFICATION_RATE_LIMITED = "verification_rate_limited"
     PASSWORD_RESET_TOKEN_INVALID = "password_reset_token_invalid"
+    REFRESH_TOKEN_INVALID = "refresh_token_invalid"
 
 
 # ============================================================================
@@ -139,6 +140,14 @@ class PasswordResetTokenInvalidError(AuthError):
         super().__init__(
             AuthErrorCode.PASSWORD_RESET_TOKEN_INVALID,
             "Password reset token is invalid or has expired.",
+        )
+
+
+class RefreshTokenInvalidError(AuthError):
+    def __init__(self) -> None:
+        super().__init__(
+            AuthErrorCode.REFRESH_TOKEN_INVALID,
+            "Refresh token is invalid or has expired. Please log in again.",
         )
 
 
@@ -243,6 +252,7 @@ __all__ = [
     "AlreadyVerifiedError",
     "VerificationRateLimitedError",
     "PasswordResetTokenInvalidError",
+    "RefreshTokenInvalidError",
     # Resource / authorisation
     "ResourceNotFoundError",
     "NotAuthorizedError",
