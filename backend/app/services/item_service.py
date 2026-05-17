@@ -7,6 +7,7 @@ from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
+    ContentValidationError,
     DuplicateResourceError,
     LingvoPalError,
     NotAuthorizedError,
@@ -81,7 +82,12 @@ class ItemService:
     async def create_item(
         self, user_id: int, set_id: int, data: ItemCreateRequest
     ) -> tuple[Item, SetItem]:
-        await self._require_owned_set(user_id, set_id)
+        s = await self._require_owned_set(user_id, set_id)
+        if data.language_id != s.source_lang_id:
+            raise ContentValidationError(
+                "language_id",
+                f"Item language ({data.language_id}) must match set language ({s.source_lang_id})",
+            )
         item = await self._items.create(
             term=data.term,
             language_id=data.language_id,
@@ -196,9 +202,39 @@ class ItemService:
         await self._session.commit()
         return await self._items.get_by_id_with_translations(item_id)
 
+    async def upload_item_context_audio(
+        self, user_id: int, item_id: int, file: UploadFile, storage: StorageService
+    ) -> Item:
+        await self._require_owned_item(user_id, item_id)
+
+        content_type = file.content_type or ""
+        if content_type not in _ALLOWED_AUDIO_TYPES:
+            raise LingvoPalError("Invalid file type. Allowed: MP3, OGG, WAV, M4A, WebM.")
+
+        data = await file.read()
+        if len(data) > _MAX_AUDIO_BYTES:
+            raise LingvoPalError("Audio file exceeds 10 MB limit.")
+
+        ext = (file.filename or "audio").rsplit(".", 1)[-1].lower()
+        if ext not in {"mp3", "ogg", "wav", "m4a", "aac", "webm"}:
+            ext = "mp3"
+
+        audio_url = await storage.upload_audio(data, content_type, ext)
+        await self._items.update(item_id, context_audio_url=audio_url)
+        await self._session.commit()
+        return await self._items.get_by_id_with_translations(item_id)
+
     # ------------------------------------------------------------------
     # Discovery
     # ------------------------------------------------------------------
+
+    async def get_public_item(self, user_id: int, item_id: int) -> Item:
+        item = await self._items.get_by_id_with_translations(item_id)
+        if item is None:
+            raise ResourceNotFoundError("Item", item_id)
+        if item.status not in _PUBLIC_STATUSES and item.creator_id != user_id:
+            raise ResourceNotFoundError("Item", item_id)
+        return item
 
     async def search_public_items(
         self,
@@ -235,12 +271,17 @@ class ItemService:
     async def add_item_to_set(
         self, user_id: int, set_id: int, item_id: int, sort_order: int = 0
     ) -> SetItem:
-        await self._require_owned_set(user_id, set_id)
+        s = await self._require_owned_set(user_id, set_id)
         item = await self._items.get_by_id(item_id)
         if not item:
             raise ResourceNotFoundError("Item", item_id)
         if item.creator_id != user_id and item.status not in _PUBLIC_STATUSES:
             raise ResourceNotFoundError("Item", item_id)
+        if item.language_id != s.source_lang_id:
+            raise ContentValidationError(
+                "language_id",
+                f"Item language ({item.language_id}) must match set language ({s.source_lang_id})",
+            )
         if await self._items.set_item_exists(set_id, item_id):
             raise DuplicateResourceError("SetItem", "item_id", str(item_id))
         set_item = await self._items.add_to_set(set_id, item_id, sort_order)
@@ -259,12 +300,17 @@ class ItemService:
     async def fork_item_into_set(
         self, user_id: int, set_id: int, item_id: int
     ) -> tuple[Item, SetItem]:
-        await self._require_owned_set(user_id, set_id)
+        s = await self._require_owned_set(user_id, set_id)
         source = await self._items.get_by_id(item_id)
         if not source:
             raise ResourceNotFoundError("Item", item_id)
         if source.status not in _PUBLIC_STATUSES:
             raise NotAuthorizedError("fork this item (it is not public)")
+        if source.language_id != s.source_lang_id:
+            raise ContentValidationError(
+                "language_id",
+                f"Item language ({source.language_id}) must match set language ({s.source_lang_id})",
+            )
         forked = await self._items.create(
             term=source.term,
             language_id=source.language_id,

@@ -37,6 +37,10 @@ from app.schemas.item import (
     TranslationUpdateRequest,
     SuggestItemMetadataRequest,
     ItemMetadataSuggestion,
+    GenerateAudioRequest,
+    GenerateAudioResponse,
+    SearchImagesRequest,
+    ImageSuggestion,
 )
 
 items_router = APIRouter(prefix="/items", tags=["items"])
@@ -94,10 +98,46 @@ async def suggest_item_metadata(
             source_language=body.source_language,
             source_language_code=body.source_language_code,
             target_language=body.target_language,
+            context=body.context,
         )
         return ItemMetadataSuggestion(**suggestion)
     except LingvoPalError as exc:
         _handle(exc)
+
+
+@items_router.post(
+    "/search_images",
+    response_model=list[ImageSuggestion],
+    summary="Fetch additional image suggestions for a query",
+)
+@limiter.limit("20/minute")
+async def search_images(
+    request: Request,
+    body: SearchImagesRequest,
+    user: CurrentUser,
+    service: ItemSuggestionServiceDep,
+) -> list[ImageSuggestion]:
+    return await service.search_images(query=body.query, count=body.count)
+
+
+@items_router.post(
+    "/generate_audio",
+    response_model=GenerateAudioResponse,
+    summary="Generate TTS audio for a term and optional context sentence",
+)
+@limiter.limit("30/minute")
+async def generate_item_audio(
+    request: Request,
+    body: GenerateAudioRequest,
+    user: CurrentUser,
+    service: ItemSuggestionServiceDep,
+) -> GenerateAudioResponse:
+    result = await service.generate_audio(
+        term=body.term,
+        language_code=body.language_code,
+        context=body.context,
+    )
+    return GenerateAudioResponse(**result)
 
 
 @items_router.get(
@@ -170,6 +210,23 @@ async def get_synonym_suggestions(
 # ============================================================================
 
 
+@items_router.get(
+    "/{item_id}",
+    response_model=ItemDetailResponse,
+    summary="Get a public item's full detail",
+)
+async def get_item(
+    item_id: int,
+    user: CurrentUser,
+    service: ItemServiceDep,
+) -> ItemDetailResponse:
+    try:
+        item = await service.get_public_item(user.id, item_id)
+        return ItemDetailResponse.model_validate(item)
+    except LingvoPalError as exc:
+        _handle(exc)
+
+
 @items_router.patch(
     "/{item_id}",
     response_model=ItemDetailResponse,
@@ -235,6 +292,25 @@ async def upload_item_audio(
 ) -> ItemDetailResponse:
     try:
         item = await service.upload_item_audio(user.id, item_id, file, storage)
+        return ItemDetailResponse.model_validate(item)
+    except LingvoPalError as exc:
+        _handle(exc)
+
+
+@items_router.post(
+    "/{item_id}/context_audio",
+    response_model=ItemDetailResponse,
+    summary="Upload context audio for an item",
+)
+async def upload_item_context_audio(
+    item_id: int,
+    user: CurrentUser,
+    service: ItemServiceDep,
+    storage: StorageDep,
+    file: UploadFile = File(...),
+) -> ItemDetailResponse:
+    try:
+        item = await service.upload_item_context_audio(user.id, item_id, file, storage)
         return ItemDetailResponse.model_validate(item)
     except LingvoPalError as exc:
         _handle(exc)

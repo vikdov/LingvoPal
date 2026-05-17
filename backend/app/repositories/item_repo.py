@@ -334,7 +334,14 @@ class ItemRepository:
         )
         self._session.add(set_item)
         await self._session.flush()
-        return set_item
+        # Reload with relationships so callers can serialise SetItemResponse without
+        # triggering lazy loads outside an async context (MissingGreenlet).
+        result = await self._session.execute(
+            select(SetItem)
+            .options(selectinload(SetItem.item).selectinload(Item.translations))
+            .where(SetItem.set_id == set_id, SetItem.item_id == item_id)
+        )
+        return result.scalar_one()
 
     async def remove_from_set(self, set_id: int, item_id: int) -> None:
         await self._session.execute(

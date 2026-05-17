@@ -37,6 +37,7 @@ class ItemSuggestion(TypedDict):
     tts_audio_url: str | None
     context_tts_audio_url: str | None
     image_suggestions: list[ImageSuggestion]
+    image_query: str | None
 
     # Diagnostics
     warnings: list[str]
@@ -59,18 +60,19 @@ class ItemSuggestionService:
         source_language: str,
         source_language_code: str,
         target_language: str | None = None,
+        context: str | None = None,
     ) -> ItemSuggestion:
         """
         Generate complete item suggestions.
 
         Pipeline:
-        1. Lemma (spaCy instant + LLM fallback if needed)
+        1. Lemma (spaCy for English; LLM for all other languages)
         2. AI enrichment, TTS, images (all parallel, 20s timeout)
 
         Args:
             term: Vocabulary term
-            source_language: Language name (e.g., "English")
-            source_language_code: BCP-47 code (e.g., "en-US")
+            source_language: Language name (e.g., "Spanish")
+            source_language_code: ISO 639-1 or BCP-47 code (e.g., "es", "en-US")
             target_language: Optional for translations
 
         Returns:
@@ -78,16 +80,21 @@ class ItemSuggestionService:
         """
         warnings = []
 
-        # Step 1: Extract lemma (spaCy offline, LLM fallback via sync HTTP — run in thread)
-        lemma = await asyncio.to_thread(
-            self.lemmatizer.extract_lemma, term, source_language, source_language_code
-        )
+        # Step 1: Extract lemma (spaCy for English, LLM fallback for other languages — run in thread)
+        try:
+            lemma = await asyncio.to_thread(
+                self.lemmatizer.extract_lemma, term, source_language, source_language_code
+            )
+        except Exception as e:
+            logger.warning(f"Lemmatization failed for '{term}': {e}")
+            warnings.append("lemmatization_failed")
+            lemma = None
 
         # Step 2: AI enrichment + TTS in parallel
         try:
             phase1 = await asyncio.wait_for(
                 asyncio.gather(
-                    self.ai.enrich(term, source_language, target_language),
+                    self.ai.enrich(term, source_language, target_language, context),
                     self.tts.generate_audio(term, source_language_code),
                     return_exceptions=True,
                 ),
@@ -105,6 +112,7 @@ class ItemSuggestionService:
                 tts_audio_url=None,
                 context_tts_audio_url=None,
                 image_suggestions=[],
+                image_query=None,
                 warnings=["pipeline_timeout"],
             )
 
@@ -133,14 +141,25 @@ class ItemSuggestionService:
         else:
             tts_url = phase1[1]
 
-        # Step 3: Image search + context TTS in parallel (context available now from AI)
-        image_query = ai_result.get("context") or term
-        context_sentence = ai_result.get("context")
+        # Step 3: Image search + context TTS in parallel
+        ai_context = ai_result.get("context")
+        context_for_audio = context or ai_context
+
+        # AI generates a focused image_query that includes term + context-specific domain words.
+        # Fall back to term + first synonym if AI didn't return one.
+        synonyms = ai_result.get("synonyms", [])
+        ai_image_query = ai_result.get("image_query")
+        if ai_image_query:
+            image_query = ai_image_query
+        elif synonyms:
+            image_query = f"{term} {synonyms[0]}"
+        else:
+            image_query = term
 
         async def _context_tts() -> str | None:
-            if not context_sentence:
+            if not context_for_audio:
                 return None
-            return await self.tts.generate_audio(context_sentence, source_language_code)
+            return await self.tts.generate_audio(context_for_audio, source_language_code)
 
         try:
             phase2_results = await asyncio.wait_for(
@@ -180,8 +199,35 @@ class ItemSuggestionService:
             tts_audio_url=tts_url,
             context_tts_audio_url=context_tts_url,
             image_suggestions=image_suggestions,
+            image_query=image_query,
             warnings=warnings,
         )
+
+    async def search_images(self, query: str, count: int = 4) -> list[ImageSuggestion]:
+        return await self.images.search_images(query, count=count)
+
+    async def generate_audio(
+        self,
+        term: str,
+        language_code: str,
+        context: str | None = None,
+    ) -> dict[str, str | None]:
+        """Generate TTS for term and optional context sentence."""
+        tasks = [self.tts.generate_audio(term, language_code)]
+        if context:
+            tasks.append(self.tts.generate_audio(context, language_code))
+
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=15.0,
+            )
+        except asyncio.TimeoutError:
+            return {"audio_url": None, "context_audio_url": None}
+
+        audio_url = results[0] if not isinstance(results[0], Exception) else None
+        context_audio_url = results[1] if len(results) > 1 and not isinstance(results[1], Exception) else None
+        return {"audio_url": audio_url, "context_audio_url": context_audio_url}
 
     async def close(self):
         """Cleanup resources."""
