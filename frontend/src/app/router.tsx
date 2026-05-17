@@ -19,11 +19,12 @@ import { DashboardView } from '@/features/stats';
 import { SetsListView, SetDetailView, SetDiscoveryView, ItemDiscoveryView, ExpressionsLibraryView } from '@/features/sets';
 import { PracticeView, SessionSummaryView } from '@/features/practice';
 import { SettingsView } from '@/features/settings';
-import { AdminDashboard, PendingItemsPage, PendingSetsPage } from '@/features/admin';
+import { AdminDashboard } from '@/features/admin';
 
 // 3. App-Level Imports
 import { NotFoundView } from './NotFoundView';
 import { ProtectedRoute, PublicOnlyRoute, AdminRoute } from './guards';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export const router = createBrowserRouter([
   // --- PUBLIC ROUTES (Landing, Marketing) ---
@@ -72,7 +73,7 @@ export const router = createBrowserRouter([
     children: [
       // Practice — full-screen, no sidebar
       {
-        element: <PracticeLayout />,
+        element: <ErrorBoundary><PracticeLayout /></ErrorBoundary>,
         children: [
           { path: 'practice', element: <PracticeView /> },
           { path: 'practice/summary', element: <SessionSummaryView /> },
@@ -81,7 +82,7 @@ export const router = createBrowserRouter([
 
       // Everything else — sidebar + header shell
       {
-        element: <AppLayout />,
+        element: <ErrorBoundary><AppLayout /></ErrorBoundary>,
         children: [
           // Dashboard
           { path: 'dashboard', element: <DashboardView /> },
@@ -101,8 +102,6 @@ export const router = createBrowserRouter([
             element: <AdminRoute />,
             children: [
               { path: 'admin', element: <AdminDashboard /> },
-              { path: 'admin/items', element: <PendingItemsPage /> },
-              { path: 'admin/sets', element: <PendingSetsPage /> },
             ],
           },
         ],
