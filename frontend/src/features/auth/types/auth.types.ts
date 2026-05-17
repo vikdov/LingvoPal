@@ -13,9 +13,17 @@ export interface User {
 // Mirrors backend TokenResponse
 export interface TokenResponse {
   access_token: string;
+  refresh_token: string;
   token_type: string;
   expires_in: number;
   user: User;
+}
+
+export interface RefreshResponse {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  token_type: string;
 }
 
 // Mirrors backend request schemas

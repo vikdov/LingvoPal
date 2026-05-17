@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { TOKEN_KEY } from '@/services/api';
+import { TOKEN_KEY, REFRESH_TOKEN_KEY } from '@/services/api';
 import type { User } from '../types/auth.types';
 
 const USER_KEY = 'lingvopal_user';
@@ -26,8 +26,12 @@ function loadUser(): User | null {
 // Eagerly validate token on boot — clear stale data before any React renders.
 const storedToken = localStorage.getItem(TOKEN_KEY);
 const validToken = storedToken && !isTokenExpired(storedToken) ? storedToken : null;
-if (!validToken) {
+// If access token is expired but refresh token exists, keep user logged in —
+// api.ts will handle auto-refresh on first request.
+const hasRefreshToken = !!localStorage.getItem(REFRESH_TOKEN_KEY);
+if (!validToken && !hasRefreshToken) {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
 }
 
@@ -36,7 +40,7 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   // Called after login / signup — persists to localStorage so api.ts can read the token.
-  setAuth: (token: string, user: User) => void;
+  setAuth: (token: string, refreshToken: string, user: User) => void;
   // Called on logout or when api.ts throws UnauthorizedError.
   clearAuth: () => void;
   // Patch user fields in place (e.g. after profile update) without re-login.
@@ -45,17 +49,19 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()((set, get) => ({
   token: validToken,
-  user: validToken ? loadUser() : null,
-  isAuthenticated: !!validToken,
+  user: (validToken || hasRefreshToken) ? loadUser() : null,
+  isAuthenticated: !!(validToken || hasRefreshToken),
 
-  setAuth: (token, user) => {
+  setAuth: (token, refreshToken, user) => {
     localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
     set({ token, user, isAuthenticated: true });
   },
 
   clearAuth: () => {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     set({ token: null, user: null, isAuthenticated: false });
   },

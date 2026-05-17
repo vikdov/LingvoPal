@@ -1,6 +1,7 @@
 const BASE_URL = import.meta.env.VITE_API_URL as string;
 
 export const TOKEN_KEY = 'lingvopal_token';
+export const REFRESH_TOKEN_KEY = 'lingvopal_refresh_token';
 
 // ── Error types ───────────────────────────────────────────────────────────────
 
@@ -50,17 +51,56 @@ function parseDetail(detail: unknown): { code: string; message: string; extra: R
 // Token-related error codes from the backend AuthErrorCode enum.
 const TOKEN_ERROR_CODES = new Set(['token_expired', 'token_invalid']);
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+// ── Refresh token logic ───────────────────────────────────────────────────────
+
+// Single in-flight refresh — concurrent 401s all wait on the same promise.
+let _refreshPromise: Promise<string> | null = null;
+
+async function _doRefresh(): Promise<string> {
+  const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+  if (!refreshToken) throw new UnauthorizedError();
+
+  const res = await fetch(`${BASE_URL}/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+
+  if (!res.ok) {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    throw new UnauthorizedError();
+  }
+
+  const data = await res.json() as { access_token: string; refresh_token: string };
+  localStorage.setItem(TOKEN_KEY, data.access_token);
+  localStorage.setItem(REFRESH_TOKEN_KEY, data.refresh_token);
+  return data.access_token;
+}
+
+async function tryRefresh(): Promise<string> {
+  if (!_refreshPromise) {
+    _refreshPromise = _doRefresh().finally(() => { _refreshPromise = null; });
+  }
+  return _refreshPromise;
+}
+
+// ── Core request ──────────────────────────────────────────────────────────────
+
+async function _fetch(method: string, path: string, body?: unknown, headers?: Record<string, string>): Promise<Response> {
   const token = localStorage.getItem(TOKEN_KEY);
+  const h: Record<string, string> = { 'Content-Type': 'application/json', ...headers };
+  if (token) h['Authorization'] = `Bearer ${token}`;
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-
-  const res = await fetch(`${BASE_URL}${path}`, {
+  return fetch(`${BASE_URL}${path}`, {
     method,
-    headers,
+    headers: h,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
+}
+
+async function request<T>(method: string, path: string, body?: unknown, _retry = true): Promise<T> {
+  const res = await _fetch(method, path, body);
 
   if (res.status === 204) return undefined as T;
 
@@ -70,15 +110,24 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     const { code, message, extra } = parseDetail(data.detail);
 
     if (res.status === 401) {
-      // Plain-string detail means FastAPI guard failed (invalid/missing token).
-      // Coded token errors are also session issues.
-      // A business-logic 401 (e.g. wrong current password) has code "invalid_credentials"
-      // and does NOT clear the token.
       const isSessionExpiry =
         typeof data.detail === 'string' || TOKEN_ERROR_CODES.has(code);
 
       if (isSessionExpiry) {
+        // Try refresh once, then retry the original request.
+        if (_retry && localStorage.getItem(REFRESH_TOKEN_KEY)) {
+          try {
+            await tryRefresh();
+            return request<T>(method, path, body, false);
+          } catch {
+            // Refresh failed — clear everything, let providers clear React state.
+            localStorage.removeItem(TOKEN_KEY);
+            localStorage.removeItem(REFRESH_TOKEN_KEY);
+            throw new UnauthorizedError(typeof data.detail === 'string' ? undefined : message);
+          }
+        }
         localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(REFRESH_TOKEN_KEY);
         throw new UnauthorizedError(typeof data.detail === 'string' ? undefined : message);
       }
     }
@@ -104,6 +153,7 @@ async function requestForm<T>(method: string, path: string, form: FormData): Pro
     const { code, message } = parseDetail(data.detail);
     if (res.status === 401) {
       localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
       throw new UnauthorizedError(typeof data.detail === 'string' ? undefined : message);
     }
     throw new ApiError(res.status, code, message);
@@ -121,3 +171,15 @@ export const api = {
   delete: <T>(path: string) => request<T>('DELETE', path),
   postForm: <T>(path: string, form: FormData) => requestForm<T>('POST', path, form),
 };
+
+// rawPost: skip the 401-retry logic (used for /auth/refresh itself).
+export async function rawPost<T>(path: string, body?: unknown): Promise<T> {
+  const res = await _fetch('POST', path, body);
+  if (res.status === 204) return undefined as T;
+  const data = await res.json().catch(() => ({})) as Record<string, unknown>;
+  if (!res.ok) {
+    const { code, message, extra } = parseDetail(data.detail);
+    throw new ApiError(res.status, code, message, extra);
+  }
+  return data as T;
+}
