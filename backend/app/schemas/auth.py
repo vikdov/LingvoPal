@@ -153,8 +153,26 @@ class TokenResponse(BaseModel):
     token_type: str = Field(
         default="bearer", description="Token type (always 'bearer')"
     )
-    expires_in: int = Field(..., gt=0, description="Token lifetime in seconds")
+    expires_in: int = Field(..., gt=0, description="Access token lifetime in seconds")
+    refresh_token: str = Field(..., description="Opaque refresh token (7-day TTL)")
     user: UserPrivateResponse = Field(..., description="Authenticated user data")
+
+
+class RefreshRequest(BaseModel):
+    """POST /api/v1/auth/refresh"""
+
+    refresh_token: str = Field(..., min_length=1, max_length=128)
+
+
+class RefreshResponse(BaseModel):
+    """Response when refreshing an access token."""
+
+    model_config = ConfigDict(frozen=True)
+
+    access_token: str
+    refresh_token: str
+    expires_in: int
+    token_type: str = "bearer"
 
 
 class AuthErrorResponse(BaseModel):
@@ -180,5 +198,7 @@ __all__ = [
     "ResetPasswordRequest",
     # Responses
     "TokenResponse",
+    "RefreshRequest",
+    "RefreshResponse",
     "AuthErrorResponse",
 ]

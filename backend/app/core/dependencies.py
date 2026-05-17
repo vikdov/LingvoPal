@@ -209,11 +209,6 @@ CurrentSettings = Annotated[Settings, Depends(get_current_settings)]
 # ============================================================================
 
 
-async def get_auth_service(db: DBSession) -> AuthService:
-    """FastAPI dependency: Auth service, injected with current session."""
-    return AuthService(db)
-
-
 async def get_set_service(db: WriteDBSession) -> SetService:
     return SetService(db)
 
@@ -236,6 +231,25 @@ async def get_redis_client() -> AsyncGenerator[aioredis.Redis, None]:
 
     async for client in get_redis():
         yield client
+
+
+async def get_refresh_token_service(
+    redis: Annotated[aioredis.Redis, Depends(get_redis_client)],
+) -> "RefreshTokenService":
+    from app.services.refresh_token_service import RefreshTokenService
+    settings = get_settings()
+    return RefreshTokenService(redis, ttl_seconds=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400)
+
+
+async def get_auth_service(
+    db: DBSession,
+    redis: Annotated[aioredis.Redis, Depends(get_redis_client)],
+) -> AuthService:
+    """FastAPI dependency: Auth service, injected with current session + refresh svc."""
+    from app.services.refresh_token_service import RefreshTokenService
+    settings = get_settings()
+    refresh_svc = RefreshTokenService(redis, ttl_seconds=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400)
+    return AuthService(db, refresh_svc)
 
 
 async def get_practice_service(
@@ -310,6 +324,7 @@ PasswordResetServiceDep = Annotated[
 ]
 EmailServiceDep = Annotated[EmailService, Depends(get_email_service)]
 RedisDep = Annotated[aioredis.Redis, Depends(get_redis_client)]
+RefreshTokenServiceDep = Annotated["RefreshTokenService", Depends(get_refresh_token_service)]
 ItemSuggestionServiceDep = Annotated[
     ItemSuggestionService, Depends(get_item_suggestion_service)
 ]
