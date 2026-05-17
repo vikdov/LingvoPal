@@ -23,6 +23,7 @@ from app.core.exceptions import (
     AlreadyVerifiedError,
     EmailAlreadyExistsError,
     InvalidCredentialsError,
+    RefreshTokenInvalidError,
     SamePasswordError,
     UsernameAlreadyExistsError,
     VerificationTokenInvalidError,
@@ -30,10 +31,12 @@ from app.core.exceptions import (
 from app.models.user import UserSettings
 from app.repositories.user_repo import UserRepository
 from app.repositories.user_language_repo import UserLanguageRepository
+from app.services.refresh_token_service import RefreshTokenService
 from app.services.user_settings_service import UserSettingsService
 from app.schemas.auth import (
     LoginRequest,
     PasswordChangeRequest,
+    RefreshResponse,
     SignupRequest,
     TokenResponse,
 )
@@ -87,14 +90,17 @@ def _build_token(user: User) -> tuple[str, int]:
     return token, expires_in
 
 
-def _build_token_response(
+async def _build_token_response(
     user: User,
     settings: UserSettings,
     active_target_lang_id: int | None,
+    refresh_svc: RefreshTokenService,
 ) -> TokenResponse:
     token, expires_in = _build_token(user)
+    refresh_token = await refresh_svc.generate(user.id)
     return TokenResponse(
         access_token=token,
+        refresh_token=refresh_token,
         expires_in=expires_in,
         user=UserPrivateResponse(
             id=user.id,
@@ -120,11 +126,12 @@ class AuthService:
     Instantiated with a session; repositories are constructed internally.
     """
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, refresh_svc: RefreshTokenService) -> None:
         self._session = session
         self._users = UserRepository(session)
         self._user_settings = UserSettingsService(session)
         self._user_languages = UserLanguageRepository(session)
+        self._refresh = refresh_svc
 
     async def signup(
         self, data: SignupRequest, accept_language: str | None = None
@@ -162,7 +169,7 @@ class AuthService:
         await self._session.refresh(user)
 
         active_lang_id = await self._user_languages.get_active_lang_id(user.id)
-        return _build_token_response(user, settings, active_lang_id)
+        return await _build_token_response(user, settings, active_lang_id, self._refresh)
 
     async def _resolve_interface_language(
         self, accept_language: str | None, fallback: int
@@ -193,7 +200,7 @@ class AuthService:
 
         settings = await self._user_settings.get_or_create(user.id)
         active_lang_id = await self._user_languages.get_active_lang_id(user.id)
-        return _build_token_response(user, settings, active_lang_id)
+        return await _build_token_response(user, settings, active_lang_id, self._refresh)
 
     async def change_password(
         self,
@@ -226,6 +233,29 @@ class AuthService:
             raise VerificationTokenInvalidError()
         await self._users.update_password(user_id, hash_password(new_password))
         await self._session.commit()
+
+    async def refresh(self, token: str) -> RefreshResponse:
+        """
+        Validate refresh token, rotate it, return new access + refresh tokens.
+        Raises RefreshTokenInvalidError if token is missing, expired, or revoked.
+        """
+        user_id = await self._refresh.verify(token)
+        user = await self._users.get_by_id(user_id)
+        if not user:
+            await self._refresh.revoke(user_id)
+            raise RefreshTokenInvalidError()
+
+        access_token, expires_in = _build_token(user)
+        new_refresh = await self._refresh.rotate(user_id)
+        return RefreshResponse(
+            access_token=access_token,
+            refresh_token=new_refresh,
+            expires_in=expires_in,
+        )
+
+    async def revoke_refresh_token(self, user_id: int) -> None:
+        """Revoke refresh token on logout."""
+        await self._refresh.revoke(user_id)
 
     async def mark_email_verified(self, user_id: int) -> None:
         """

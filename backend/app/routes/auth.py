@@ -29,6 +29,7 @@ from app.core.exceptions import (
     EmailAlreadyExistsError,
     InvalidCredentialsError,
     PasswordResetTokenInvalidError,
+    RefreshTokenInvalidError,
     SamePasswordError,
     UsernameAlreadyExistsError,
     VerificationRateLimitedError,
@@ -40,6 +41,8 @@ from app.schemas.auth import (
     ForgotPasswordRequest,
     LoginRequest,
     PasswordChangeRequest,
+    RefreshRequest,
+    RefreshResponse,
     ResetPasswordRequest,
     SignupRequest,
     TokenResponse,
@@ -64,6 +67,7 @@ _AUTH_ERROR_STATUS: dict[type[AuthError], int] = {
     AlreadyVerifiedError: status.HTTP_409_CONFLICT,
     VerificationRateLimitedError: status.HTTP_429_TOO_MANY_REQUESTS,
     PasswordResetTokenInvalidError: status.HTTP_400_BAD_REQUEST,
+    RefreshTokenInvalidError: status.HTTP_401_UNAUTHORIZED,
 }
 
 
@@ -309,14 +313,30 @@ async def reset_password(
 
 
 @router.post(
+    "/refresh",
+    response_model=RefreshResponse,
+    summary="Refresh access token using a refresh token",
+    responses={
+        401: {"model": AuthErrorResponse, "description": "Refresh token invalid or expired"},
+    },
+)
+@auth_rate_limit("20/minute")
+async def refresh_token(
+    request: Request,
+    body: RefreshRequest,
+    auth: AuthServiceDep,
+) -> RefreshResponse:
+    try:
+        return await auth.refresh(body.refresh_token)
+    except RefreshTokenInvalidError as exc:
+        _handle_auth_error(exc)
+
+
+@router.post(
     "/logout",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Logout (client-side token discard)",
+    summary="Logout — revokes refresh token",
 )
-async def logout(current_user: CurrentUser) -> None:
-    """
-    Stateless JWT logout — the client discards the token.
-    If you add a Redis token denylist later, invalidate here.
-    The dependency validates the token is still good before we get here.
-    """
+async def logout(current_user: CurrentUser, auth: AuthServiceDep) -> None:
+    await auth.revoke_refresh_token(current_user.id)
     return None
