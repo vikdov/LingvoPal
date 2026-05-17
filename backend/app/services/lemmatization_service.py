@@ -1,6 +1,9 @@
 # backend/app/services/lemmatization_service.py
 """
-Intelligent lemmatization: spaCy primary, LLM fallback (lazy-loaded).
+Intelligent lemmatization: spaCy primary (English), LLM fallback for all other languages.
+
+Only en_core_web_sm is required. For any language without an installed spaCy model,
+lemmatization goes directly to the LLM — no blank-model fallback, no spaCy download needed.
 """
 
 import logging
@@ -13,25 +16,23 @@ logger = logging.getLogger(__name__)
 
 
 class LemmatizationService:
-    """spaCy-first lemmatizer with optional LLM fallback."""
+    """spaCy-first lemmatizer (English); LLM fallback for all other languages."""
 
     def __init__(self):
         self._ai_service = None
 
     @staticmethod
     @lru_cache(maxsize=10)
-    def _load_model(language: str) -> Language:
-        """Load spaCy model by 2-char language code (cached per language)."""
+    def _load_model(language: str) -> Language | None:
+        """Load spaCy model by 2-char language code. Returns None if not installed."""
         model_name = f"{language}_core_web_sm"
-
         try:
             return spacy.load(model_name)
         except OSError:
-            logger.warning(
-                f"SpaCy model '{model_name}' not found. "
-                f"Install: python -m spacy download {model_name}"
+            logger.debug(
+                f"No spaCy model for '{language}' — LLM will handle lemmatization."
             )
-            return spacy.blank(language)
+            return None
 
     def extract_lemma(
         self,
@@ -40,21 +41,26 @@ class LemmatizationService:
         source_language_code: str = "en-US",
     ) -> str:
         """
-        Extract lemma: spaCy primary, LLM fallback for phrases/idioms.
+        Extract lemma. spaCy used when a model is installed; LLM otherwise.
 
         Args:
             term: Word or phrase
-            source_language: Language name (for LLM prompt if needed)
+            source_language: Language name (for LLM prompt)
             source_language_code: BCP-47 code used to select spaCy model
 
         Returns:
-            Lemmatized form
+            Lemmatized form, or original term if all methods fail
         """
         if not term or not term.strip():
             return term
 
         lang = source_language_code.split("-")[0].lower()
         nlp = self._load_model(lang)
+
+        if nlp is None:
+            # No spaCy model installed for this language — go straight to LLM.
+            llm_lemma = self._get_llm_lemma(term, source_language)
+            return llm_lemma if llm_lemma else term
 
         spacy_lemma = self._extract_with_spacy(term, nlp)
 

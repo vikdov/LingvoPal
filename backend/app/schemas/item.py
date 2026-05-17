@@ -180,6 +180,7 @@ class TranslationSuggestion(BaseModel):
     """Suggested translation."""
 
     text: str
+    context_trans: str | None = None
     language: str | None = None
 
 
@@ -198,6 +199,25 @@ class SuggestItemMetadataRequest(BaseModel):
     source_language: str = Field(..., min_length=1, max_length=100)
     source_language_code: str = Field(..., min_length=2, max_length=10)
     target_language: str | None = Field(None, max_length=100)
+    context: str | None = Field(None, max_length=1000)
+
+
+class SearchImagesRequest(BaseModel):
+    query: str = Field(..., min_length=1, max_length=200)
+    count: int = Field(4, ge=1, le=10)
+
+
+class GenerateAudioRequest(BaseModel):
+    """Request TTS audio for a term and optional context sentence."""
+
+    term: str = Field(..., min_length=1, max_length=500)
+    language_code: str = Field(..., min_length=2, max_length=10)
+    context: str | None = Field(None, max_length=1000)
+
+
+class GenerateAudioResponse(BaseModel):
+    audio_url: str | None = None
+    context_audio_url: str | None = None
 
 
 class ItemMetadataSuggestion(BaseModel):
@@ -219,6 +239,7 @@ class ItemMetadataSuggestion(BaseModel):
     tts_audio_url: str | None = None
     context_tts_audio_url: str | None = None
     image_suggestions: list[ImageSuggestion] = Field(default_factory=list)
+    image_query: str | None = None  # Query used for image search; pass back to /search_images for more
 
     # Diagnostics
     warnings: list[str] = Field(default_factory=list)
@@ -240,4 +261,7 @@ __all__ = [
     "ImageSuggestion",
     "SuggestItemMetadataRequest",
     "ItemMetadataSuggestion",
+    "GenerateAudioRequest",
+    "GenerateAudioResponse",
+    "SearchImagesRequest",
 ]

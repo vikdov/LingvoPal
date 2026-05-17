@@ -27,8 +27,9 @@ class AIEnrichment(TypedDict):
     part_of_speech: str | None
     cefr_level: str | None
     context: str | None  # Single example sentence (becomes item.context)
-    translations: list[dict[str, str]]  # [{text, language}]
+    translations: list[dict[str, str]]  # [{text, context_trans, language}]
     synonyms: list[str]
+    image_query: str | None  # Optimized 2-4 word image search query
 
 
 class AIEnrichmentService:
@@ -54,6 +55,7 @@ class AIEnrichmentService:
         term: str,
         source_language: str,
         target_language: str | None = None,
+        context: str | None = None,
     ) -> AIEnrichment:
         """
         Enrich term with linguistic metadata.
@@ -68,7 +70,7 @@ class AIEnrichmentService:
         Returns:
             AIEnrichment (all None if LLM fails)
         """
-        prompt = self._build_prompt(term, source_language, target_language)
+        prompt = self._build_prompt(term, source_language, target_language, context)
 
         try:
             if self.provider == "groq":
@@ -131,6 +133,7 @@ class AIEnrichmentService:
             context=result.get("context"),
             translations=result.get("translations", []),
             synonyms=result.get("synonyms", []),
+            image_query=result.get("image_query"),
         )
 
     def _build_prompt(
@@ -138,33 +141,47 @@ class AIEnrichmentService:
         term: str,
         source_language: str,
         target_language: str | None,
+        context: str | None = None,
     ) -> str:
         target_note = ""
         if target_language:
             target_note = f"\nTarget Language: {target_language}"
 
+        if context:
+            context_block = f'\nUser\'s context hint: "{context}" — use this as inspiration or improve it into a full sentence'
+            context_rule = '- "context": one natural sentence inspired by the user\'s hint above'
+        else:
+            context_block = ""
+            context_rule = '- "context": exactly ONE sentence, natural, clear'
+        context_field = f'\n  "context": "One clear example sentence using \'{term}\' for a learner",'
+
         return f"""You are a language teacher. Provide metadata for this vocabulary item.
 
 Term: {term}
-Source Language: {source_language}{target_note}
+Source Language: {source_language}{target_note}{context_block}
 
 Return ONLY this JSON (no extra text):
-{{
+{{{context_field}
   "part_of_speech": "noun|verb|adjective|adverb|preposition|conjunction|phrase|idiom|phrasal_verb|collocation",
   "cefr_level": "A1|A2|B1|B2|C1|C2",
-  "context": "One clear example sentence using '{term}' for a learner",
   "translations": [
-    {{"text": "translated_term", "language": "{target_language or "N/A"}"}}
+    {{
+      "text": "translated_term",
+      "context_trans": "translation of the context sentence with {{translated_term}} wrapped in curly braces",
+      "language": "{target_language or "N/A"}"
+    }}
   ],
-  "synonyms": ["synonym1", "synonym2", "synonym3"]
+  "synonyms": ["synonym1", "synonym2", "synonym3"],
+  "image_query": "2-4 word image search query that visually represents this term in this specific context"
 }}
 
 Rules:
 - Return ONLY valid JSON
-- "context": exactly ONE sentence, natural, clear
 - Use null for unknown fields
-- "synonyms": 2-3 related terms
-- "translations": include language field
+- "synonyms": 2-3 related terms, context-appropriate if context provided
+- "translations": include language field; "context_trans" must translate the "context" sentence above into the target language, with the translated form of "{term}" wrapped in single curly braces like {{word}}
+- {context_rule}
+- "image_query": be specific to context (e.g. "chip manufacturing semiconductor", not just "manufacturing"); term should appear first
 """
 
     @staticmethod
@@ -175,6 +192,7 @@ Rules:
             context=None,
             translations=[],
             synonyms=[],
+            image_query=None,
         )
 
 
