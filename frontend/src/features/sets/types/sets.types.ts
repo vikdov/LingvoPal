@@ -1,10 +1,11 @@
 // Mirrors backend ContentStatus enum
-export type ContentStatus = 'DRAFT' | 'COMMUNITY' | 'APPROVED' | 'OFFICIAL';
+export type ContentStatus = 'draft' | 'community' | 'approved' | 'official';
 
 // Mirrors backend PartOfSpeech enum
 export type PartOfSpeech =
   | 'noun' | 'verb' | 'adjective' | 'adverb'
-  | 'preposition' | 'conjunction'
+  | 'pronoun' | 'preposition' | 'conjunction' | 'interjection'
+  | 'article' | 'other'
   | 'phrase' | 'idiom' | 'phrasal_verb' | 'collocation';
 
 export interface SetResponse {
@@ -16,6 +17,7 @@ export interface SetResponse {
   difficulty: number | null;
   status: ContentStatus;
   creator_id: number | null;
+  creator_username: string | null;
   source_lang_id: number;
   target_lang_id: number | null;
   item_count: number;
@@ -30,6 +32,7 @@ export interface SetSummaryResponse {
   source_lang_id: number;
   target_lang_id: number | null;
   item_count: number;
+  creator_username: string | null;
 }
 
 export interface CreatedSetSummaryResponse extends SetSummaryResponse {
@@ -42,6 +45,7 @@ export interface SetLibraryEntry {
   last_opened_at: string | null;
   is_pinned: boolean;
   set: SetSummaryResponse;
+  due_count: number;
 }
 
 export interface ItemSummaryResponse {
@@ -149,4 +153,19 @@ export interface TranslationCreateRequest {
 export interface TranslationUpdateRequest {
   term_trans?: string;
   context_trans?: string | null;
+}
+
+export type ModerationStatus = 'pending' | 'approved' | 'rejected';
+export type ModerationTargetType = 'set' | 'item' | 'translation';
+
+export interface ModerationSubmission {
+  id: number;
+  created_at: string;
+  updated_at: string | null;
+  target_type: ModerationTargetType;
+  target_id: number;
+  status: ModerationStatus;
+  feedback: string | null;
+  resolution_feedback: string | null;
+  resolved_at: string | null;
 }

@@ -33,7 +33,7 @@ import type { LanguageRef } from '@/features/languages';
 import { useMyItems, useDeleteItem, useMyLibrary, useMySets } from '../hooks/useSetsQuery';
 import { ItemEditModal } from '../components/ItemEditModal';
 import { LibraryEntryCard } from './SetsListView';
-import type { ItemDetailResponse, SetResponse } from '../types/sets.types';
+import type { ItemDetailResponse } from '../types/sets.types';
 import { langName, difficultyLabel } from '../utils/formatters';
 
 type PageSize = 20 | 50 | 100;
@@ -164,7 +164,7 @@ function NewExpressionCard({ onClick }: { onClick: () => void }) {
 interface SetPickerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  sets: SetResponse[];
+  sets: Array<{ id: number; title: string }>;
   onConfirm: (setId: number) => void;
 }
 

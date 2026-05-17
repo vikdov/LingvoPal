@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { SearchIcon, PlusIcon, GitForkIcon, LayersIcon, BookOpenIcon, FlagIcon } from 'lucide-react';
+import { SearchIcon, PlusIcon, LayersIcon, BookOpenIcon, FlagIcon, UserIcon, CopyIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,103 +17,20 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
-import {
   Pagination,
   PaginationContent,
   PaginationItem,
   PaginationPrevious,
   PaginationNext,
 } from '@/components/ui/pagination';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAllLanguages } from '@/features/languages';
 import type { LanguageRef } from '@/features/languages';
-import { usePublicSets, useAddToLibrary, useForkSet, useReportSet } from '../hooks/useSetsQuery';
+import { usePublicSets, useAddToLibrary, useForkSet } from '../hooks/useSetsQuery';
+import { DiscoveryTabs } from '../components/DiscoveryTabs';
+import { ReportDialog } from '../components/ReportDialog';
 import type { SetSummaryResponse } from '../types/sets.types';
-import type { ComplaintReason } from '@/features/admin/types/admin.types';
-
-const COMPLAINT_REASONS: { value: ComplaintReason; label: string }[] = [
-  { value: 'wrong_language', label: 'Wrong language' },
-  { value: 'incorrect_translation', label: 'Incorrect translation' },
-  { value: 'inappropriate', label: 'Inappropriate content' },
-  { value: 'spam', label: 'Spam' },
-  { value: 'duplicate', label: 'Duplicate' },
-  { value: 'other', label: 'Other' },
-];
-
-interface ReportDialogProps {
-  targetId: number;
-  targetType: 'set';
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
-
-function ReportDialog({ targetId, open, onOpenChange }: ReportDialogProps) {
-  const [reason, setReason] = useState<ComplaintReason | ''>('');
-  const [details, setDetails] = useState('');
-  const reportSet = useReportSet();
-
-  function handleSubmit() {
-    if (!reason) return;
-    reportSet.mutate(
-      { setId: targetId, reason, details: details.trim() || undefined },
-      {
-        onSuccess: () => {
-          toast.success('Report submitted. Thank you.');
-          onOpenChange(false);
-          setReason('');
-          setDetails('');
-        },
-        onError: (err) => toast.error(err.message),
-      },
-    );
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Report this set</DialogTitle>
-        </DialogHeader>
-        <div className="flex flex-col gap-3 py-1">
-          <Select value={reason} onValueChange={(v) => setReason(v as ComplaintReason)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select a reason…" />
-            </SelectTrigger>
-            <SelectContent>
-              {COMPLAINT_REASONS.map((r) => (
-                <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Textarea
-            placeholder="Additional details (optional)"
-            value={details}
-            onChange={(e) => setDetails(e.target.value)}
-            rows={3}
-          />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={reportSet.isPending}>
-            Cancel
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={handleSubmit}
-            disabled={!reason || reportSet.isPending}
-          >
-            {reportSet.isPending ? 'Submitting…' : 'Report'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function langName(id: number | null | undefined, languages: LanguageRef[]): string {
   if (id == null) return '';
@@ -197,17 +114,17 @@ function DiscoverySetCard({ set, inLibrary, onAddedToLibrary, languages }: Disco
 
   return (
     <>
-      <Card className="h-full overflow-hidden">
+      <Card
+        className="h-full overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+        onClick={() => navigate(`/sets/${set.id}`)}
+      >
         <SetCover
           langCode={langCode(set.source_lang_id, languages)}
           langName={langName(set.source_lang_id, languages)}
           setId={set.id}
         />
         <CardHeader>
-          <CardTitle
-            className="line-clamp-2 cursor-pointer hover:text-primary"
-            onClick={() => navigate(`/sets/${set.id}`)}
-          >
+          <CardTitle className="line-clamp-2">
             {set.title}
           </CardTitle>
         </CardHeader>
@@ -224,9 +141,15 @@ function DiscoverySetCard({ set, inLibrary, onAddedToLibrary, languages }: Disco
             <BookOpenIcon className="size-3" />
             {langName(set.source_lang_id, languages)}{set.target_lang_id != null ? ` → ${langName(set.target_lang_id, languages)}` : ''}
           </span>
+          {set.creator_username && (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <UserIcon className="size-3" />
+              {set.creator_username}
+            </span>
+          )}
         </CardContent>
 
-        <CardFooter className="gap-2">
+        <CardFooter className="gap-2" onClick={(e) => e.stopPropagation()}>
           {inLibrary ? (
             <Button size="sm" variant="secondary" disabled>
               In Library
@@ -241,23 +164,42 @@ function DiscoverySetCard({ set, inLibrary, onAddedToLibrary, languages }: Disco
               Add to Library
             </Button>
           )}
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleFork}
-            disabled={forkSet.isPending}
-          >
-            <GitForkIcon className="size-3.5" />
-            Fork
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="ml-auto text-muted-foreground"
-            onClick={() => setReportOpen(true)}
-          >
-            <FlagIcon className="size-3.5" />
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleFork}
+                  disabled={forkSet.isPending}
+                >
+                  <CopyIcon className="size-3.5" />
+                  Copy to My Sets
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Creates an editable copy in your sets</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="ml-auto text-muted-foreground hover:text-destructive"
+                  onClick={() => setReportOpen(true)}
+                >
+                  <FlagIcon className="size-3.5" />
+                  <span className="sr-only">Report</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Report this set</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </CardFooter>
       </Card>
 
@@ -275,6 +217,7 @@ export function SetDiscoveryView() {
   const [inputValue, setInputValue] = useState('');
   const [query, setQuery] = useState('');
   const [difficulty, setDifficulty] = useState('any');
+  const [langFilter, setLangFilter] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -297,6 +240,7 @@ export function SetDiscoveryView() {
   const skip = (page - 1) * PAGE_SIZE;
   const { data, isLoading, isError, error } = usePublicSets({
     query: query || undefined,
+    source_lang_id: langFilter,
     skip,
     limit: PAGE_SIZE,
   });
@@ -308,36 +252,57 @@ export function SetDiscoveryView() {
   return (
     <div className="flex flex-col gap-6 p-6">
       <div>
-        <h1 className="text-2xl font-semibold">Discover Sets</h1>
+        <h1 className="text-2xl font-semibold">Discover</h1>
         <p className="text-sm text-muted-foreground">
-          Browse public vocabulary sets created by the community.
+          Browse public vocabulary sets and expressions created by the community.
         </p>
       </div>
 
+      <DiscoveryTabs />
+
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-          <Input
-            className="pl-8"
-            placeholder="Search sets…"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-          />
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap gap-3">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+            <Input
+              className="pl-8"
+              placeholder="Search sets…"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+            />
+          </div>
+
+          <Select value={difficulty} onValueChange={(v) => { setDifficulty(v); setPage(1); }}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DIFFICULTY_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        <Select value={difficulty} onValueChange={(v) => { setDifficulty(v); setPage(1); }}>
-          <SelectTrigger className="w-48">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {DIFFICULTY_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
+        {languages.length > 0 && (
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            size="sm"
+            spacing={1}
+            value={langFilter == null ? 'all' : String(langFilter)}
+            onValueChange={(v) => { setLangFilter(v === 'all' || v === '' ? null : Number(v)); setPage(1); }}
+            className="flex-wrap justify-start"
+          >
+            <ToggleGroupItem value="all">All languages</ToggleGroupItem>
+            {languages.map((l) => (
+              <ToggleGroupItem key={l.id} value={String(l.id)}>{l.name}</ToggleGroupItem>
             ))}
-          </SelectContent>
-        </Select>
+          </ToggleGroup>
+        )}
       </div>
 
       {/* Results */}
