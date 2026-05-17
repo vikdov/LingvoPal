@@ -9,6 +9,7 @@ import type { VocabMaturity, MaturityKey } from '../types/stats.types';
 interface Props {
   data: VocabMaturity | undefined;
   isLoading: boolean;
+  langLabel?: string;
 }
 
 const BUCKET_COLORS: Record<MaturityKey, string> = {
@@ -38,7 +39,7 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Toolti
   );
 }
 
-export function MaturityDonut({ data, isLoading }: Props) {
+export function MaturityDonut({ data, isLoading, langLabel }: Props) {
   const [expandedKey, setExpandedKey] = useState<MaturityKey | null>(null);
 
   function toggleBucket(key: MaturityKey) {
@@ -48,7 +49,9 @@ export function MaturityDonut({ data, isLoading }: Props) {
   return (
     <Card className="bg-card border-border">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold text-foreground">Vocabulary Maturity</CardTitle>
+        <CardTitle className="text-sm font-semibold text-foreground">
+          Vocabulary Maturity{langLabel ? <span className="text-muted-foreground font-normal"> · {langLabel}</span> : null}
+        </CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -101,15 +104,19 @@ export function MaturityDonut({ data, isLoading }: Props) {
                           className="shrink-0 w-2 h-2 rounded-full"
                           style={{ background: BUCKET_COLORS[bucket.key] }}
                         />
-                        <span className="font-mono text-[10px] text-muted-foreground w-14 shrink-0">{bucket.label}</span>
+                        <span className="font-mono text-xs text-muted-foreground w-16 shrink-0">{bucket.label}</span>
                         <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
                           <div
                             className="h-full rounded-full transition-all duration-500"
                             style={{ width: `${bucket.percent}%`, background: BUCKET_COLORS[bucket.key] }}
                           />
                         </div>
-                        <span className="font-mono text-[10px] text-foreground w-7 text-right shrink-0">
-                          {bucket.percent > 0 ? `${bucket.percent}%` : '—'}
+                        <span className="font-mono text-[10px] text-foreground w-10 text-right shrink-0">
+                          {bucket.count === 0
+                            ? '—'
+                            : data.total_items < 30
+                              ? `${bucket.count}w`
+                              : `${bucket.percent}%`}
                         </span>
                         {hasWords && (
                           <ChevronRight
@@ -139,8 +146,8 @@ export function MaturityDonut({ data, isLoading }: Props) {
               </div>
             </div>
 
-            <p className="font-mono text-[10px] text-muted-foreground">
-              {data.total_items} words tracked · click bucket to see words
+            <p className="font-mono text-xs text-muted-foreground">
+              {data.total_items} words tracked · click a category to expand
             </p>
           </div>
         )}

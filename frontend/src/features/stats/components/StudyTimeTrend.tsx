@@ -70,17 +70,18 @@ export function StudyTimeTrend({ data, days, isLoading }: Props) {
               <CartesianGrid vertical={false} stroke="var(--border)" strokeOpacity={0.5} />
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: 9, fontFamily: 'var(--font-mono)', fill: 'var(--color-muted-foreground)' }}
+                tick={{ fontSize: 11, fontFamily: 'var(--font-mono)', fill: 'var(--color-muted-foreground)' }}
                 tickLine={false}
                 axisLine={false}
                 interval={days <= 7 ? 0 : days <= 30 ? 6 : 13}
               />
               <YAxis
-                tick={{ fontSize: 9, fontFamily: 'var(--font-mono)', fill: 'var(--color-muted-foreground)' }}
+                tick={{ fontSize: 11, fontFamily: 'var(--font-mono)', fill: 'var(--color-muted-foreground)' }}
                 tickLine={false}
                 axisLine={false}
                 allowDecimals={false}
                 unit="m"
+                width={32}
               />
               <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--border)' }} />
               <Area

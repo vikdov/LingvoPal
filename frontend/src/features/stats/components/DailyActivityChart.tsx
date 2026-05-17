@@ -18,6 +18,7 @@ interface Props {
   selectedDays: number;
   onDaysChange: (days: number) => void;
   isLoading: boolean;
+  langLabel?: string;
 }
 
 const RANGES = [
@@ -88,14 +89,16 @@ function CustomTooltip({ active, payload, label }: {
   );
 }
 
-export function DailyActivityChart({ data, selectedDays, onDaysChange, isLoading }: Props) {
+export function DailyActivityChart({ data, selectedDays, onDaysChange, isLoading, langLabel }: Props) {
   const series = buildSeries(data, selectedDays);
 
   return (
     <Card className="bg-card border-border">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-4">
-          <CardTitle className="text-sm font-semibold text-foreground">Daily Activity</CardTitle>
+          <CardTitle className="text-sm font-semibold text-foreground">
+            Daily Activity{langLabel ? <span className="text-muted-foreground font-normal"> · {langLabel}</span> : null}
+          </CardTitle>
           <div className="flex items-center gap-1">
             {RANGES.map(({ label, days }) => (
               <button
@@ -124,13 +127,13 @@ export function DailyActivityChart({ data, selectedDays, onDaysChange, isLoading
                 <CartesianGrid vertical={false} stroke="var(--border)" strokeOpacity={0.6} />
                 <XAxis
                   dataKey="label"
-                  tick={{ fontSize: 9, fontFamily: 'var(--font-mono)', fill: 'var(--color-muted-foreground)' }}
+                  tick={{ fontSize: 11, fontFamily: 'var(--font-mono)', fill: 'var(--color-muted-foreground)' }}
                   tickLine={false}
                   axisLine={false}
                   interval={selectedDays <= 7 ? 0 : selectedDays <= 30 ? 6 : 13}
                 />
                 <YAxis
-                  tick={{ fontSize: 9, fontFamily: 'var(--font-mono)', fill: 'var(--color-muted-foreground)' }}
+                  tick={{ fontSize: 11, fontFamily: 'var(--font-mono)', fill: 'var(--color-muted-foreground)' }}
                   tickLine={false}
                   axisLine={false}
                   allowDecimals={false}
@@ -144,22 +147,27 @@ export function DailyActivityChart({ data, selectedDays, onDaysChange, isLoading
                   type="monotone"
                   stroke="var(--chart-1)"
                   strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 3 }}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  dot={(props: any) =>
+                    props.value > 0
+                      ? <circle key={props.index} cx={props.cx} cy={props.cy} r={3} fill="var(--chart-1)" stroke="none" />
+                      : <g key={props.index} />
+                  }
+                  activeDot={{ r: 4 }}
                 />
               </ComposedChart>
             </ResponsiveContainer>
 
             <div className="flex items-center gap-4 mt-3 flex-wrap">
-              <span className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
+              <span className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
                 <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: 'var(--chart-4)' }} />
                 correct
               </span>
-              <span className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
+              <span className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
                 <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: 'var(--destructive)', opacity: 0.6 }} />
                 incorrect
               </span>
-              <span className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
+              <span className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
                 <span className="inline-block w-2.5 h-1 rounded-full" style={{ background: 'var(--chart-1)' }} />
                 new words
               </span>
