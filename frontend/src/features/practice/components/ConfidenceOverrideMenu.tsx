@@ -10,9 +10,9 @@ interface Option {
 
 const OPTIONS: Option[] = [
   { value: 1, label: 'Blackout', color: 'text-destructive' },
-  { value: 2, label: 'Hard',     color: 'text-orange-500' },
-  { value: 4, label: 'Good',     color: 'text-emerald-500' },
-  { value: 5, label: 'Easy',     color: 'text-primary' },
+  { value: 2, label: 'Hard', color: 'text-orange-500' },
+  { value: 4, label: 'Good', color: 'text-emerald-500' },
+  { value: 5, label: 'Easy', color: 'text-primary' },
 ];
 
 interface ConfidenceOverrideMenuProps {

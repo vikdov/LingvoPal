@@ -25,6 +25,8 @@ export interface ItemHint {
   synonyms: string[];
   last_reviewed: string | null;
   translation_id: number | null;
+  creator_id: number | null;
+  item_status: string;
   // Cloze split — provided as strings to avoid Python code-point vs JS UTF-16 mismatch
   cloze_prefix: string | null;
   cloze_word: string | null;

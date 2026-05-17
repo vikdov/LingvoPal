@@ -1,32 +1,72 @@
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
-import { Volume2, ChevronRight } from 'lucide-react';
+import { Volume2, ArrowRightIcon, Flame } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { usePracticeStore } from '../store/practice.store';
-import type { AnswerLifecycle } from '../types/practice.types';
+import { useOverview, statKeys } from '@/features/stats/hooks/useStats';
+import { useLanguageStore } from '@/features/languages/store/language.store';
 
 const MOTIVATIONAL_MESSAGES = [
   'Writing words in context builds durable memory faster than flashcards.',
   'Every recall strengthens the neural pathway. You\'re building real retention.',
   'Active retrieval is the most powerful memory technique known to science.',
   'Mistakes are the fuel for long-term memory. Keep going.',
+  'Consistent short sessions beat occasional long ones every time.',
+  'Your brain consolidates this vocabulary while you sleep tonight.',
 ];
 
 function getMotivationalMessage(sessionId: number): string {
   return MOTIVATIONAL_MESSAGES[sessionId % MOTIVATIONAL_MESSAGES.length];
 }
 
-function wordColor(lifecycle: AnswerLifecycle, isCorrect: boolean): string {
-  if (lifecycle === 'correct') return 'text-foreground';
-  if (lifecycle === 'corrected') return 'text-amber-600';
-  // 'retrying' (abandoned mid-retype) or is_correct=false
-  if (!isCorrect) return 'text-red-500';
-  return 'text-foreground';
+function getMilestoneLabel(streak: number): string | null {
+  if (streak === 1) return 'First day!';
+  if (streak === 3) return '3-day streak';
+  if (streak === 7) return '1 week streak';
+  if (streak === 14) return '2 week streak';
+  if (streak === 30) return '1 month streak';
+  if (streak === 100) return '100 days!';
+  if (streak > 0 && streak % 50 === 0) return `${streak} days!`;
+  return null;
+}
+
+// Per-character coloring: correctly typed chars → navy, wrong/missing → orange
+function WordChars({ answer, userAnswer }: { answer: string; userAnswer: string }) {
+  return (
+    <>
+      {answer.split('').map((char, i) => {
+        const typed = userAnswer?.[i];
+        const correct = typed !== undefined && typed.toLowerCase() === char.toLowerCase();
+        return (
+          <span key={i} className={correct ? 'text-navy' : 'text-orange-500'}>
+            {char}
+          </span>
+        );
+      })}
+    </>
+  );
 }
 
 export function SessionSummaryView() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const store = usePracticeStore();
   const { summary, items, answers, reset } = store;
+  const { data: overview } = useOverview();
+  const activeLanguageId = useLanguageStore((s) => s.activeLanguageId);
+
+  const activeLang = overview?.languages.find((l) => l.language_id === activeLanguageId);
+  const streak = activeLang?.streak_days ?? 0;
+  const milestoneLabel = getMilestoneLabel(streak);
+
+  // Invalidate stats so dashboard/nav badge update after session
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: statKeys.overview() });
+    queryClient.invalidateQueries({ queryKey: statKeys.totals() });
+    if (store.sourceLangId) {
+      queryClient.invalidateQueries({ queryKey: statKeys.vocabMaturity(store.sourceLangId) });
+    }
+  }, [queryClient, store.sourceLangId]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -34,14 +74,11 @@ export function SessionSummaryView() {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  // handleContinue is stable (no deps change), inline deps would cause loop
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.setId, store.practiceAllMode, store.sourceLangId]);
 
   function handlePlayAudio(url: string) {
-    try {
-      new Audio(url).play().catch(() => {});
-    } catch { /* ignore */ }
+    try { new Audio(url).play().catch(() => {}); } catch { /* ignore */ }
   }
 
   function handleContinue() {
@@ -61,100 +98,109 @@ export function SessionSummaryView() {
     navigate('/dashboard');
   }
 
-  function handlePracticeMistakes() {
-    reset();
-    navigate('/sets');
-  }
-
   const newWordsCount = items.filter((i) => i.last_reviewed === null).length;
-  const correctedCount = Object.values(answers).filter(
-    (a) => a.lifecycle === 'corrected',
-  ).length;
-  const hasMistakes = (summary?.leech_item_ids.length ?? 0) > 0;
+  const correctedCount = Object.values(answers).filter((a) => a.lifecycle === 'corrected').length;
   const accuracyPct = summary ? Math.round(summary.accuracy * 100) : 0;
 
   return (
-    <div className="relative flex flex-col items-center px-6 py-12 gap-8 min-h-[calc(100vh-3rem)]">
-      {/* Accuracy headline */}
-      <div className="flex flex-col items-center gap-1 text-center">
-        <h1 className="text-4xl font-bold">{accuracyPct}% accuracy</h1>
-        <p className="text-sm text-muted-foreground">
-          {summary?.total_reviewed ?? 0} reviewed
-          {newWordsCount > 0 && ` · ${newWordsCount} new`}
-          {correctedCount > 0 && ` · ${correctedCount} corrected after retry`}
-        </p>
-      </div>
+    <div className="flex flex-col min-h-screen bg-muted">
+      <div className="flex-1 flex flex-col items-center justify-center px-8 py-16 gap-10">
 
-      {/* Word list */}
-      {items.length > 0 && (
-        <div className="w-full max-w-2xl">
-          <div className="columns-1 sm:columns-2 lg:columns-3 gap-x-6 gap-y-2">
-            {items.map((item) => {
-              const answer = answers[item.item_id];
-              const lifecycle: AnswerLifecycle = answer?.lifecycle ?? 'retrying';
-              const isCorrect = answer?.isCorrect ?? false;
-              const translation = item.prompt || item.synonyms.slice(0, 3).join(', ');
-              const color = wordColor(lifecycle, isCorrect);
-
-              return (
-                <div key={item.item_id} className="flex items-baseline gap-2 py-1 break-inside-avoid">
-                  {item.audio_url && (
-                    <button
-                      onClick={() => handlePlayAudio(item.audio_url!)}
-                      className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-                      aria-label={`Play ${item.answer}`}
-                    >
-                      <Volume2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                  <span className={`font-semibold ${color}`}>{item.answer}</span>
-                  <span className="text-muted-foreground text-sm shrink-0">—</span>
-                  <span className="text-sm text-muted-foreground truncate">{translation}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Motivational message */}
-      {summary && (
-        <div className="flex flex-col items-center gap-3 text-center max-w-xs">
-          <div className="flex items-center gap-3 w-full">
-            <span className="flex-1 h-px bg-border" />
-            <span className="text-lg">📖</span>
-            <span className="flex-1 h-px bg-border" />
-          </div>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            {getMotivationalMessage(summary.session_id)}
+        {/* Accuracy headline */}
+        <div className="flex flex-col items-center gap-2 text-center">
+          <h1 className="text-6xl font-bold text-navy">{accuracyPct}% accuracy</h1>
+          <p className="text-base text-navy">
+            {newWordsCount > 0 && <><span className="font-bold">{newWordsCount}</span> new · </>}
+            <span className="font-bold">{summary?.total_reviewed ?? 0}</span> reviewed
+            {correctedCount > 0 && <> · <span className="font-bold">{correctedCount}</span> corrected</>}
           </p>
         </div>
-      )}
 
-      {/* Bottom actions */}
-      <div className="absolute bottom-6 left-6 right-6 flex items-end justify-between">
-        <div className="flex flex-col gap-2">
-          {hasMistakes && (
-            <button
-              onClick={handlePracticeMistakes}
-              className="text-sm text-primary hover:underline text-left"
-            >
-              Practice mistakes →
-            </button>
-          )}
-          <button
-            onClick={handleExit}
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
-          >
-            Exit
-          </button>
-        </div>
+        {/* Streak indicator */}
+        {streak > 0 && (
+          <div className="flex flex-col items-center gap-1">
+            <div className="flex items-center gap-1.5 text-orange-500">
+              <Flame className="size-5" />
+              <span className="text-lg font-bold">{streak} day streak</span>
+            </div>
+            {milestoneLabel && (
+              <span className="text-xs font-mono text-orange-400 uppercase tracking-widest">
+                {milestoneLabel}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Word list — 3 columns */}
+        {items.length > 0 && (
+          <div className="w-full max-w-5xl">
+            <div className="columns-1 sm:columns-2 lg:columns-3 gap-x-12 gap-y-1">
+              {items.map((item) => {
+                const answer = answers[item.item_id];
+                const userAnswer = answer?.userAnswer ?? '';
+                const isFullyCorrect = answer?.isCorrect ?? false;
+                const translation = item.prompt || item.synonyms.slice(0, 3).join(', ');
+
+                return (
+                  <div key={item.item_id} className="flex items-baseline gap-1.5 py-1.5 break-inside-avoid">
+                    {item.audio_url ? (
+                      <button
+                        onClick={() => handlePlayAudio(item.audio_url!)}
+                        className="shrink-0 text-navy hover:opacity-70 transition-opacity"
+                        aria-label={`Play ${item.answer}`}
+                      >
+                        <Volume2 className="w-3.5 h-3.5" />
+                      </button>
+                    ) : (
+                      <span className="w-3.5 shrink-0" />
+                    )}
+                    <span className="font-semibold text-base">
+                      {isFullyCorrect
+                        ? <span className="text-navy">{item.answer}</span>
+                        : <WordChars answer={item.answer} userAnswer={userAnswer} />
+                      }
+                    </span>
+                    <span className="text-navy text-base shrink-0">—</span>
+                    <span className="text-base text-navy">{translation}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Divider + motivational message */}
+        {summary && (
+          <div className="flex flex-col items-center gap-3 text-center max-w-sm">
+            <div className="flex items-center gap-3 w-full">
+              <span className="flex-1 h-px bg-orange-400" />
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-orange-400">
+                <path d="M2 6c0-1.1.9-2 2-2h7a3 3 0 0 1 3 3v13a1.5 1.5 0 0 0-1.5-1.5H4a2 2 0 0 1-2-2V6Z" />
+                <path d="M22 6c0-1.1-.9-2-2-2h-7a3 3 0 0 0-3 3v13a1.5 1.5 0 0 1 1.5-1.5H20a2 2 0 0 0 2-2V6Z" />
+              </svg>
+              <span className="flex-1 h-px bg-orange-400" />
+            </div>
+            <p className="text-base text-navy leading-relaxed">
+              {getMotivationalMessage(summary.session_id)}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom actions — flex row, no absolute positioning */}
+      <div className="flex items-center justify-between px-6 pb-6 pt-2 shrink-0">
+        <button
+          onClick={handleExit}
+          className="text-sm font-semibold text-navy underline underline-offset-2 hover:opacity-60 transition-opacity"
+        >
+          Exit
+        </button>
         <button
           onClick={handleContinue}
-          className="flex items-center justify-center w-12 h-12 rounded-full bg-foreground text-background shadow-md hover:opacity-80 active:scale-95 transition-all"
           aria-label="Continue practicing"
+          className="flex items-center justify-center w-12 h-12 rounded-full bg-navy text-white shadow-md hover:opacity-80 active:scale-95 transition-all duration-150"
         >
-          <ChevronRight className="w-5 h-5" />
+          <ArrowRightIcon className="w-5 h-5" strokeWidth={2.5} />
         </button>
       </div>
     </div>

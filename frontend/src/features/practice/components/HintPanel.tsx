@@ -23,22 +23,25 @@ function renderContextTrans(text: string, colorClass: string) {
 
 export function HintPanel({ item, config, lifecycle, posColorClass }: HintPanelProps) {
   const unanswered = lifecycle === 'unanswered';
+  const retrying = lifecycle === 'retrying';
   const correct = lifecycle === 'correct' || lifecycle === 'corrected';
   const color = posColorClass ?? 'text-muted-foreground';
 
-  if (unanswered) {
+  if (unanswered || (retrying && config.show_hints_on_fails)) {
     const hasSynonyms = config.show_synonyms && item.synonyms.length > 0;
     const hasTranslation = config.show_translations && item.prompt;
 
     if (!hasSynonyms && !hasTranslation) return null;
 
     return (
-      <div className="flex flex-col items-center gap-1 text-sm text-muted-foreground">
-        {hasSynonyms && (
-          <p>{item.synonyms.slice(0, 3).join(', ')}</p>
-        )}
+      <div className="flex flex-col items-center gap-1.5">
         {hasTranslation && (
-          <p className={`text-xs ${color}`}>({item.prompt})</p>
+          <p className={`text-base font-semibold ${color}`}>{item.prompt}</p>
+        )}
+        {hasSynonyms && (
+          <p className="text-sm font-semibold text-navy">
+            ( {item.synonyms.slice(0, 3).join(', ')} )
+          </p>
         )}
       </div>
     );
@@ -46,12 +49,11 @@ export function HintPanel({ item, config, lifecycle, posColorClass }: HintPanelP
 
   if (correct && item.context_trans) {
     return (
-      <p className="text-sm text-muted-foreground text-center max-w-sm">
+      <p className="text-sm font-semibold text-muted-foreground text-center max-w-sm">
         {renderContextTrans(item.context_trans, color)}
       </p>
     );
   }
 
-  // retrying — show nothing; user must recall without hints
   return null;
 }

@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 interface NavigationControlsProps {
   visible: boolean;
@@ -8,9 +7,6 @@ interface NavigationControlsProps {
 }
 
 export function NavigationControls({ visible, onNext }: NavigationControlsProps) {
-  // Keyboard ownership rule: when input is not active (lifecycle resolved),
-  // Enter here advances to the next item. Input's own keydown stops propagation
-  // so these two handlers never fire simultaneously.
   useEffect(() => {
     if (!visible) return;
     function handleKey(e: KeyboardEvent) {
@@ -27,13 +23,9 @@ export function NavigationControls({ visible, onNext }: NavigationControlsProps)
     <button
       onClick={onNext}
       aria-label="Next expression"
-      className={cn(
-        'flex items-center justify-center w-12 h-12 rounded-full transition-all duration-200',
-        'bg-foreground text-background shadow-md hover:opacity-80 active:scale-95',
-        visible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none',
-      )}
+      className="flex items-center justify-center w-12 h-12 rounded-full bg-navy text-white hover:opacity-80 active:scale-95 transition-all duration-150 shadow-md"
     >
-      <ChevronRight className="w-5 h-5" />
+      <ChevronRight className="w-5 h-5" strokeWidth={2.5} />
     </button>
   );
 }
