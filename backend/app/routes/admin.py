@@ -157,6 +157,49 @@ async def reject_moderation(
         _handle(exc)
 
 
+@router.delete(
+    "/items/{item_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Admin force-delete an item",
+    description=(
+        "Soft-deletes the item regardless of ownership. "
+        "Automatically rejects any pending moderation entry for the item, "
+        "with the provided reason shown to the creator."
+    ),
+)
+async def admin_delete_item(
+    item_id: int,
+    admin: AdminUser,
+    svc: ModerationServiceDep,
+    reason: str = Query(..., min_length=1, max_length=500, description="Removal reason shown to creator"),
+) -> None:
+    try:
+        await svc.admin_delete_item(admin.id, item_id, reason)
+    except LingvoPalError as exc:
+        _handle(exc)
+
+
+@router.delete(
+    "/sets/{set_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Admin force-delete a set",
+    description=(
+        "Soft-deletes the set regardless of ownership. "
+        "Automatically rejects any pending moderation entry for the set."
+    ),
+)
+async def admin_delete_set(
+    set_id: int,
+    admin: AdminUser,
+    svc: ModerationServiceDep,
+    reason: str = Query(..., min_length=1, max_length=500, description="Removal reason shown to creator"),
+) -> None:
+    try:
+        await svc.admin_delete_set(admin.id, set_id, reason)
+    except LingvoPalError as exc:
+        _handle(exc)
+
+
 @router.post(
     "/items/{item_id}/promote",
     response_model=ItemResponse,
@@ -231,6 +274,23 @@ async def list_complaints(
     data = [ComplaintResponse.model_validate(e) for e in entries]
     page = skip // limit + 1 if limit else 1
     return PaginatedResponse(data=data, total=total, page=page, page_size=limit)
+
+
+@router.delete(
+    "/complaints/{complaint_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Dismiss a complaint",
+    description="Permanently removes the complaint record. Reduces complaint count for the target.",
+)
+async def dismiss_complaint(
+    complaint_id: int,
+    admin: AdminUser,
+    svc: ModerationServiceDep,
+) -> None:
+    try:
+        await svc.dismiss_complaint(admin.id, complaint_id)
+    except LingvoPalError as exc:
+        _handle(exc)
 
 
 @router.get(

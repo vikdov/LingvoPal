@@ -176,6 +176,14 @@ class ModerationService:
         total = await self._mod.count_by_creator(user_id)
         return entries, total
 
+    async def get_latest_for_target(
+        self,
+        user_id: int,
+        target_type: ModerationTargetType,
+        target_id: int,
+    ) -> PendingModeration | None:
+        return await self._mod.get_latest_for_creator_and_target(user_id, target_type, target_id)
+
     async def get_my_submission(self, user_id: int, moderation_id: int) -> PendingModeration:
         entry = await self._mod.get_by_id(moderation_id)
         if not entry or entry.creator_id != user_id:
@@ -504,6 +512,69 @@ class ModerationService:
         ))
         total = await self._complaints.count_all(target_type=target_type)
         return entries, total
+
+    # ------------------------------------------------------------------
+    # ADMIN: Force-delete content
+    # ------------------------------------------------------------------
+
+    async def admin_delete_item(self, admin_id: int, item_id: int, reason: str) -> None:
+        """
+        Permanently soft-deletes an item regardless of owner.
+        Resolves any pending moderation entry for the item.
+        """
+        item = await self._items.get_by_id(item_id)
+        if not item:
+            raise ResourceNotFoundError("Item", item_id)
+        pending = await self._mod.get_active_for_target(ModerationTargetType.ITEM, item_id)
+        if pending:
+            await self._mod.resolve(
+                pending.id,
+                moderator_id=admin_id,
+                status=ModerationStatus.REJECTED,
+                resolution_feedback=f"Content removed by admin: {reason}",
+            )
+        await self._items.soft_delete(item_id)
+        await self._audit.log(
+            "items", item_id, "DELETE", user_id=admin_id,
+            old_values={"status": item.status.value, "reason": reason},
+        )
+        await self._session.commit()
+
+    async def admin_delete_set(self, admin_id: int, set_id: int, reason: str) -> None:
+        """
+        Permanently soft-deletes a set regardless of owner.
+        Resolves any pending moderation entry for the set.
+        """
+        s = await self._sets.get_by_id(set_id)
+        if not s:
+            raise ResourceNotFoundError("Set", set_id)
+        pending = await self._mod.get_active_for_target(ModerationTargetType.SET, set_id)
+        if pending:
+            await self._mod.resolve(
+                pending.id,
+                moderator_id=admin_id,
+                status=ModerationStatus.REJECTED,
+                resolution_feedback=f"Content removed by admin: {reason}",
+            )
+        await self._sets.soft_delete(set_id)
+        await self._audit.log(
+            "sets", set_id, "DELETE", user_id=admin_id,
+            old_values={"status": s.status.value, "reason": reason},
+        )
+        await self._session.commit()
+
+    async def dismiss_complaint(self, admin_id: int, complaint_id: int) -> None:
+        complaint = await self._complaints.get_by_id(complaint_id)
+        if not complaint:
+            raise ResourceNotFoundError("Complaint", complaint_id)
+        deleted = await self._complaints.delete_by_id(complaint_id)
+        if not deleted:
+            raise ResourceNotFoundError("Complaint", complaint_id)
+        await self._audit.log(
+            "content_complaints", complaint_id, "DELETE", user_id=admin_id,
+            old_values={"target_type": complaint.target_type.value, "target_id": complaint.target_id},
+        )
+        await self._session.commit()
 
     # ------------------------------------------------------------------
     # ADMIN: Audit log

@@ -3,10 +3,12 @@
 User-facing moderation routes.
 
 Routes:
-  POST /api/v1/moderation/sets/{set_id}/submit   — submit a set for review
-  POST /api/v1/moderation/items/{item_id}/submit — submit an item for review
-  GET  /api/v1/moderation/my                     — list own submissions
-  GET  /api/v1/moderation/{moderation_id}        — view a specific submission
+  POST /api/v1/moderation/sets/{set_id}/submit     — submit a set for review
+  POST /api/v1/moderation/items/{item_id}/submit   — submit an item for review
+  GET  /api/v1/moderation/sets/{set_id}/latest     — latest submission for a set
+  GET  /api/v1/moderation/items/{item_id}/latest   — latest submission for an item
+  GET  /api/v1/moderation/my                       — list own submissions
+  GET  /api/v1/moderation/{moderation_id}          — view a specific submission
 """
 
 from typing import NoReturn
@@ -14,6 +16,7 @@ from typing import NoReturn
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.dependencies import CurrentUser, ModerationServiceDep
+from app.models.enums import ModerationTargetType
 from app.core.exceptions import (
     BusinessRuleViolationError,
     ContentValidationError,
@@ -96,6 +99,38 @@ async def submit_item_for_review(
         return ModerationSubmissionResponse.model_validate(entry)
     except LingvoPalError as exc:
         _handle(exc)
+
+
+@router.get(
+    "/sets/{set_id}/latest",
+    response_model=ModerationSubmissionResponse | None,
+    summary="Get latest moderation submission for a set",
+)
+async def get_latest_set_submission(
+    set_id: int,
+    user: CurrentUser,
+    svc: ModerationServiceDep,
+) -> ModerationSubmissionResponse | None:
+    entry = await svc.get_latest_for_target(user.id, ModerationTargetType.SET, set_id)
+    if not entry:
+        return None
+    return ModerationSubmissionResponse.model_validate(entry)
+
+
+@router.get(
+    "/items/{item_id}/latest",
+    response_model=ModerationSubmissionResponse | None,
+    summary="Get latest moderation submission for an item",
+)
+async def get_latest_item_submission(
+    item_id: int,
+    user: CurrentUser,
+    svc: ModerationServiceDep,
+) -> ModerationSubmissionResponse | None:
+    entry = await svc.get_latest_for_target(user.id, ModerationTargetType.ITEM, item_id)
+    if not entry:
+        return None
+    return ModerationSubmissionResponse.model_validate(entry)
 
 
 @router.get(
