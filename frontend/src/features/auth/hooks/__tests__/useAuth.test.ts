@@ -63,6 +63,7 @@ describe('useAuth', () => {
   it('login calls api then setAuth', async () => {
     vi.mocked(authApi.login).mockResolvedValue({
       access_token: 'tok123',
+      refresh_token: 'ref123',
       token_type: 'bearer',
       expires_in: 3600,
       user: mockUser,
@@ -74,12 +75,13 @@ describe('useAuth', () => {
       expect(user).toEqual(mockUser);
     });
 
-    expect(mockSetAuth).toHaveBeenCalledWith('tok123', mockUser);
+    expect(mockSetAuth).toHaveBeenCalledWith('tok123', 'ref123', mockUser);
   });
 
   it('signup calls api then setAuth', async () => {
     vi.mocked(authApi.signup).mockResolvedValue({
       access_token: 'tok456',
+      refresh_token: 'ref456',
       token_type: 'bearer',
       expires_in: 3600,
       user: mockUser,
@@ -95,7 +97,7 @@ describe('useAuth', () => {
       });
     });
 
-    expect(mockSetAuth).toHaveBeenCalledWith('tok456', mockUser);
+    expect(mockSetAuth).toHaveBeenCalledWith('tok456', 'ref456', mockUser);
   });
 
   it('logout clears auth even when server call fails', async () => {

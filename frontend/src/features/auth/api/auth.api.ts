@@ -1,4 +1,4 @@
-import { api } from '@/services/api';
+import { api, rawPost } from '@/services/api';
 import type {
   LoginRequest,
   SignupRequest,
@@ -6,6 +6,7 @@ import type {
   TokenResponse,
   ForgotPasswordRequest,
   ResetPasswordRequest,
+  RefreshResponse,
 } from '../types/auth.types';
 
 export const authApi = {
@@ -15,8 +16,10 @@ export const authApi = {
   signup: (body: SignupRequest) =>
     api.post<TokenResponse>('/auth/signup', body),
 
-  // POST /auth/logout is stateless (server just validates the token).
-  // clearAuth() in the store does the real work client-side.
+  refresh: (refreshToken: string) =>
+    rawPost<RefreshResponse>('/auth/refresh', { refresh_token: refreshToken }),
+
+  // POST /auth/logout is now stateful — revokes refresh token server-side.
   logout: () => api.post<undefined>('/auth/logout'),
 
   changePassword: (body: PasswordChangeRequest) =>
