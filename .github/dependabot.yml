@@ -1,0 +1,73 @@
+version: 2
+
+updates:
+  # ---------------------------------------------------------------------------
+  # GitHub Actions
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - ci
+
+  # ---------------------------------------------------------------------------
+  # Frontend (npm)
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      react:
+        patterns:
+          - react
+          - react-dom
+          - "@types/react*"
+      tanstack:
+        patterns:
+          - "@tanstack/*"
+      radix:
+        patterns:
+          - "@radix-ui/*"
+      dev-tooling:
+        patterns:
+          - eslint*
+          - typescript*
+          - vite*
+          - tailwindcss*
+          - vitest*
+          - "@vitejs/*"
+    labels:
+      - dependencies
+      - frontend
+
+  # ---------------------------------------------------------------------------
+  # Backend (pip / uv)
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      fastapi:
+        patterns:
+          - fastapi
+          - uvicorn*
+          - starlette*
+      pydantic:
+        patterns:
+          - pydantic*
+      sqlalchemy:
+        patterns:
+          - sqlalchemy*
+          - alembic*
+    labels:
+      - dependencies
+      - backend
