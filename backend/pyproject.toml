@@ -21,7 +21,7 @@ dependencies = [
     "uvicorn>=0.40.0",
     "python-dotenv>=1.0",
     "pydantic[email]>=2.12.5",
-    "bcrypt==4.3.0",
+    "bcrypt==5.0.0",
     "aioboto3>=15.5.0",
     "aiosmtplib>=5.1.0",
     "langdetect>=1.0.9",
