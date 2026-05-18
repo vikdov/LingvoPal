@@ -10,7 +10,6 @@ Test groups:
     deduplication, None context handling
 """
 
-import pytest
 
 from app.services.hashing import compute_item_content_hash
 
