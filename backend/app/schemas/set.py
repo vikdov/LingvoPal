@@ -9,7 +9,6 @@ from app.models.enums import ContentStatus
 from app.schemas.common import BaseResponseWithUpdated
 from app.schemas.language import LanguageResponse
 
-
 # ============================================================================
 # REQUEST SCHEMAS
 # ============================================================================

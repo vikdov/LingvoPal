@@ -5,7 +5,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-
 # ── Comparison config (sent at session start, consumed by frontend) ───────────
 
 

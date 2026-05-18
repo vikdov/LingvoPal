@@ -12,10 +12,10 @@ from app.database import Base, SoftDeleteTimestampMixin
 from app.models.enums import ContentStatus, PartOfSpeech
 
 if TYPE_CHECKING:
-    from app.models.language import Language
-    from app.models.user import User
-    from app.models.translation import Translation
     from app.models.item_quality_metrics import ItemQualityMetrics
+    from app.models.language import Language
+    from app.models.translation import Translation
+    from app.models.user import User
 
 
 class Item(Base, SoftDeleteTimestampMixin):

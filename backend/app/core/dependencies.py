@@ -11,36 +11,37 @@ Dependency injection for:
 
 from typing import Annotated, AsyncGenerator
 
+import redis.asyncio as aioredis
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings, Settings
-from app.database.session import get_db
-from app.services.stats_service import StatsService
-from app.database.session_utils import set_db_current_user
-from app.models.user import User
-from app.models.enums import UserRole
-import redis.asyncio as aioredis
-
-from app.services.auth_service import AuthService
-from app.services.email_service import EmailService
-from app.services.email_verification_service import EmailVerificationService
-from app.services.item_service import ItemService
-from app.services.moderation_service import ModerationService
-from app.services.complaint_service import ComplaintService
-from app.services.password_reset_service import PasswordResetService
-from app.services.practice_service import PracticeService
-from app.services.set_service import SetService
-from app.services.storage import StorageService
-from app.services.user_settings_service import UserSettingsService
-from app.services.item_suggestion_service import ItemSuggestionService
+from app.core.config import Settings, get_settings
 from app.core.security import (
-    decode_token as decode_access_token,
     TokenExpiredError,
     TokenInvalidError,
 )
+from app.core.security import (
+    decode_token as decode_access_token,
+)
+from app.database.session import get_db
+from app.database.session_utils import set_db_current_user
+from app.models.enums import UserRole
+from app.models.user import User
+from app.services.auth_service import AuthService
+from app.services.complaint_service import ComplaintService
+from app.services.email_service import EmailService
+from app.services.email_verification_service import EmailVerificationService
+from app.services.item_service import ItemService
+from app.services.item_suggestion_service import ItemSuggestionService
+from app.services.moderation_service import ModerationService
+from app.services.password_reset_service import PasswordResetService
+from app.services.practice_service import PracticeService
+from app.services.set_service import SetService
+from app.services.stats_service import StatsService
+from app.services.storage import StorageService
+from app.services.user_settings_service import UserSettingsService
 
 # ============================================================================
 # OAuth2 Scheme
@@ -292,6 +293,13 @@ async def get_password_reset_service(
     return PasswordResetService(redis)
 
 
+async def get_email_change_service(
+    redis: Annotated[aioredis.Redis, Depends(get_redis_client)],
+) -> "EmailChangeService":
+    from app.services.email_change_service import EmailChangeService
+    return EmailChangeService(redis)
+
+
 def get_email_service() -> EmailService:
     return EmailService(get_settings())
 
@@ -322,6 +330,7 @@ EmailVerifServiceDep = Annotated[
 PasswordResetServiceDep = Annotated[
     PasswordResetService, Depends(get_password_reset_service)
 ]
+EmailChangeServiceDep = Annotated["EmailChangeService", Depends(get_email_change_service)]
 EmailServiceDep = Annotated[EmailService, Depends(get_email_service)]
 RedisDep = Annotated[aioredis.Redis, Depends(get_redis_client)]
 RefreshTokenServiceDep = Annotated["RefreshTokenService", Depends(get_refresh_token_service)]
@@ -363,6 +372,7 @@ __all__ = [
     "StorageDep",
     "EmailVerifServiceDep",
     "PasswordResetServiceDep",
+    "EmailChangeServiceDep",
     "EmailServiceDep",
     "RedisDep",
     "ItemSuggestionServiceDep",

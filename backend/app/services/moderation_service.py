@@ -334,10 +334,10 @@ class ModerationService:
         admin can bypass them. Always raises InvalidStateTransitionError
         if item is not APPROVED.
         """
-        from app.core.config import get_settings
-        from app.repositories.quality_repo import QualityRepository
-        from app.models.item_quality_metrics import ItemQualityMetrics
         from sqlalchemy import select
+
+        from app.core.config import get_settings
+        from app.models.item_quality_metrics import ItemQualityMetrics
 
         item = await self._items.get_by_id(item_id)
         if not item:
@@ -381,11 +381,11 @@ class ModerationService:
         self, skip: int = 0, limit: int = 20
     ) -> list:
         """Return APPROVED items whose quality metrics meet OFFICIAL thresholds."""
-        from app.core.config import get_settings
-        from app.repositories.quality_repo import QualityRepository
-        from app.models.item_quality_metrics import ItemQualityMetrics
-        from app.models.item import Item
         from sqlalchemy import select
+
+        from app.core.config import get_settings
+        from app.models.item import Item
+        from app.models.item_quality_metrics import ItemQualityMetrics
 
         settings = get_settings()
         result = await self._session.execute(
@@ -411,7 +411,9 @@ class ModerationService:
     # ------------------------------------------------------------------
 
     async def get_overview_stats(self) -> dict:
-        from sqlalchemy import select, func as sql_func
+        from sqlalchemy import func as sql_func
+        from sqlalchemy import select
+
         from app.models.item import Item
 
         community_count = (await self._session.execute(
@@ -443,6 +445,7 @@ class ModerationService:
         limit: int = 20,
     ) -> tuple[list, int]:
         from sqlalchemy import select
+
         from app.models.item_quality_metrics import ItemQualityMetrics
         from app.schemas.moderation import (
             AdminModerationResponse,

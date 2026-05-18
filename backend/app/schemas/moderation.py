@@ -10,11 +10,10 @@ Lifecycle:
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.enums import ModerationTargetType, ModerationStatus
+from app.models.enums import ModerationStatus, ModerationTargetType
 from app.schemas.common import BaseResponse
-
 
 # ============================================================================
 # USER INPUT SCHEMAS

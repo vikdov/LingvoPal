@@ -11,10 +11,10 @@ from app.database import Base, SoftDeleteTimestampMixin
 from app.models.enums import ContentStatus
 
 if TYPE_CHECKING:
-    from app.models.language import Language
-    from app.models.user import User
-    from app.models.set_item import SetItem
     from app.models.item import Item
+    from app.models.language import Language
+    from app.models.set_item import SetItem
+    from app.models.user import User
 
 
 class Set(Base, SoftDeleteTimestampMixin):

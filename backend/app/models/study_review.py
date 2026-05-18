@@ -5,18 +5,18 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, ForeignKey, Index, text
-from sqlalchemy.sql import func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
 
 from app.database import Base
 
 if TYPE_CHECKING:
-    from app.models.user import User
     from app.models.item import Item
     from app.models.language import Language
-    from app.models.translation import Translation
     from app.models.set import Set
     from app.models.study_session import StudySession
+    from app.models.translation import Translation
+    from app.models.user import User
 
 
 class StudyReview(Base):

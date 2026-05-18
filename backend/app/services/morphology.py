@@ -92,7 +92,6 @@ _IRREGULAR: dict[str, frozenset[str]] = {
     "wake":       frozenset({"wakes", "woke", "woken", "waking"}),
     "hang":       frozenset({"hangs", "hung", "hanging"}),
     "lay":        frozenset({"lays", "laid", "laying"}),
-    "rise":       frozenset({"rises", "rose", "risen", "rising"}),
     "child":      frozenset({"children"}),
     "person":     frozenset({"people"}),
     "man":        frozenset({"men"}),

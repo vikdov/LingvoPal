@@ -9,18 +9,17 @@ Response: What API returns (token + user info)
 from typing import Annotated
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
     ConfigDict,
     EmailStr,
     Field,
     field_validator,
-    AfterValidator,
 )
 
 from app.core.exceptions import AuthErrorCode
 from app.core.security import validate_password_strength
 from app.schemas.user import UserPrivateResponse
-
 
 # ============================================================================
 # REUSABLE ANNOTATED TYPES

@@ -16,9 +16,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.security import encode_token, hash_password, verify_password
-from app.models.user import User
-from app.models.language import Language
 from app.core.exceptions import (
     AlreadyVerifiedError,
     EmailAlreadyExistsError,
@@ -28,11 +25,11 @@ from app.core.exceptions import (
     UsernameAlreadyExistsError,
     VerificationTokenInvalidError,
 )
-from app.models.user import UserSettings
-from app.repositories.user_repo import UserRepository
+from app.core.security import encode_token, hash_password, verify_password
+from app.models.language import Language
+from app.models.user import User, UserSettings
 from app.repositories.user_language_repo import UserLanguageRepository
-from app.services.refresh_token_service import RefreshTokenService
-from app.services.user_settings_service import UserSettingsService
+from app.repositories.user_repo import UserRepository
 from app.schemas.auth import (
     LoginRequest,
     PasswordChangeRequest,
@@ -41,6 +38,8 @@ from app.schemas.auth import (
     TokenResponse,
 )
 from app.schemas.user import UserPrivateResponse
+from app.services.refresh_token_service import RefreshTokenService
+from app.services.user_settings_service import UserSettingsService
 
 settings = get_settings()
 

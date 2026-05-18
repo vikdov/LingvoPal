@@ -12,9 +12,9 @@ from sqlalchemy import Float, case, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.item import Item
+from app.models.study_review import StudyReview
 from app.models.user_daily_stats import UserDailyStats
 from app.models.user_stats_total import UserStatsTotal
-from app.models.study_review import StudyReview
 
 
 def interval_to_bucket_key(interval: int) -> str:
@@ -225,8 +225,8 @@ class StatsRepository:
     # ── Vocabulary maturity ───────────────────────────────────────────────────
 
     async def get_vocab_maturity(self, user_id: int, language_id: int) -> dict:
-        from app.models.user_progress import UserProgress
         from app.models.item import Item
+        from app.models.user_progress import UserProgress
 
         now = datetime.now(timezone.utc)
         month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
@@ -319,9 +319,9 @@ class StatsRepository:
     # ── Set context stats ─────────────────────────────────────────────────────
 
     async def get_set_context(self, user_id: int, set_id: int) -> dict:
+        from app.models.item import Item
         from app.models.set_item import SetItem
         from app.models.user_progress import UserProgress
-        from app.models.item import Item
 
         # All items in the set
         set_items_result = await self._session.execute(

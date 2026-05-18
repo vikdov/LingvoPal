@@ -16,7 +16,6 @@ from typing import NoReturn
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.dependencies import CurrentUser, ModerationServiceDep
-from app.models.enums import ModerationTargetType
 from app.core.exceptions import (
     BusinessRuleViolationError,
     ContentValidationError,
@@ -25,6 +24,7 @@ from app.core.exceptions import (
     NotAuthorizedError,
     ResourceNotFoundError,
 )
+from app.models.enums import ModerationTargetType
 from app.schemas.common import PaginatedResponse
 from app.schemas.moderation import ModerationSubmissionResponse, SubmitForReviewRequest
 

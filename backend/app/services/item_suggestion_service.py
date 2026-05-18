@@ -8,7 +8,7 @@ import logging
 from typing import TypedDict
 
 from app.core.config import get_settings
-from app.services.ai_enrichment_service import AIEnrichmentService, AIEnrichment
+from app.services.ai_enrichment_service import AIEnrichment, AIEnrichmentService
 from app.services.image_search_service import ImageSearchService, ImageSuggestion
 from app.services.lemmatization_service import get_lemmatization_service
 from app.services.tts_service import TTSService

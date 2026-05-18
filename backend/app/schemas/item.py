@@ -4,7 +4,7 @@
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from app.models.enums import ContentStatus, PartOfSpeech
-from app.schemas.common import BaseResponseWithDeleted, BaseResponseWithUpdated
+from app.schemas.common import BaseResponseWithUpdated
 
 _BLOCKED_URL_SCHEMES = ("javascript:", "data:", "vbscript:", "file:")
 

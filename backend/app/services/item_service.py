@@ -121,7 +121,7 @@ class ItemService:
     async def update_item(
         self, user_id: int, item_id: int, data: ItemUpdateRequest
     ) -> Item:
-        item = await self._require_owned_item(user_id, item_id)
+        await self._require_owned_item(user_id, item_id)
         values = data.model_dump(exclude_unset=True)
         for field in ("context", "lemma", "audio_url", "context_audio_url"):
             if field in values and values[field] == "":
@@ -362,7 +362,7 @@ class ItemService:
         translation_id: int,
         data: TranslationUpdateRequest,
     ) -> Translation:
-        t = await self._require_owned_translation(user_id, item_id, translation_id)
+        await self._require_owned_translation(user_id, item_id, translation_id)
         values = data.model_dump(exclude_unset=True)
         if "context_trans" in values and values["context_trans"] == "":
             values["context_trans"] = None

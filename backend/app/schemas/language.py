@@ -1,7 +1,7 @@
 # backend/app/schemas/language.py
 """Language reference data (read-only)"""
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class LanguageResponse(BaseModel):

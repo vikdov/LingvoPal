@@ -3,7 +3,8 @@
 
 from datetime import datetime, timezone
 from typing import Generic, TypeVar
-from pydantic import BaseModel, Field, ConfigDict, model_validator
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 T = TypeVar("T")
 

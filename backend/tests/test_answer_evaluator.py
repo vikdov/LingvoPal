@@ -16,7 +16,6 @@ Test groups:
   - evaluate(): structured logging data (tested via result fields)
 """
 
-import pytest
 
 from app.models.enums import EvaluationMode
 from app.services.answer_evaluator import (
@@ -28,10 +27,13 @@ from app.services.answer_evaluator import (
     EvaluationContext,
     EvaluationResult,
     evaluate,
+)
+from app.services.answer_evaluator import (
     levenshtein_similarity as _levenshtein_similarity,
+)
+from app.services.answer_evaluator import (
     normalise as _normalise,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

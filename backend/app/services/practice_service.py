@@ -61,12 +61,14 @@ from app.schemas.practice import (
 from app.services.answer_evaluator import (
     DEFAULT_EXPECTED_MS,
     EvaluationContext,
+)
+from app.services.answer_evaluator import (
     evaluate as eval_answer,
 )
 from app.services.progress_updater import ProgressUpdater
 from app.services.session_manager import (
-    BatchConfig,
     INTENSITY_MAP,
+    BatchConfig,
     RawAnswerEvent,
     SessionManager,
     SessionState,

@@ -12,8 +12,9 @@ Escalation:
   content is auto-reverted to DRAFT and a new PendingModeration entry is created.
 """
 
-from datetime import date, timezone, datetime
+from datetime import datetime, timezone
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -26,7 +27,6 @@ from app.models.content_complaint import ContentComplaint
 from app.models.enums import (
     ComplaintReason,
     ContentStatus,
-    ModerationStatus,
     ModerationTargetType,
     SessionStatus,
 )
@@ -35,8 +35,6 @@ from app.repositories.complaint_repo import ComplaintRepository
 from app.repositories.item_repo import ItemRepository
 from app.repositories.moderation_repo import ModerationRepository
 from app.repositories.set_repo import SetRepository
-
-from sqlalchemy import func, select
 
 
 class ComplaintService:

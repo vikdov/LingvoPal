@@ -15,7 +15,7 @@ import re
 import sqlite3
 import tempfile
 import zipfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from html.parser import HTMLParser
 
 _DB_NAMES = ("collection.anki21", "collection.anki2")
