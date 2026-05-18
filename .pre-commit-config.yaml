@@ -1,0 +1,51 @@
+repos:
+  # ---------------------------------------------------------------------------
+  # General file hygiene
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: detect-private-key
+
+  # ---------------------------------------------------------------------------
+  # Python — ruff (lint + format)
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.10
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^backend/
+      - id: ruff-format
+        files: ^backend/
+
+  # ---------------------------------------------------------------------------
+  # Frontend — ESLint + TypeScript
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: eslint
+        name: ESLint
+        language: node
+        entry: bash -c 'cd frontend && npx eslint --max-warnings 0 "$@"' --
+        types_or: [javascript, jsx, ts, tsx]
+        files: ^frontend/src/
+        pass_filenames: true
+        additional_dependencies: []
+
+      - id: tsc
+        name: TypeScript type-check
+        language: node
+        entry: bash -c 'cd frontend && npx tsc --noEmit'
+        pass_filenames: false
+        files: ^frontend/src/
+        types_or: [javascript, jsx, ts, tsx]
+        additional_dependencies: []
