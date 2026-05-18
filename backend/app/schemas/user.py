@@ -9,7 +9,7 @@ User profile schemas with privacy controls.
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.common import BaseResponseWithDeleted
 
@@ -68,6 +68,7 @@ class UserPrivateResponse(BaseModel):
     username: str | None
     email: str
     email_verified: bool
+    pending_email: str | None = None
     is_admin: bool
     native_lang_id: int
     active_target_lang_id: int | None

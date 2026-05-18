@@ -26,6 +26,7 @@ from app.schemas.set import (
     SetCreateRequest,
     SetLibraryEntryResponse,
     SetLibraryPinRequest,
+    SetLibraryStatusResponse,
     SetResponse,
     SetSummaryResponse,
     SetUpdateRequest,
@@ -51,12 +52,12 @@ def _handle(exc: LingvoPalError) -> NoReturn:
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
-def _build_set_response(s, item_count: int) -> SetResponse:
-    return SetResponse.model_validate(s).model_copy(update={"item_count": item_count})
+def _build_set_response(s, item_count: int, creator_username: str | None = None) -> SetResponse:
+    return SetResponse.model_validate(s).model_copy(update={"item_count": item_count, "creator_username": creator_username})
 
 
-def _build_set_summary(s, item_count: int) -> SetSummaryResponse:
-    return SetSummaryResponse.model_validate(s).model_copy(update={"item_count": item_count})
+def _build_set_summary(s, item_count: int, creator_username: str | None = None) -> SetSummaryResponse:
+    return SetSummaryResponse.model_validate(s).model_copy(update={"item_count": item_count, "creator_username": creator_username})
 
 
 def _build_created_set_summary(s, item_count: int, is_pinned: bool) -> CreatedSetSummaryResponse:
@@ -97,7 +98,7 @@ async def get_created_sets(
     user: CurrentUser,
     service: SetServiceDep,
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
 ) -> PaginatedResponse[CreatedSetSummaryResponse]:
     results, total = await service.get_my_sets(user.id, skip=skip, limit=limit)
     data = [_build_created_set_summary(s, count, is_pinned) for s, count, is_pinned in results]
@@ -128,7 +129,7 @@ async def search_public_sets(
         skip=skip,
         limit=limit,
     )
-    data = [_build_set_summary(s, count) for s, count in results]
+    data = [_build_set_summary(s, count, username) for s, count, username in results]
     page = skip // limit + 1 if limit else 1
     return PaginatedResponse(data=data, total=total, page=page, page_size=limit)
 
@@ -142,7 +143,7 @@ async def get_library(
     user: CurrentUser,
     service: SetServiceDep,
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
 ) -> PaginatedResponse[SetLibraryEntryResponse]:
     entries, total = await service.get_user_library(user.id, skip=skip, limit=limit)
     data = [
@@ -152,8 +153,9 @@ async def get_library(
             last_opened_at=e.last_opened_at,
             is_pinned=e.is_pinned,
             set=SetSummaryResponse.model_validate(e.set).model_copy(update={"item_count": count}),
+            due_count=due_count,
         )
-        for e, count in entries
+        for e, count, due_count in entries
     ]
     page = skip // limit + 1 if limit else 1
     return PaginatedResponse(data=data, total=total, page=page, page_size=limit)
@@ -170,8 +172,8 @@ async def get_set(
     service: SetServiceDep,
 ) -> SetResponse:
     try:
-        s, count = await service.get_set(user.id, set_id)
-        return _build_set_response(s, count)
+        s, count, creator_username = await service.get_set(user.id, set_id)
+        return _build_set_response(s, count, creator_username)
     except LingvoPalError as exc:
         _handle(exc)
 
@@ -208,6 +210,20 @@ async def delete_set(
         await service.delete_set(user.id, set_id)
     except LingvoPalError as exc:
         _handle(exc)
+
+
+@router.get(
+    "/{set_id}/library",
+    response_model=SetLibraryStatusResponse,
+    summary="Check if a set is in the user's library",
+)
+async def get_library_status(
+    set_id: int,
+    user: CurrentUser,
+    service: SetServiceDep,
+) -> SetLibraryStatusResponse:
+    in_library = await service.is_in_library(user.id, set_id)
+    return SetLibraryStatusResponse(in_library=in_library)
 
 
 @router.post(

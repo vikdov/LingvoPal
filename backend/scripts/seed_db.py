@@ -1,19 +1,19 @@
 import sys
 from pathlib import Path
-from typing import Dict, Any
 
 current_dir = Path(__file__).resolve().parent
 project_root = current_dir.parent
 sys.path.insert(0, str(project_root / "backend"))
 
 import asyncio
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.database.session import (
-    init_async_session_factory,
     get_session,
+    init_async_session_factory,
     shutdown_db_engine,
 )
 
@@ -154,16 +154,16 @@ async def seed_items(db: AsyncSession):
             (2, 1, 'ephemeral', 6, 'Lasting for a very short time', 'adjective', 'ephemeral', 1, 'approved', NOW()),
             (3, 1, 'eloquent', 5, 'Fluent or persuasive in speaking or writing', 'adjective', 'eloquent', 1, 'community', NOW()),
             (4, 1, 'meticulous', 4, 'Showing great attention to detail', 'adjective', 'meticulous', 2, 'community', NOW()),
-            
+
             -- Polish items
             (5, 2, 'zwiedzać', 2, 'Odwiedzać miejsce turystyczne', 'verb', 'zwiedzić', 1, 'approved', NOW()),
             (6, 2, 'smuteczek', 3, 'Mały smutek, przygnębienie', 'noun', 'smuteczek', 1, 'community', NOW()),
             (7, 2, 'piękny', 1, 'Ładny, przystojna', 'adjective', 'piękny', 2, 'approved', NOW()),
-            
+
             -- German items
             (8, 3, 'Wanderlust', 4, 'Lust auf Wanderungen und Reisen', 'noun', 'Wanderlust', 1, 'approved', NOW()),
             (9, 3, 'Schadenfreude', 5, 'Freude über das Missgeschick anderer', 'noun', 'Schadenfreude', 1, 'approved', NOW()),
-            
+
             -- Spanish items
             (10, 4, 'Sobremesa', 4, 'El tiempo después de comer', 'noun', 'sobremesa', 1, 'approved', NOW()),
             (11, 4, 'Saudade', 6, 'Nostalgia profunda', 'noun', 'saudade', 2, 'community', NOW())
@@ -185,15 +185,15 @@ async def seed_translations(db: AsyncSession):
             (1, 1, 2, 'zbiég szczęśliwych okoliczności', 'Znalezienie czegoś cennego przez przypadek', 1, 'approved', NOW()),
             (2, 2, 2, 'ulotny', 'Trwający bardzo krótko', 1, 'approved', NOW()),
             (3, 3, 2, 'wymowny', 'Płynny lub przekonujący w mówieniu', 2, 'community', NOW()),
-            
+
             -- Polish -> English
             (4, 5, 1, 'to visit', 'Visit a tourist place', 1, 'approved', NOW()),
             (5, 6, 1, 'little sadness', 'Small sadness, melancholy', 2, 'community', NOW()),
-            
+
             -- German -> English
             (6, 8, 1, 'wanderlust', 'Desire to hike and travel', 1, 'approved', NOW()),
             (7, 9, 1, 'schadenfreude', 'Joy in others'' misfortune', 1, 'approved', NOW()),
-            
+
             -- Spanish -> English
             (8, 10, 1, 'the time after eating', 'The time spent after a meal', 1, 'approved', NOW())
             ON CONFLICT (id) DO NOTHING;
@@ -266,18 +266,18 @@ async def seed_user_progress(db: AsyncSession):
     await db.execute(
         text("""
             INSERT INTO user_progress (
-                user_id, item_id, ease_factor, interval, repetitions, lapsed_attempts, 
+                user_id, item_id, ease_factor, interval, repetitions, lapsed_attempts,
                 last_reviewed, next_review
             ) VALUES
             -- User 1 progress on set 1
             (1, 1, 2.5, 1, 0, 0, NULL, NOW() + INTERVAL '1 day'),
             (1, 2, 2.8, 3, 2, 0, NOW() - INTERVAL '2 days', NOW() + INTERVAL '1 day'),
             (1, 3, 2.3, 1, 1, 1, NOW() - INTERVAL '1 day', NOW()),
-            
+
             -- User 2 progress on set 2
             (2, 5, 2.6, 2, 1, 0, NOW() - INTERVAL '1 day', NOW() + INTERVAL '2 days'),
             (2, 6, 2.5, 1, 0, 0, NULL, NOW()),
-            
+
             -- User 4 progress on set 1
             (4, 1, 2.9, 4, 3, 0, NOW() - INTERVAL '4 days', NOW() + INTERVAL '3 days')
             ON CONFLICT (user_id, item_id) DO NOTHING;
@@ -319,11 +319,11 @@ async def seed_study_reviews(db: AsyncSession):
             (1, 2, 2, 2, 1, 1, true, 'ulotny', 3000, 2.5, 0, 2.6, 1, NOW() - INTERVAL '2 days' + INTERVAL '2 minutes'),
             (1, 3, 2, 3, 1, 1, false, 'wymowny', 4000, 2.5, 0, 2.3, 1, NOW() - INTERVAL '2 days' + INTERVAL '3 minutes'),
             (1, 1, 2, 1, 1, 1, true, 'zbiég', 2200, 2.6, 1, 2.8, 3, NOW() - INTERVAL '2 days' + INTERVAL '5 minutes'),
-            
+
             -- Session 2 reviews (user 2, set 2, English)
             (2, 5, 1, 4, 2, 2, true, 'to visit', 1800, 2.5, 0, 2.6, 1, NOW() - INTERVAL '1 day' + INTERVAL '1 minute'),
             (2, 6, 1, 5, 2, 2, true, 'little sadness', 1500, 2.5, 0, 2.6, 1, NOW() - INTERVAL '1 day' + INTERVAL '2 minutes'),
-            
+
             -- Session 3 ongoing reviews (user 1, set 3, English)
             (1, 8, 1, 6, 3, 3, true, 'wanderlust', 2800, 2.5, 0, 2.6, 1, NOW() - INTERVAL '3 hours' + INTERVAL '1 minute'),
             (1, 9, 1, 7, 3, 3, false, 'schadenfreude', 3500, 2.5, 0, 2.3, 1, NOW() - INTERVAL '3 hours' + INTERVAL '2 minutes')

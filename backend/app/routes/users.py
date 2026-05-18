@@ -7,14 +7,24 @@ Admin management of other users lives in routes/admin.py.
 """
 
 from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel, EmailStr
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import CurrentUser, DBSession, VerifiedUser
-from app.core.exceptions import DuplicateResourceError, ResourceNotFoundError
+from app.core.dependencies import (
+    CurrentUser,
+    DBSession,
+    EmailChangeServiceDep,
+    EmailServiceDep,
+    VerifiedUser,
+)
+from app.core.exceptions import (
+    DuplicateResourceError,
+    EmailChangeTokenInvalidError,
+    ResourceNotFoundError,
+)
 from app.models.user import User
 from app.repositories.user_language_repo import UserLanguageRepository
-from app.services.user_settings_service import UserSettingsService
 from app.schemas.user import UserPrivateResponse, UserUpdateRequest
 from app.schemas.user_language import (
     AddUserLanguageRequest,
@@ -22,6 +32,7 @@ from app.schemas.user_language import (
     UserLanguagesResponse,
 )
 from app.services.user_language_service import UserLanguageService
+from app.services.user_settings_service import UserSettingsService
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -35,6 +46,7 @@ async def _build_user_response(user: User, db: AsyncSession) -> UserPrivateRespo
         username=user.username,
         email=user.email,
         email_verified=user.email_verified,
+        pending_email=user.pending_email,
         is_admin=user.is_admin,
         native_lang_id=settings.native_lang_id,
         active_target_lang_id=active_lang_id,
@@ -193,3 +205,104 @@ async def remove_my_language(
             status.HTTP_404_NOT_FOUND,
             detail="Language not in your learning list.",
         )
+
+
+# ============================================================================
+# EMAIL CHANGE
+# ============================================================================
+
+
+class EmailChangeRequest(BaseModel):
+    new_email: EmailStr
+
+
+class EmailChangeConfirmRequest(BaseModel):
+    token: str
+
+
+@router.post(
+    "/me/email-change",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Request an email address change",
+)
+async def request_email_change(
+    body: EmailChangeRequest,
+    current_user: VerifiedUser,
+    db: DBSession,
+    email_change_svc: EmailChangeServiceDep,
+    email_svc: EmailServiceDep,
+) -> None:
+    new_email = str(body.new_email).lower()
+    if new_email == current_user.email.lower():
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="New email is the same as your current email.",
+        )
+
+    taken = await db.scalar(
+        select(User.id).where(
+            User.email == new_email,
+            User.id != current_user.id,
+            User.deleted_at.is_(None),
+        )
+    )
+    if taken is not None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="This email address is already in use.",
+        )
+
+    token = await email_change_svc.generate_token(current_user.id, new_email)
+    await db.execute(update(User).where(User.id == current_user.id).values(pending_email=new_email))
+    await db.commit()
+
+    try:
+        await email_svc.send_email_change_verification(new_email, token)
+    except Exception:
+        pass
+
+
+@router.post(
+    "/me/email-change/confirm",
+    response_model=UserPrivateResponse,
+    summary="Confirm email change via token (public — no auth required)",
+)
+async def confirm_email_change(
+    body: EmailChangeConfirmRequest,
+    db: DBSession,
+    email_change_svc: EmailChangeServiceDep,
+) -> UserPrivateResponse:
+    try:
+        user_id, new_email = await email_change_svc.consume_token(body.token)
+    except EmailChangeTokenInvalidError:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail={"error": "email_change_token_invalid", "message": "Email change token is invalid or has expired."},
+        )
+
+    await db.execute(
+        update(User)
+        .where(User.id == user_id)
+        .values(email=new_email, pending_email=None, email_verified=True)
+    )
+    await db.commit()
+
+    user = await db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="User not found.")
+    return await _build_user_response(user, db)
+
+
+@router.delete(
+    "/me/email-change",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Cancel pending email change",
+)
+async def cancel_email_change(
+    current_user: VerifiedUser,
+    db: DBSession,
+    email_change_svc: EmailChangeServiceDep,
+) -> None:
+    await email_change_svc.cancel_token(current_user.id)
+    await db.execute(update(User).where(User.id == current_user.id).values(pending_email=None))
+    await db.commit()

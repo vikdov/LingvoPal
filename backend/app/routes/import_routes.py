@@ -8,9 +8,8 @@ Two-phase flow:
 
 from typing import Annotated, NoReturn
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
-
 import redis.asyncio as aioredis
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 
 from app.core.dependencies import (
     CurrentUser,

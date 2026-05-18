@@ -4,25 +4,41 @@
 # Reads DATABASE_URL from app.core.config (handles .env loading + URL encoding).
 # Runs async migrations via asyncpg with NullPool (no connection pooling).
 
-from logging.config import fileConfig
-from sqlalchemy import pool
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy.engine import Connection
-from alembic import context
 import asyncio
 import sys
+from logging.config import fileConfig
 from pathlib import Path
+
+from alembic import context
+from sqlalchemy import pool
+from sqlalchemy.engine import Connection
+from sqlalchemy.ext.asyncio import create_async_engine
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.database import Base
 from app.core.config import get_settings
-from app.models import (
-    Language, User, UserSettings,
-    Item, Translation, Set, SetItem, ItemSynonymTerm,
-    UserSetLibrary, StudySession, StudyReview, UserProgress,
-    UserDailyStats, UserStatsTotal,
-    PendingModeration, PendingSession, ContentAuditLog,
+from app.database import Base
+
+# noqa: F401 — model imports are required to populate Base.metadata for Alembic autogenerate.
+# They are not referenced by name but must be imported so SQLAlchemy registers them.
+from app.models import (  # noqa: F401
+    ContentAuditLog,
+    Item,
+    ItemSynonymTerm,
+    Language,
+    PendingModeration,
+    PendingSession,
+    Set,
+    SetItem,
+    StudyReview,
+    StudySession,
+    Translation,
+    User,
+    UserDailyStats,
+    UserProgress,
+    UserSetLibrary,
+    UserSettings,
+    UserStatsTotal,
 )
 
 config = context.config

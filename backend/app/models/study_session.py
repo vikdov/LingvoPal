@@ -4,7 +4,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, ForeignKey, func, Index
+from sqlalchemy import BigInteger, ForeignKey, Index, func
 from sqlalchemy.dialects.postgresql import ENUM as pgEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -12,9 +12,9 @@ from app.database import Base
 from app.models.enums import SessionStatus
 
 if TYPE_CHECKING:
-    from app.models.user import User
     from app.models.set import Set
     from app.models.study_review import StudyReview
+    from app.models.user import User
 
 
 class StudySession(Base):

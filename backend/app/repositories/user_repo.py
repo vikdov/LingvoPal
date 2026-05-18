@@ -12,8 +12,8 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.user import User, UserSettings  # UserSettings kept for selectinload typing
 from app.models.enums import UserRole
+from app.models.user import User, UserSettings  # UserSettings kept for selectinload typing
 
 
 class UserRepository:

@@ -10,10 +10,12 @@ ARCHITECTURE:
 """
 
 from datetime import datetime
-from sqlalchemy import MetaData, create_engine, DateTime, event
+
+from sqlalchemy import DateTime, MetaData, create_engine, event
 from sqlalchemy.dialects.postgresql import JSONB, TEXT
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapper
+
 # ============================================================================
 # PostgreSQL Metadata Setup
 # ============================================================================

@@ -9,8 +9,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 if TYPE_CHECKING:
-    from app.models.set import Set
     from app.models.item import Item
+    from app.models.set import Set
     from app.models.translation import Translation
 
 

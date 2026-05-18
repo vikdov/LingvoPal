@@ -25,7 +25,6 @@ Services raise these. Routers catch and translate to HTTP responses.
 from datetime import datetime
 from enum import Enum
 
-
 # ============================================================================
 # AUTH ERROR CODES
 # ============================================================================
@@ -44,6 +43,7 @@ class AuthErrorCode(str, Enum):
     VERIFICATION_RATE_LIMITED = "verification_rate_limited"
     PASSWORD_RESET_TOKEN_INVALID = "password_reset_token_invalid"
     REFRESH_TOKEN_INVALID = "refresh_token_invalid"
+    EMAIL_CHANGE_TOKEN_INVALID = "email_change_token_invalid"
 
 
 # ============================================================================
@@ -151,6 +151,14 @@ class RefreshTokenInvalidError(AuthError):
         )
 
 
+class EmailChangeTokenInvalidError(AuthError):
+    def __init__(self) -> None:
+        super().__init__(
+            AuthErrorCode.EMAIL_CHANGE_TOKEN_INVALID,
+            "Email change token is invalid or has expired.",
+        )
+
+
 # ============================================================================
 # RESOURCE / AUTHORISATION
 # ============================================================================
@@ -253,6 +261,7 @@ __all__ = [
     "VerificationRateLimitedError",
     "PasswordResetTokenInvalidError",
     "RefreshTokenInvalidError",
+    "EmailChangeTokenInvalidError",
     # Resource / authorisation
     "ResourceNotFoundError",
     "NotAuthorizedError",

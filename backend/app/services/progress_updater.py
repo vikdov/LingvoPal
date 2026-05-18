@@ -33,28 +33,30 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Float, cast, case, func, select
+from sqlalchemy import Float, case, cast, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.enums import SessionStatus
 from app.models.item import Item
 from app.models.study_review import StudyReview
 from app.models.study_session import StudySession
 from app.models.user_daily_stats import UserDailyStats
 from app.models.user_progress import UserProgress
 from app.models.user_stats_total import UserStatsTotal
-from app.models.enums import SessionStatus
+from app.repositories.quality_repo import QualityRepository
 from app.services.answer_evaluator import (
     DEFAULT_EXPECTED_MS,
     T_MAX_MS,
     map_quality,
 )
-from app.repositories.quality_repo import QualityRepository
 from app.services.session_manager import RawAnswerEvent, SessionManager, SessionState
 from app.services.sm2_engine import (
     SM2State,
     apply_absence_decay_for_days,
     initial_state,
+)
+from app.services.sm2_engine import (
     update as sm2_update,
 )
 

@@ -5,14 +5,14 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, Index, text
-from sqlalchemy.sql import func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
 
 from app.database import Base
 
 if TYPE_CHECKING:
-    from app.models.user import User
     from app.models.set import Set
+    from app.models.user import User
 
 
 class UserSetLibrary(Base):

@@ -38,6 +38,9 @@ class User(Base, SoftDeleteTimestampMixin):
     email_verified: Mapped[bool] = mapped_column(
         default=False, nullable=False, comment="User has verified their email"
     )
+    pending_email: Mapped[str | None] = mapped_column(
+        nullable=True, comment="New email awaiting confirmation (email change flow)"
+    )
     password_hash: Mapped[str] = mapped_column(
         nullable=False, comment="Hashed password (never plain text)"
     )

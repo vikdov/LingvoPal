@@ -1,7 +1,7 @@
 # backend/app/models/content_audit_log.py
 """ContentAuditLog model"""
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import JSONB

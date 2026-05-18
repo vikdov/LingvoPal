@@ -54,7 +54,7 @@ def detect_language_mismatch(term: str, expected_lang_code: str) -> bool:
     Unreliable for short terms (single words); treat result as a hint only.
     """
     try:
-        from langdetect import detect, LangDetectException  # type: ignore[import-untyped]
+        from langdetect import detect  # type: ignore[import-untyped]
 
         detected = detect(term)
         return detected != expected_lang_code

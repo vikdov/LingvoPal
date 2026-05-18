@@ -28,12 +28,11 @@ from app.models.enums import SessionStatus
 from app.repositories.practice_repo import PracticeRepository
 from app.services.progress_updater import ProgressUpdater
 from app.services.session_manager import (
-    BatchConfig,
     INTENSITY_MAP,
+    BatchConfig,
     RawAnswerEvent,
     SessionManager,
     SessionState,
-    TTL_SECONDS,
     make_session_state,
 )
 

@@ -3,7 +3,8 @@
 
 from datetime import date, datetime
 from decimal import Decimal
-from pydantic import BaseModel, Field, ConfigDict, computed_field
+
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 
 class DailyStatsResponse(BaseModel):

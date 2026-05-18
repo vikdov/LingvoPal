@@ -7,7 +7,7 @@ from typing import Sequence
 
 from sqlalchemy import case, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import outerjoin, selectinload
+from sqlalchemy.orm import selectinload
 
 from app.models.enums import ContentStatus, PartOfSpeech
 from app.models.item import Item

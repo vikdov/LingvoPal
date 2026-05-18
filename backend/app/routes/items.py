@@ -9,8 +9,8 @@ from app.core.dependencies import (
     ComplaintServiceDep,
     CurrentUser,
     ItemServiceDep,
-    StorageDep,
     ItemSuggestionServiceDep,
+    StorageDep,
 )
 from app.core.exceptions import (
     BusinessRuleViolationError,
@@ -21,26 +21,25 @@ from app.core.exceptions import (
 )
 from app.core.limiter import limiter
 from app.models.enums import PartOfSpeech
-from app.schemas.complaint import ComplaintRequest, ComplaintResponse
 from app.schemas.common import PaginatedResponse
+from app.schemas.complaint import ComplaintRequest, ComplaintResponse
 from app.schemas.item import (
     AddExistingItemRequest,
+    GenerateAudioRequest,
+    GenerateAudioResponse,
+    ImageSuggestion,
     ItemCreateRequest,
     ItemDetailResponse,
-    ItemResponse,
+    ItemMetadataSuggestion,
     ItemSummaryResponse,
     ItemUpdateRequest,
+    SearchImagesRequest,
     SetItemResponse,
+    SuggestItemMetadataRequest,
     SynonymTermsRequest,
     TranslationCreateRequest,
     TranslationResponse,
     TranslationUpdateRequest,
-    SuggestItemMetadataRequest,
-    ItemMetadataSuggestion,
-    GenerateAudioRequest,
-    GenerateAudioResponse,
-    SearchImagesRequest,
-    ImageSuggestion,
 )
 
 items_router = APIRouter(prefix="/items", tags=["items"])

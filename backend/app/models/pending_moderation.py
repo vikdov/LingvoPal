@@ -2,14 +2,15 @@
 """PendingModeration model"""
 
 from datetime import datetime
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import ForeignKey, Index, text
-from sqlalchemy.dialects.postgresql import ENUM as pgEnum, JSONB
+from sqlalchemy.dialects.postgresql import ENUM as pgEnum
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base, CreatedAtMixin
-from app.models.enums import ModerationTargetType, ModerationStatus
+from app.models.enums import ModerationStatus, ModerationTargetType
 
 if TYPE_CHECKING:
     from app.models.user import User

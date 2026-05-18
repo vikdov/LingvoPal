@@ -7,101 +7,100 @@ All schemas exported here for easy importing:
 """
 
 # Common
-from app.schemas.common import (
-    BaseResponse,
-    BaseResponseWithUpdated,
-    BaseResponseWithDeleted,
-    PaginatedResponse,
-    ErrorResponse,
-    ErrorDetail,
-    ListQueryParams,
+# Admin
+from app.schemas.admin import (
+    RepairStatsRequest,
+    UserListQueryParams,
 )
 
 # Auth
 from app.schemas.auth import (
-    SignupRequest,
+    AuthErrorResponse,
     LoginRequest,
     PasswordChangeRequest,
+    SignupRequest,
     TokenResponse,
-    AuthErrorResponse,
+)
+from app.schemas.common import (
+    BaseResponse,
+    BaseResponseWithDeleted,
+    BaseResponseWithUpdated,
+    ErrorDetail,
+    ErrorResponse,
+    ListQueryParams,
+    PaginatedResponse,
 )
 
-# User
-from app.schemas.user import (
-    UserUpdateRequest,
-    UserPublicResponse,
-    UserPrivateResponse,
-    UserDetailResponse,
-    UserSettingsEmbedded,
-    LanguageRefResponse,
+# Items
+from app.schemas.item import (
+    AddExistingItemRequest,
+    ItemCreateRequest,
+    ItemDetailResponse,
+    ItemResponse,
+    ItemUpdateRequest,
+    SetItemResponse,
+    TranslationCreateRequest,
+    TranslationResponse,
 )
 
 # Language (read-only reference)
 from app.schemas.language import LanguageResponse
 
-# Items
-from app.schemas.item import (
-    ItemCreateRequest,
-    ItemUpdateRequest,
-    AddExistingItemRequest,
-    ItemResponse,
-    SetItemResponse,
-    ItemDetailResponse,
-    TranslationCreateRequest,
-    TranslationResponse,
+# Moderation
+from app.schemas.moderation import (
+    ApproveModerationRequest,
+    ModerationListQueryParams,
+    ModerationSubmissionResponse,
+    PendingModerationResponse,
+    RejectModerationRequest,
+    SubmitForReviewRequest,
+)
+
+# Practice
+from app.schemas.practice import (
+    ActiveSessionResponse,
+    AnswerBufferedResponse,
+    ComparisonConfig,
+    ItemHintSchema,
+    SessionStartedResponse,
+    SessionSummaryResponse,
+    StartSessionRequest,
+    SubmitAnswerRequest,
 )
 
 # Sets
 from app.schemas.set import (
     SetCreateRequest,
-    SetUpdateRequest,
-    SetResponse,
     SetDetailResponse,
     SetLibraryEntryResponse,
-)
-
-# Practice
-from app.schemas.practice import (
-    ComparisonConfig,
-    ItemHintSchema,
-    StartSessionRequest,
-    SessionStartedResponse,
-    SubmitAnswerRequest,
-    AnswerBufferedResponse,
-    SessionSummaryResponse,
-    ActiveSessionResponse,
+    SetResponse,
+    SetUpdateRequest,
 )
 
 # Stats
 from app.schemas.stats import (
-    DailyStatsResponse,
-    TotalStatsResponse,
-    StatsRangeResponse,
-    StatsRangeQueryParams,
     DailyStatsQueryParams,
+    DailyStatsResponse,
     HardestItemResponse,
+    StatsRangeQueryParams,
+    StatsRangeResponse,
+    TotalStatsResponse,
+)
+
+# User
+from app.schemas.user import (
+    LanguageRefResponse,
+    UserDetailResponse,
+    UserPrivateResponse,
+    UserPublicResponse,
+    UserSettingsEmbedded,
+    UserUpdateRequest,
 )
 
 # User settings
 from app.schemas.user_settings import (
-    UserSettingsResponse,
     UserSettingsPatchRequest,
-)
-
-# Moderation
-from app.schemas.moderation import (
-    SubmitForReviewRequest,
-    ApproveModerationRequest,
-    RejectModerationRequest,
-    ModerationListQueryParams,
-    ModerationSubmissionResponse,
-    PendingModerationResponse,
-)
-
-# Admin
-from app.schemas.admin import (
-    UserListQueryParams,
-    RepairStatsRequest,
+    UserSettingsResponse,
 )
 
 __all__ = [

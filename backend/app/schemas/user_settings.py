@@ -12,7 +12,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.models.enums import EvaluationMode, LearningIntensity, RetentionPriority
 from app.schemas.user import LanguageRefResponse
 
-
 # ============================================================================
 # RESPONSE
 # ============================================================================

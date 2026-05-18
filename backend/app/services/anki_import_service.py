@@ -10,20 +10,17 @@ Two-phase flow:
   confirm_import()           — loads from temp, bulk-creates set/items, uploads media
 """
 
-import io
 import json
 import logging
-import mimetypes
 import os
 import uuid
 import zipfile
 
 import redis.asyncio as aioredis
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sqlalchemy.exc import IntegrityError
-
-from app.core.exceptions import BusinessRuleViolationError, ResourceNotFoundError
+from app.core.exceptions import ResourceNotFoundError
 from app.models.enums import ContentStatus, PartOfSpeech
 from app.repositories.item_repo import ItemRepository
 from app.repositories.set_repo import SetRepository
