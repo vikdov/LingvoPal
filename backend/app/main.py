@@ -28,27 +28,11 @@ settings = get_settings()
 
 
 def _configure_logging() -> None:
-    """
-    JSON logging in production/staging (Railway parses it natively).
-    Plain text in development so local logs stay readable.
-    """
-    if settings.is_production or settings.is_staging:
-        from pythonjsonlogger.jsonlogger import JsonFormatter
-
-        fmt = JsonFormatter(
-            fmt="%(asctime)s %(levelname)s %(name)s %(message)s",
-            rename_fields={"asctime": "ts", "levelname": "level", "name": "logger"},
-        )
-        handler = logging.StreamHandler()
-        handler.setFormatter(fmt)
-        logging.root.setLevel(settings.LOG_LEVEL)
-        logging.root.handlers = [handler]
-    else:
-        logging.basicConfig(
-            level=settings.LOG_LEVEL,
-            format="%(asctime)s %(levelname)-8s %(name)s  %(message)s",
-            datefmt="%H:%M:%S",
-        )
+    logging.basicConfig(
+        level=settings.LOG_LEVEL,
+        format="%(asctime)s %(levelname)-8s %(name)s  %(message)s",
+        datefmt="%H:%M:%S",
+    )
 
     logging.getLogger("botocore").setLevel(logging.WARNING)
     logging.getLogger("aiobotocore").setLevel(logging.WARNING)
