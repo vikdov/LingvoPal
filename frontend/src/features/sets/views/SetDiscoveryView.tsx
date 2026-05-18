@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { SearchIcon, PlusIcon, LayersIcon, BookOpenIcon, FlagIcon, UserIcon, CopyIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -168,17 +168,16 @@ function DiscoverySetCard({ set, inLibrary, onAddedToLibrary, languages }: Disco
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  size="sm"
+                  size="icon-sm"
                   variant="ghost"
                   onClick={handleFork}
                   disabled={forkSet.isPending}
                 >
                   <CopyIcon className="size-3.5" />
-                  Copy to My Sets
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Creates an editable copy in your sets</p>
+                <p>Duplicate to your sets</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -214,10 +213,13 @@ function DiscoverySetCard({ set, inLibrary, onAddedToLibrary, languages }: Disco
 }
 
 export function SetDiscoveryView() {
+  const [searchParams] = useSearchParams();
+  const initLang = searchParams.get('source_lang');
+
   const [inputValue, setInputValue] = useState('');
   const [query, setQuery] = useState('');
   const [difficulty, setDifficulty] = useState('any');
-  const [langFilter, setLangFilter] = useState<number | null>(null);
+  const [langFilter, setLangFilter] = useState<number | null>(initLang ? Number(initLang) : null);
   const [page, setPage] = useState(1);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -241,6 +243,7 @@ export function SetDiscoveryView() {
   const { data, isLoading, isError, error } = usePublicSets({
     query: query || undefined,
     source_lang_id: langFilter,
+    difficulty: difficulty !== 'any' ? Number(difficulty) : null,
     skip,
     limit: PAGE_SIZE,
   });

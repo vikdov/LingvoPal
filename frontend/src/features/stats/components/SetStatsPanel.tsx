@@ -61,7 +61,7 @@ export function SetStatsPanel({ setId }: Props) {
               {/* Progress bar */}
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
                     Items practiced
                   </span>
                   <span className="font-mono text-[10px] text-foreground">
@@ -81,7 +81,7 @@ export function SetStatsPanel({ setId }: Props) {
 
               {/* Maturity stacked bar */}
               <div className="flex flex-col gap-2">
-                <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
                   Maturity distribution
                 </span>
                 <div className="flex h-5 w-full rounded-md overflow-hidden gap-px">
@@ -103,7 +103,7 @@ export function SetStatsPanel({ setId }: Props) {
                 <div className="flex flex-wrap gap-x-4 gap-y-1">
                   {data.maturity_buckets.map((b) =>
                     b.count > 0 ? (
-                      <span key={b.key} className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
+                      <span key={b.key} className="flex items-center gap-1.5 text-[10px] text-foreground/65">
                         <span
                           className="inline-block w-2 h-2 rounded-sm"
                           style={{
@@ -123,7 +123,7 @@ export function SetStatsPanel({ setId }: Props) {
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-1.5">
                     <AlertTriangle className="size-3 text-destructive/70" />
-                    <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                    <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
                       Hardest in this set
                     </span>
                   </div>

@@ -22,37 +22,45 @@ export function Features() {
       <FadeUp delay={0.1}>
       <div className="bento-grid w-full max-w-5xl">
         <BentoItem className="col-span-2 row-span-2 flex flex-col gap-4">
-          <h3 className="text-xl font-semibold tracking-[-0.02em] text-foreground">Build your own vocabulary sets</h3>
+          <h3 className="text-xl font-semibold tracking-[-0.02em] text-foreground">Build rich vocabulary sets</h3>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Create sets from words you actually encounter — in books, podcasts, conversations.
-            Pair each word with a real sentence so context is always there.
+            Create items from words you actually encounter. Each entry holds a context sentence,
+            image, audio pronunciation, translations, synonyms, and CEFR difficulty — press ✨ and AI fills them in.
           </p>
           <pre className="mt-auto text-[11px] font-mono text-muted-foreground bg-background border border-border rounded-md p-3 whitespace-pre-wrap leading-relaxed">
 {`+ New item
-  Word:     leggevo
+  Word:     leggevo        [Verb · B2]
   Sentence: Da bambino, ___ ogni sera.
-  Lang:     Italian → English`}
+  Image:    ✨ auto-suggested
+  Audio:    ✨ generated (TTS)
+  Trans:    "I used to read"  [EN]`}
           </pre>
         </BentoItem>
 
         <BentoItem className="flex flex-col gap-2">
-          <h3 className="text-base font-semibold text-foreground">Any language</h3>
-          <p className="text-sm text-muted-foreground">Italian, French, German, Japanese — study whatever you're learning.</p>
+          <h3 className="text-base font-semibold text-foreground">AI-assisted creation</h3>
+          <p className="text-sm text-muted-foreground">
+            Type a word, press ✨ — context sentence, image, audio, translations, and CEFR level fill automatically.
+          </p>
         </BentoItem>
 
         <BentoItem className="flex flex-col gap-2">
-          <h3 className="text-base font-semibold text-foreground">Daily streak</h3>
-          <p className="text-sm text-muted-foreground">A review queue appears every day. Short sessions compound over months.</p>
+          <h3 className="text-base font-semibold text-foreground">Any language</h3>
+          <p className="text-sm text-muted-foreground">Italian, French, German, Japanese, Polish — study whatever you're learning.</p>
         </BentoItem>
 
         <BentoItem className="row-span-2 flex flex-col gap-2">
           <h3 className="text-base font-semibold text-foreground">Progress insights</h3>
-          <p className="text-sm text-muted-foreground">See retention rates, lapsed cards, and daily review counts. Know exactly where you stand.</p>
+          <p className="text-sm text-muted-foreground">
+            Track maturity across new, learning, young, and mature cards. See your hardest words, daily review history, and per-set retention — no vanity metrics.
+          </p>
         </BentoItem>
 
         <BentoItem className="col-span-2 flex flex-col gap-2">
-          <h3 className="text-base font-semibold text-foreground">Discover community sets</h3>
-          <p className="text-sm text-muted-foreground">Browse curated vocabulary sets shared by other learners. Clone and customize to fit your goals.</p>
+          <h3 className="text-base font-semibold text-foreground">Discover & import</h3>
+          <p className="text-sm text-muted-foreground">
+            Browse community sets, clone and customize them, or import an existing Anki deck. Your vocabulary, your way.
+          </p>
         </BentoItem>
 
         <BentoItem className="flex flex-col gap-2">

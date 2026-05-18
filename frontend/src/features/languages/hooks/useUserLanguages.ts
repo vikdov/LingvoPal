@@ -37,9 +37,13 @@ export function useUserLanguages() {
 
 export function useAddUserLanguage() {
   const qc = useQueryClient();
+  const setActive = useLanguageStore((s) => s.setActive);
   return useMutation({
     mutationFn: (body: AddUserLanguageRequest) => userLanguagesApi.add(body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: userLanguageKeys.all }),
+    onSuccess: (row) => {
+      if (row.is_active) setActive(row.language.id);
+      qc.invalidateQueries({ queryKey: userLanguageKeys.all });
+    },
   });
 }
 

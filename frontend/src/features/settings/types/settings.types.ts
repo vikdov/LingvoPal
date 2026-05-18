@@ -56,6 +56,7 @@ export interface UserProfile {
   username: string | null;
   email: string;
   email_verified: boolean;
+  pending_email: string | null;
   is_admin: boolean;
   created_at: string;
   deleted_at: string | null;
