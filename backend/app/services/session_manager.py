@@ -301,8 +301,10 @@ if session['current_index'] >= #session['item_order'] then
     return redis.error_reply('SESSION_COMPLETE')
 end
 
--- Append raw event to list
+-- Append raw event to list; cap at MAX_RAW_EVENTS as defense-in-depth
+local MAX_RAW_EVENTS = 1000
 redis.call('RPUSH', raw_key, event_json)
+redis.call('LTRIM', raw_key, -MAX_RAW_EVENTS, -1)
 redis.call('EXPIRE', raw_key, ttl)
 redis.call('SADD', seen_key, answer_id)
 redis.call('EXPIRE', seen_key, ttl)

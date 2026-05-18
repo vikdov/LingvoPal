@@ -12,6 +12,11 @@ from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+from sentry_sdk.integrations.redis import RedisIntegration
+
 from app.core.config import get_settings
 from app.core.exceptions import (
     AuthError,
@@ -59,6 +64,29 @@ def _configure_logging() -> None:
 
 _configure_logging()
 logger = logging.getLogger(__name__)
+
+
+def _init_sentry() -> None:
+    """Initialize Sentry if SENTRY_DSN is configured. No-op otherwise."""
+    dsn = settings.SENTRY_DSN
+    if not dsn:
+        return
+    sentry_sdk.init(
+        dsn=dsn,
+        environment=settings.ENV,
+        release=settings.API_VERSION,
+        traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
+        integrations=[
+            FastApiIntegration(),
+            SqlalchemyIntegration(),
+            RedisIntegration(),
+        ],
+        send_default_pii=False,
+    )
+    logger.info("Sentry initialized (env=%s)", settings.ENV)
+
+
+_init_sentry()
 
 
 # ============================================================================
@@ -307,6 +335,10 @@ def create_app() -> FastAPI:
     from app.routes.user_settings import router as user_settings_router
     from app.routes.users import router as users_router
 
+    # Versioning strategy: all routes live under /api/v1/.
+    # To introduce v2: create app/routes/v2/ with new routers and mount them
+    # under prefix="/api/v2" alongside the v1 routers. v1 remains active until
+    # explicitly deprecated. Never remove v1 endpoints without a deprecation window.
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(users_router, prefix="/api/v1")
     app.include_router(languages_router, prefix="/api/v1")

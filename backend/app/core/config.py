@@ -186,6 +186,13 @@ class Settings(BaseSettings):
     API_PORT: int = 8000
 
     # =========================================================================
+    # Observability
+    # =========================================================================
+
+    SENTRY_DSN: str = ""
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.1  # 10% of transactions in prod
+
+    # =========================================================================
     # Security
     # min_length=32 enforces the HMAC-SHA256 minimum key length recommendation.
     # Entropy (unique-char count) is validated separately in production only —

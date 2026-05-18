@@ -87,6 +87,65 @@ jobs:
         run: uv run pytest -v --tb=short
 
   # --------------------------------------------------------------------------
+  # Integration tests: auth + lockout flows against real Postgres + fakeredis
+  # --------------------------------------------------------------------------
+  backend-integration:
+    name: Backend · Integration tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: int_user
+          POSTGRES_PASSWORD: int_pass
+          POSTGRES_DB: lingvopal_int
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      ENV: development
+      DATABASE_USER: int_user
+      DATABASE_PASSWORD: int_pass
+      DATABASE_HOST: localhost
+      DATABASE_PORT: "5432"
+      DATABASE_NAME: lingvopal_int
+      REDIS_HOST: localhost
+      REDIS_PORT: "6379"
+      SECRET_KEY: ci-integration-secret-key-minimum-32-chars-xyz
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      AI_API_KEY: dummy-key-for-ci
+      IMAGE_SEARCH_API_KEY: dummy-key-for-ci
+      TTS_ENABLED: "false"
+      TEST_DATABASE_URL: postgresql+asyncpg://int_user:int_pass@localhost:5432/lingvopal_int
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync --frozen --no-cache
+
+      - name: Apply migrations
+        run: uv run alembic upgrade head
+
+      - name: Run integration tests
+        run: uv run pytest tests/integration/ -v --tb=short
+
+  # --------------------------------------------------------------------------
   # Migrations: verify alembic can run upgrade head against a real Postgres
   # --------------------------------------------------------------------------
   backend-migrations:

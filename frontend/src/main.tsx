@@ -3,8 +3,11 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Providers } from './app/providers';
 import { App } from './app/App';
+import { initSentry } from './lib/sentry';
 import './styles/globals.css';
 import './styles/animations.css';
+
+initSentry();
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element #root not found in index.html');

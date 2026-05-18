@@ -32,12 +32,16 @@ dependencies = [
     "google-cloud-texttospeech>=2.17.0",
     "google-auth>=2.38.0",
     "python-json-logger>=4.1.0",
+    "sentry-sdk[fastapi]>=2.0.0",
 ]
 
 [dependency-groups]
 dev = [
     "ruff>=0.15.9",
     "pytest>=9.0.3",
+    "pytest-asyncio>=0.24.0",
+    "fakeredis[lua]>=2.26.0",
+    "asgi-lifespan>=2.1.0",
 ]
 
 # =============================================================================
