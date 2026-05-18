@@ -1,0 +1,21 @@
+# Virtual environment — never copy host venv into image
+.venv/
+
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Ruff / pytest caches
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Tests — not needed in production image
+tests/
+
+# Docs / tooling configs
+*.md
+pyrightconfig.json
+.python-version
