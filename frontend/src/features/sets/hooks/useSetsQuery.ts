@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { setsApi } from '../api/sets.api';
 import type {
+  CreatedSetSummaryResponse,
   SetCreateRequest,
+  SetLibraryEntry,
   SetUpdateRequest,
   ItemCreateRequest,
   ItemUpdateRequest,
@@ -9,6 +11,7 @@ import type {
   TranslationUpdateRequest,
   PartOfSpeech,
 } from '../types/sets.types';
+import type { PaginatedResponse } from '@/types/common.types';
 import type { ComplaintReason } from '@/features/admin/types/admin.types';
 
 export const setKeys = {
@@ -74,6 +77,7 @@ export function usePublicSets(params: {
   query?: string;
   target_lang_id?: number | null;
   source_lang_id?: number | null;
+  difficulty?: number | null;
   skip?: number;
   limit?: number;
 }) {
@@ -123,7 +127,7 @@ export function useDeleteSet() {
 export function useTouchSet() {
   const qc = useQueryClient();
 
-  function moveToFront(items: any[], id: number, idKey: string) {
+  function moveToFront<T extends { is_pinned?: boolean }>(items: T[], id: number, idKey: keyof T): T[] {
     const idx = items.findIndex((e) => e[idKey] === id);
     if (idx <= 0) return items;
     const item = items[idx];
@@ -138,11 +142,13 @@ export function useTouchSet() {
   return useMutation({
     mutationFn: (setId: number) => setsApi.touchSet(setId),
     onMutate: (setId) => {
-      qc.setQueriesData<any>({ queryKey: ['sets', 'library'] }, (old: any) =>
-        old?.data ? { ...old, data: moveToFront(old.data, setId, 'set_id') } : old,
+      qc.setQueriesData<PaginatedResponse<SetLibraryEntry>>(
+        { queryKey: ['sets', 'library'] },
+        (old) => old?.data ? { ...old, data: moveToFront(old.data, setId, 'set_id') } : old,
       );
-      qc.setQueriesData<any>({ queryKey: ['sets', 'created'] }, (old: any) =>
-        old?.data ? { ...old, data: moveToFront(old.data, setId, 'id') } : old,
+      qc.setQueriesData<PaginatedResponse<CreatedSetSummaryResponse>>(
+        { queryKey: ['sets', 'created'] },
+        (old) => old?.data ? { ...old, data: moveToFront(old.data, setId, 'id') } : old,
       );
     },
     onSuccess: () => {

@@ -5,17 +5,17 @@ const OBJECTIONS = [
   {
     question: "I'm a beginner — is this too hard?",
     answer:
-      "Sentences provide full context. You're not guessing a word in isolation — the surrounding sentence gives you the clue.",
+      "Sentences provide full context. You're not guessing a word in isolation — the surrounding sentence gives you the clue. AI can generate beginner-appropriate examples automatically.",
   },
   {
     question: 'Can I use my own vocabulary?',
     answer:
-      "Yes. Build sets from your own words, your textbook, or your teacher's list.",
+      "Yes. Build sets from your own words, import an Anki deck, or clone a community set and edit it freely.",
   },
   {
     question: "Isn't it just harder Anki?",
     answer:
-      'Similar scheduling, completely different input. Anki asks you to rate how well you remember. LingvoPal asks you to prove it.',
+      'Similar scheduling, completely different input. Anki asks you to rate how well you remember. LingvoPal asks you to prove it — by typing the word.',
   },
 ] as const;
 

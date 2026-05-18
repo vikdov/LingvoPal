@@ -34,6 +34,7 @@ export const setsApi = {
     query?: string;
     target_lang_id?: number | null;
     source_lang_id?: number | null;
+    difficulty?: number | null;
     skip?: number;
     limit?: number;
   } = {}) => {
@@ -41,6 +42,7 @@ export const setsApi = {
     if (params.query)                  qs.set('query',          params.query);
     if (params.target_lang_id != null) qs.set('target_lang_id', String(params.target_lang_id));
     if (params.source_lang_id != null) qs.set('source_lang_id', String(params.source_lang_id));
+    if (params.difficulty != null)     qs.set('difficulty',     String(params.difficulty));
     if (params.skip != null)           qs.set('skip',           String(params.skip));
     if (params.limit != null)          qs.set('limit',          String(params.limit));
     return api.get<PaginatedResponse<SetSummaryResponse>>(`/sets/public?${qs}`);

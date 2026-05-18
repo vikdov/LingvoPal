@@ -101,7 +101,7 @@ function FindAndAddDialog({ setId, open, onOpenChange }: FindAndAddDialogProps) 
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium text-sm">{item.term}</p>
           {item.context && (
-            <p className="truncate text-xs text-muted-foreground italic">{item.context}</p>
+            <p className="truncate text-xs text-foreground/65 italic">{item.context}</p>
           )}
           <div className="mt-1 flex gap-1">
             <Badge variant="outline" className="text-xs">{langName(item.language_id, languages)}</Badge>
@@ -243,12 +243,24 @@ function ItemCard({ item, setId, isOwner, userId, onEdit, onView }: ItemCardProp
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <CardTitle className="text-base">{item.term}</CardTitle>
+            <div className="flex items-center gap-1.5">
+              <CardTitle className="text-base truncate">{item.term}</CardTitle>
+              {item.audio_url && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); new Audio(item.audio_url!).play().catch(() => {}); }}
+                  className="shrink-0 rounded-full p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Play pronunciation"
+                >
+                  <Volume2Icon className="size-3.5" />
+                </button>
+              )}
+            </div>
             {item.lemma && item.lemma !== item.term && (
               <p className="text-xs text-muted-foreground">({item.lemma})</p>
             )}
             {item.context && (
-              <CardDescription className="mt-0.5 line-clamp-2 italic">
+              <CardDescription className="mt-0.5 line-clamp-2 italic !text-foreground/65">
                 &ldquo;{item.context}&rdquo;
               </CardDescription>
             )}
@@ -269,7 +281,7 @@ function ItemCard({ item, setId, isOwner, userId, onEdit, onView }: ItemCardProp
               <Button
                 size="icon-sm"
                 variant="ghost"
-                className="shrink-0 text-destructive hover:text-destructive"
+                className="shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-destructive hover:text-destructive"
                 onClick={(e) => { e.stopPropagation(); handleRemove(); }}
                 disabled={removeItem.isPending}
               >
@@ -316,16 +328,6 @@ function ItemCard({ item, setId, isOwner, userId, onEdit, onView }: ItemCardProp
           </div>
         )}
 
-        {item.audio_url && (
-          <button
-            type="button"
-            onClick={() => { new Audio(item.audio_url!).play().catch(() => {}); }}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-border bg-muted/50 hover:bg-muted transition-colors text-sm text-muted-foreground hover:text-foreground w-fit"
-          >
-            <Volume2Icon className="size-3.5 shrink-0" />
-            Play audio
-          </button>
-        )}
       </CardContent>
 
       {canReport && (

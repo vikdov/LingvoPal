@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { PlusIcon, BookmarkIcon, BookmarkCheckIcon, BookOpenIcon, LayersIcon, DownloadIcon, PlayIcon, SearchIcon, LibraryIcon, MoreHorizontalIcon, Trash2Icon } from 'lucide-react';
+import { PlusIcon, BookmarkIcon, BookmarkCheckIcon, BookOpenIcon, LayersIcon, DownloadIcon, PlayIcon, SearchIcon, LibraryIcon, MoreHorizontalIcon, Trash2Icon, ClockIcon } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -27,6 +27,27 @@ import { SetEditor } from '../components/SetEditor';
 import { AnkiImportModal } from '../components/AnkiImportModal';
 import type { SetLibraryEntry, CreatedSetSummaryResponse } from '../types/sets.types';
 import { langName, difficultyLabel } from '../utils/formatters';
+import { cn } from '@/lib/utils';
+
+function relativeTime(dateStr: string | null): string {
+  if (!dateStr) return 'Never opened';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return `${Math.floor(days / 30)}mo ago`;
+}
+
+function withOpacity(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 // ── Language filter bar ───────────────────────────────────────────────────────
 
@@ -117,8 +138,8 @@ export function LibraryEntryCard({ entry, languages }: LibraryEntryCardProps) {
   return (
     <>
       <Card
-        className="h-full border-l-4 cursor-pointer transition-shadow hover:shadow-md"
-        style={{ borderLeftColor: accentColor }}
+        className="h-full min-h-36 border-l-4 cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 hover:ring-foreground/20 justify-between"
+        style={{ borderLeftColor: withOpacity(accentColor, 0.65) }}
         onClick={() => { touchSet.mutate(entry.set_id); navigate(`/sets/${entry.set_id}`); }}
       >
         <CardHeader className="gap-2">
@@ -162,35 +183,41 @@ export function LibraryEntryCard({ entry, languages }: LibraryEntryCardProps) {
               </DropdownMenu>
             </div>
           </div>
-          <div className="flex items-center gap-3 text-sm text-foreground/65">
+          <div className="flex items-center gap-2 text-sm text-foreground/65">
             <span className="flex items-center gap-1">
               <LayersIcon className="size-3" />
               {set.item_count} {set.item_count === 1 ? 'item' : 'items'}
             </span>
             {entry.due_count > 0 && (
-              <span className="text-primary font-medium">
-                {entry.due_count} due
-              </span>
+              <>
+                <span aria-hidden>·</span>
+                <span className="text-primary font-medium">{entry.due_count} due</span>
+              </>
             )}
+            <span aria-hidden>·</span>
+            <span className="flex items-center gap-1">
+              <ClockIcon className="size-3" />
+              {relativeTime(entry.last_opened_at)}
+            </span>
           </div>
         </CardHeader>
 
-        <CardContent className="flex flex-col gap-2">
-          <div className="flex flex-wrap gap-2">
-            {set.difficulty !== null && (
-              <Badge variant="secondary">{difficultyLabel(set.difficulty)}</Badge>
-            )}
-            <Badge variant="outline" className="text-xs">
-              <BookOpenIcon className="size-3" />
-              {langName(set.source_lang_id, languages)}
-              {set.target_lang_id != null ? ` → ${langName(set.target_lang_id, languages)}` : ''}
-            </Badge>
-          </div>
-          <div>
+        <CardContent>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-2">
+              {set.difficulty !== null && (
+                <Badge variant="secondary">{difficultyLabel(set.difficulty)}</Badge>
+              )}
+              <Badge variant="outline" className="text-xs">
+                <BookOpenIcon className="size-3" />
+                {langName(set.source_lang_id, languages)}
+                {set.target_lang_id != null ? ` → ${langName(set.target_lang_id, languages)}` : ''}
+              </Badge>
+            </div>
             <Button
               size="sm"
               variant={entry.due_count > 0 ? 'default' : 'outline'}
-              className={entry.due_count === 0 ? 'border-foreground/25 text-foreground' : undefined}
+              className={cn('shrink-0', entry.due_count === 0 ? 'border-foreground/25 text-foreground' : undefined)}
               onClick={(e) => { e.stopPropagation(); touchSet.mutate(entry.set_id); navigate(`/practice?setId=${entry.set_id}`); }}
               disabled={set.item_count === 0}
               title={set.item_count === 0 ? 'No items to study' : undefined}
@@ -358,8 +385,8 @@ function CreatedSetCard({ set, languages }: CreatedSetCardProps) {
 
   return (
     <Card
-      className="h-full border-l-4 cursor-pointer transition-shadow hover:shadow-md"
-      style={{ borderLeftColor: accentColor }}
+      className="h-full min-h-36 border-l-4 cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 hover:ring-foreground/20 justify-between"
+      style={{ borderLeftColor: withOpacity(accentColor, 0.65) }}
       onClick={() => { touchSet.mutate(set.id); navigate(`/sets/${set.id}`); }}
     >
       <CardHeader className="gap-2">
@@ -386,23 +413,23 @@ function CreatedSetCard({ set, languages }: CreatedSetCardProps) {
         </div>
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-2">
-        <div className="flex flex-wrap gap-2">
-          {set.difficulty !== null && (
-            <Badge variant="secondary">{difficultyLabel(set.difficulty)}</Badge>
-          )}
-          <Badge variant="outline" className="text-xs">
-            <BookOpenIcon className="size-3" />
-            {langName(set.source_lang_id, languages)}
-            {set.target_lang_id != null ? ` → ${langName(set.target_lang_id, languages)}` : ''}
-          </Badge>
-          <Badge variant="outline">{set.status}</Badge>
-        </div>
-        <div>
+      <CardContent>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-2">
+            {set.difficulty !== null && (
+              <Badge variant="secondary">{difficultyLabel(set.difficulty)}</Badge>
+            )}
+            <Badge variant="outline" className="text-xs">
+              <BookOpenIcon className="size-3" />
+              {langName(set.source_lang_id, languages)}
+              {set.target_lang_id != null ? ` → ${langName(set.target_lang_id, languages)}` : ''}
+            </Badge>
+            <Badge variant="outline">{set.status}</Badge>
+          </div>
           <Button
             size="sm"
             variant="outline"
-            className="border-foreground/25 text-foreground"
+            className="shrink-0 border-foreground/25 text-foreground"
             onClick={(e) => { e.stopPropagation(); touchSet.mutate(set.id); navigate(`/practice?setId=${set.id}`); }}
             disabled={set.item_count === 0}
             title={set.item_count === 0 ? 'No items to study' : undefined}

@@ -24,6 +24,7 @@ export function ToggleTheme() {
 		>
 			{THEME_OPTIONS.map((option) => (
 				<button
+					key={option.value}
 					className={cn(
 						'relative flex size-7 cursor-pointer items-center justify-center rounded-md transition-all',
 						theme === option.value

@@ -7,19 +7,19 @@ const CARDS = [
   {
     icon: BookOpenIcon,
     title: 'Curated sets',
-    body: 'Official vocabulary sets for Italian, French, German, and more — built around grammar topics and frequency lists.',
+    body: 'Official vocabulary sets built around grammar topics, conjugation tables, and high-frequency word lists — ready to study on day one.',
     tag: 'official',
   },
   {
     icon: UsersIcon,
     title: 'Community sets',
-    body: 'Learners publish their own sets. Clone any set and personalize it with your own sentences and context.',
+    body: 'Learners publish their own sets. Clone any set, fork individual expressions, and personalize with your own sentences.',
     tag: 'community',
   },
   {
     icon: ShieldCheckIcon,
-    title: 'Reviewed content',
-    body: 'Public sets go through moderation before appearing in discovery. Quality over quantity.',
+    title: 'Moderated content',
+    body: 'Public sets go through moderation before appearing in discovery. Quality over quantity — no spam, no machine-translated junk.',
     tag: 'moderated',
   },
 ];

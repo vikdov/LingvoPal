@@ -9,18 +9,20 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useAllLanguages, useActivateLanguage } from '../hooks/useUserLanguages';
+import { useUserLanguages, useActivateLanguage } from '../hooks/useUserLanguages';
 import { useLanguageStore } from '../store/language.store';
 
 export function LanguageSwitcher() {
-  const { data: languages, isLoading } = useAllLanguages();
+  const { data: userLangsData, isLoading } = useUserLanguages();
   const { mutate: activate, isPending } = useActivateLanguage();
   const activeId = useLanguageStore((s) => s.activeLanguageId);
   const clear = useLanguageStore((s) => s.clear);
 
-  if (isLoading || !languages?.length) return null;
+  const languages = userLangsData?.languages ?? [];
 
-  const active = languages.find((l) => l.id === activeId);
+  if (isLoading || !languages.length) return null;
+
+  const active = languages.find((l) => l.language.id === activeId);
 
   return (
     <DropdownMenu>
@@ -36,7 +38,7 @@ export function LanguageSwitcher() {
           ) : (
             <Globe className="size-3.5" />
           )}
-          <span>{active?.name ?? 'All'}</span>
+          <span>{active?.language.name ?? 'All'}</span>
           <ChevronDown className="size-3 opacity-60" />
         </Button>
       </DropdownMenuTrigger>
@@ -56,22 +58,22 @@ export function LanguageSwitcher() {
         <DropdownMenuSeparator />
         {languages.map((l) => (
           <DropdownMenuItem
-            key={l.id}
+            key={l.language.id}
             onSelect={() => {
-              if (l.id !== activeId) activate(l.id);
+              if (l.language.id !== activeId) activate(l.language.id);
             }}
             className={cn(
               'text-sm gap-2',
-              l.id === activeId && 'font-medium',
+              l.language.id === activeId && 'font-medium',
             )}
           >
             <Check
               className={cn(
                 'size-3.5',
-                l.id === activeId ? 'opacity-100' : 'opacity-0',
+                l.language.id === activeId ? 'opacity-100' : 'opacity-0',
               )}
             />
-            {l.name}
+            {l.language.name}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

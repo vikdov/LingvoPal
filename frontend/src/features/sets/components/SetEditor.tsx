@@ -78,6 +78,7 @@ export function SetEditor({ open, onOpenChange, set, onSuccess }: SetEditorProps
       setSourceLangId(activeLanguageId ? String(activeLanguageId) : '');
       setTargetLangId(TARGET_NONE);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [set, open]);
 
   function handleSubmit(e: React.FormEvent) {

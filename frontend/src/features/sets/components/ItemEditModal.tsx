@@ -9,7 +9,8 @@ import {
   ImageIcon,
   MicIcon,
   Loader2Icon,
-  Volume2Icon,
+  PlayIcon,
+  PauseIcon,
   SearchIcon,
   ChevronDownIcon,
   SparklesIcon,
@@ -285,6 +286,35 @@ interface AudioUploadRowProps {
 
 function AudioUploadRow({ label, audioUrl, pendingFileName, isPending, isStale, onSelect, onClearPending }: AudioUploadRowProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const audioInstanceRef = useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  useEffect(() => {
+    return () => { audioInstanceRef.current?.pause(); };
+  }, []);
+
+  useEffect(() => {
+    if (audioInstanceRef.current) {
+      audioInstanceRef.current.pause();
+      audioInstanceRef.current = null;
+      setIsPlaying(false);
+    }
+  }, [audioUrl]);
+
+  function togglePlay() {
+    if (!audioUrl) return;
+    if (!audioInstanceRef.current) {
+      audioInstanceRef.current = new Audio(audioUrl);
+      audioInstanceRef.current.onended = () => setIsPlaying(false);
+    }
+    if (isPlaying) {
+      audioInstanceRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioInstanceRef.current.play().catch(() => setIsPlaying(false));
+      setIsPlaying(true);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -302,25 +332,33 @@ function AudioUploadRow({ label, audioUrl, pendingFileName, isPending, isStale, 
       />
 
       {audioUrl ? (
-        <div className={cn('flex flex-col gap-2 rounded-lg border bg-muted/30 p-3', isStale ? 'border-amber-400/60' : 'border-border')}>
-          <div className="flex items-center gap-2">
-            <Volume2Icon className="size-4 shrink-0 text-muted-foreground" />
-            <audio controls className="h-8 flex-1 min-w-0" src={audioUrl} />
-            {isStale && (
-              <span title="Context changed — regenerate audio" className="shrink-0 text-amber-500">
-                <AlertTriangleIcon className="size-3.5" />
-              </span>
-            )}
-          </div>
+        <div className={cn('flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2', isStale ? 'border-amber-400/60' : 'border-border')}>
+          <button
+            type="button"
+            onClick={togglePlay}
+            className="flex size-7 shrink-0 items-center justify-center rounded-full bg-foreground/10 hover:bg-foreground/15 transition-colors"
+            aria-label={isPlaying ? 'Pause' : 'Play'}
+          >
+            {isPlaying
+              ? <PauseIcon className="size-3" />
+              : <PlayIcon className="size-3" />
+            }
+          </button>
+          <span className="flex-1 min-w-0 text-xs text-muted-foreground truncate">{label}</span>
+          {isStale && (
+            <span title="Context changed — regenerate audio" className="shrink-0 text-amber-500">
+              <AlertTriangleIcon className="size-3.5" />
+            </span>
+          )}
           <Button
             type="button"
-            size="sm"
-            variant="outline"
+            size="icon-sm"
+            variant="ghost"
             onClick={() => inputRef.current?.click()}
             disabled={isPending}
+            title="Upload custom audio"
           >
             {isPending ? <Loader2Icon className="size-3.5 animate-spin" /> : <MicIcon className="size-3.5" />}
-            {isPending ? 'Uploading…' : 'Upload custom'}
           </Button>
         </div>
       ) : pendingFileName ? (
@@ -1320,6 +1358,44 @@ export function ItemEditModal({
           </DialogTitle>
         </DialogHeader>
 
+        {/* Draft status banner — owner only */}
+        {isEditing && item.status === 'draft' && item.creator_id === user?.id && (
+          <div className="shrink-0 border-b border-border bg-amber-50/60 dark:bg-amber-950/20 px-6 py-2.5 flex items-center justify-between gap-3">
+            <span className="text-xs text-amber-700 dark:text-amber-400">
+              Draft — not yet submitted for community review
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0 border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-950/30"
+              onClick={() => setSubmitDialogOpen(true)}
+            >
+              <SendIcon className="size-3.5" />
+              Submit for Review
+            </Button>
+            <SubmitReviewDialog
+              open={submitDialogOpen}
+              onOpenChange={setSubmitDialogOpen}
+              targetLabel={item.term}
+              isPending={submitItem.isPending}
+              onSubmit={(feedback) => {
+                submitItem.mutate(
+                  { itemId: item.id, feedback },
+                  {
+                    onSuccess: () => {
+                      toast.success(`"${item.term}" submitted for review.`);
+                      setSubmitDialogOpen(false);
+                      qc.invalidateQueries({ queryKey: ['sets'] });
+                    },
+                    onError: (err) => toast.error(err.message),
+                  },
+                );
+              }}
+            />
+          </div>
+        )}
+
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto">
           <form id="item-edit-form" onSubmit={handleSubmit}>
@@ -1673,39 +1749,6 @@ export function ItemEditModal({
                 targetType="item"
                 open={reportOpen}
                 onOpenChange={setReportOpen}
-              />
-            </>
-          )}
-          {isEditing && item.status === 'draft' && item.creator_id === user?.id && (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mr-auto border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-950/30"
-                onClick={() => setSubmitDialogOpen(true)}
-              >
-                <SendIcon className="size-3.5" />
-                Submit for Review
-              </Button>
-              <SubmitReviewDialog
-                open={submitDialogOpen}
-                onOpenChange={setSubmitDialogOpen}
-                targetLabel={item.term}
-                isPending={submitItem.isPending}
-                onSubmit={(feedback) => {
-                  submitItem.mutate(
-                    { itemId: item.id, feedback },
-                    {
-                      onSuccess: () => {
-                        toast.success(`"${item.term}" submitted for review.`);
-                        setSubmitDialogOpen(false);
-                        qc.invalidateQueries({ queryKey: ['sets'] });
-                      },
-                      onError: (err) => toast.error(err.message),
-                    },
-                  );
-                }}
               />
             </>
           )}

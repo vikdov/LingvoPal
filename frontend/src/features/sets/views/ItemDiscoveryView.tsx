@@ -165,7 +165,7 @@ function AddToSetDialog({ item, mode, open, onOpenChange }: AddToSetDialogProps)
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>
-            {mode === 'add' ? 'Add to set' : 'Fork into set'}
+            {mode === 'add' ? 'Add to set' : 'Copy & Edit'}
           </DialogTitle>
         </DialogHeader>
 
@@ -173,7 +173,7 @@ function AddToSetDialog({ item, mode, open, onOpenChange }: AddToSetDialogProps)
           <p className="text-sm text-muted-foreground">
             {mode === 'add'
               ? `"${item.term}" will be added as-is. You can study it but not edit it.`
-              : `"${item.term}" will be copied into your set. You can edit the copy freely.`}
+              : `A copy of "${item.term}" will be added to your set. Edit it freely.`}
           </p>
 
           <Select
@@ -211,7 +211,7 @@ function AddToSetDialog({ item, mode, open, onOpenChange }: AddToSetDialogProps)
               ? 'Working…'
               : mode === 'add'
               ? 'Add to Set'
-              : 'Fork'}
+              : 'Copy & Edit'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -251,9 +251,9 @@ function DiscoveryItemCard({ item, languages }: DiscoveryItemCardProps) {
         )}
 
         <CardHeader className="flex-1 pb-2">
-          <CardTitle className="text-base">{item.term}</CardTitle>
+          <CardTitle className="text-base truncate">{item.term}</CardTitle>
           {item.context && (
-            <CardDescription className="line-clamp-2 italic">
+            <CardDescription className="line-clamp-2 italic !text-foreground/65">
               &ldquo;{item.context}&rdquo;
             </CardDescription>
           )}
@@ -282,7 +282,7 @@ function DiscoveryItemCard({ item, languages }: DiscoveryItemCardProps) {
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setDialogMode('fork')}>
             <GitForkIcon className="size-3.5" />
-            Fork
+            Copy & Edit
           </Button>
         </CardFooter>
       </Card>
@@ -387,8 +387,8 @@ export function ItemDiscoveryView() {
       <DiscoveryTabs />
 
       {/* ── Filters ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap gap-3">
-        <div className="relative min-w-[200px] flex-1">
+      <div className="flex flex-col gap-2">
+        <div className="relative">
           <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="pl-8"
@@ -398,47 +398,49 @@ export function ItemDiscoveryView() {
           />
         </div>
 
-        <Select value={languageId} onValueChange={handleFilterChange(setLanguageId)}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Language" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="any">Any language</SelectItem>
-            {languages.map((l) => (
-              <SelectItem key={l.id} value={String(l.id)}>
-                {l.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-wrap gap-2">
+          <Select value={languageId} onValueChange={handleFilterChange(setLanguageId)}>
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="Language" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="any">Any language</SelectItem>
+              {languages.map((l) => (
+                <SelectItem key={l.id} value={String(l.id)}>
+                  {l.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Select value={partOfSpeech} onValueChange={handleFilterChange(setPartOfSpeech)}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Part of speech" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="any">Any part of speech</SelectItem>
-            {PART_OF_SPEECH_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select value={partOfSpeech} onValueChange={handleFilterChange(setPartOfSpeech)}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Part of speech" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="any">Any part of speech</SelectItem>
+              {PART_OF_SPEECH_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Select value={difficulty} onValueChange={handleFilterChange(setDifficulty)}>
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder="Difficulty" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="any">Any difficulty</SelectItem>
-            {DIFFICULTY_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select value={difficulty} onValueChange={handleFilterChange(setDifficulty)}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Difficulty" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="any">Any difficulty</SelectItem>
+              {DIFFICULTY_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* ── Results ─────────────────────────────────────────────────────── */}

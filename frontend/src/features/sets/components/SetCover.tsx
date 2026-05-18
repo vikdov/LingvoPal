@@ -37,6 +37,7 @@ function pickFallback(setId: number): [string, string] {
   return FALLBACK_GRADIENTS[((setId * 2654435761) >>> 0) % FALLBACK_GRADIENTS.length];
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function langAccentColor(langCode: string, setId: number): string {
   const code = langCode.toLowerCase().slice(0, 2);
   return (LANG_GRADIENTS[code] ?? pickFallback(setId))[0];

@@ -14,6 +14,7 @@ import {
   VerifyEmailView,
   ForgotPasswordView,
   ResetPasswordView,
+  EmailChangeConfirmView,
 } from '@/features/auth';
 import { DashboardView } from '@/features/stats';
 import { SetsListView, SetDetailView, SetDiscoveryView, ItemDiscoveryView, ExpressionsLibraryView } from '@/features/sets';
@@ -59,6 +60,7 @@ export const router = createBrowserRouter([
     children: [
       { path: 'forgot-password', element: <ForgotPasswordView /> },
       { path: 'reset-password', element: <ResetPasswordView /> },
+      { path: 'change-email', element: <EmailChangeConfirmView /> },
     ],
   },
   {

@@ -19,4 +19,13 @@ export const settingsApi = {
 
   deleteAccount: (): Promise<void> =>
     api.delete('/users/me'),
+
+  requestEmailChange: (new_email: string): Promise<void> =>
+    api.post('/users/me/email-change', { new_email }),
+
+  confirmEmailChange: (token: string): Promise<UserProfile> =>
+    api.post('/users/me/email-change/confirm', { token }),
+
+  cancelEmailChange: (): Promise<void> =>
+    api.delete('/users/me/email-change'),
 };
