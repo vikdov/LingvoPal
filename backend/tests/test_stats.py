@@ -12,13 +12,17 @@ Test groups:
     - active_load > 55 → heavy
     - retention < 15 with total > 30 → slow
     - healthy deck → None
+  - _daily_to_dict(): field mapping, accuracy_percent, zero-review guard
 """
+
+from datetime import date
+from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 
 from app.repositories.stats_repo import interval_to_bucket_key
-from app.services.stats_service import _compute_learning_balance
-
+from app.services.stats_service import _compute_learning_balance, _daily_to_dict
 
 # ── interval_to_bucket_key ────────────────────────────────────────────────────
 
@@ -153,3 +157,65 @@ class TestComputeLearningBalance:
         assert "message" in result
         assert isinstance(result["message"], str)
         assert len(result["message"]) > 0
+
+
+# ── _daily_to_dict ────────────────────────────────────────────────────────────
+
+
+def _row(
+    stat_date=date(2026, 1, 15),
+    language_id: int = 1,
+    correct: int = 8,
+    incorrect: int = 2,
+    new_words: int = 3,
+    seconds: float = 120.0,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        stat_date=stat_date,
+        language_id=language_id,
+        correct_count=correct,
+        incorrect_count=incorrect,
+        new_words_count=new_words,
+        seconds_spent=Decimal(str(seconds)),
+    )
+
+
+class TestDailyToDict:
+    def test_returns_iso_date_string(self) -> None:
+        result = _daily_to_dict(_row(stat_date=date(2026, 3, 7)))
+        assert result["stat_date"] == "2026-03-07"
+
+    def test_correct_and_incorrect_counts(self) -> None:
+        result = _daily_to_dict(_row(correct=10, incorrect=5))
+        assert result["correct_count"] == 10
+        assert result["incorrect_count"] == 5
+
+    def test_total_reviews_is_sum(self) -> None:
+        result = _daily_to_dict(_row(correct=7, incorrect=3))
+        assert result["total_reviews"] == 10
+
+    def test_accuracy_percent_rounds_to_two_decimals(self) -> None:
+        result = _daily_to_dict(_row(correct=1, incorrect=2))
+        # 1/3 * 100 ≈ 33.33
+        assert result["accuracy_percent"] == round(1 / 3 * 100, 2)
+
+    def test_accuracy_zero_when_no_reviews(self) -> None:
+        result = _daily_to_dict(_row(correct=0, incorrect=0))
+        assert result["accuracy_percent"] == 0.0
+
+    def test_accuracy_100_when_all_correct(self) -> None:
+        result = _daily_to_dict(_row(correct=5, incorrect=0))
+        assert result["accuracy_percent"] == 100.0
+
+    def test_seconds_spent_is_float(self) -> None:
+        result = _daily_to_dict(_row(seconds=90.5))
+        assert result["seconds_spent"] == 90.5
+        assert isinstance(result["seconds_spent"], float)
+
+    def test_language_id_passed_through(self) -> None:
+        result = _daily_to_dict(_row(language_id=7))
+        assert result["language_id"] == 7
+
+    def test_new_words_count_passed_through(self) -> None:
+        result = _daily_to_dict(_row(new_words=12))
+        assert result["new_words_count"] == 12
