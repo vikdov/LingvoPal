@@ -54,6 +54,17 @@ _LOGIN_FAIL_PREFIX = "login_fails:"
 _MAX_LOGIN_FAILS = 10
 _LOCKOUT_TTL_SECONDS = 900  # 15 minutes
 
+# Atomically increment a fail counter, set TTL on first increment, return new count.
+# Prevents a race where two concurrent INCR calls both get count=1 and each try to
+# set the TTL, or where the TTL is never set if the key already exists.
+_LUA_INCR_WITH_EXPIRE = """
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then
+    redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1]))
+end
+return count
+"""
+
 
 # ============================================================================
 # PRIVATE HELPERS  (module-level pure functions, easy to unit-test)
@@ -90,7 +101,7 @@ def _build_token(user: User) -> tuple[str, int]:
         "sub": str(user.id),
         "role": user.user_status.value,
         "iat": int(now.timestamp()),
-        "exp": exp,
+        "exp": int(exp.timestamp()),
     }
     token = encode_token(payload)
     return token, expires_in
@@ -211,15 +222,11 @@ class AuthService:
                 )
 
     async def _record_login_fail(self, email: str, client_ip: str | None) -> None:
-        key = f"{_LOGIN_FAIL_PREFIX}{email}"
-        count = await self._redis.incr(key)
-        if count == 1:
-            await self._redis.expire(key, _LOCKOUT_TTL_SECONDS)
+        keys = [f"{_LOGIN_FAIL_PREFIX}{email}"]
         if client_ip:
-            ip_key = f"login_fails_ip:{client_ip}"
-            ip_count = await self._redis.incr(ip_key)
-            if ip_count == 1:
-                await self._redis.expire(ip_key, _LOCKOUT_TTL_SECONDS)
+            keys.append(f"login_fails_ip:{client_ip}")
+        for key in keys:
+            await self._redis.eval(_LUA_INCR_WITH_EXPIRE, 1, key, _LOCKOUT_TTL_SECONDS)
 
     async def _clear_login_fails(self, email: str, client_ip: str | None) -> None:
         keys = [f"{_LOGIN_FAIL_PREFIX}{email}"]

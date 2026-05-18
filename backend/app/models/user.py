@@ -4,7 +4,7 @@
 from datetime import time
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Time
+from sqlalchemy import ForeignKey, Index, Time, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import Enum as pgEnum
 
@@ -25,6 +25,12 @@ class User(Base, SoftDeleteTimestampMixin):
     """User account"""
 
     __tablename__ = "users"
+    __table_args__ = (
+        # Partial unique indexes — exclude soft-deleted rows so that a deleted
+        # user's email/username can be re-used by a new account.
+        Index("uq_users_email_active", "email", unique=True, postgresql_where=text("deleted_at IS NULL")),
+        Index("uq_users_username_active", "username", unique=True, postgresql_where=text("deleted_at IS NULL AND username IS NOT NULL")),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_status: Mapped[UserRole] = mapped_column(
@@ -33,7 +39,7 @@ class User(Base, SoftDeleteTimestampMixin):
         default=UserRole.USER,
     )
     email: Mapped[str] = mapped_column(
-        unique=True, nullable=False, comment="User email (unique, used for login)"
+        nullable=False, comment="User email (unique among active users, see uq_users_email_active)"
     )
     email_verified: Mapped[bool] = mapped_column(
         default=False, nullable=False, comment="User has verified their email"
@@ -45,9 +51,8 @@ class User(Base, SoftDeleteTimestampMixin):
         nullable=False, comment="Hashed password (never plain text)"
     )
     username: Mapped[str | None] = mapped_column(
-        unique=True,
         nullable=True,
-        comment="Display name (optional, unique if provided)",
+        comment="Display name (optional, unique among active users, see uq_users_username_active)",
     )
 
     # Relationships

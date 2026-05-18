@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import type { AnswerLifecycle } from '../types/practice.types';
 
@@ -28,22 +28,27 @@ const BASE_INPUT_CLASSES =
   '[&:not(:focus)]:border-t-transparent [&:not(:focus)]:border-l-transparent [&:not(:focus)]:border-r-transparent';
 
 function ColorCodedAnswer({ answer, userAnswer }: { answer: string; userAnswer: string }) {
-  return (
-    <>
-      {answer.split('').map((char, i) => {
+  const chars = useMemo(
+    () =>
+      answer.split('').map((char, i) => {
         const userChar = userAnswer[i];
         const color =
           userChar === undefined
-            ? 'text-[#f5a79b]'
+            ? 'text-[var(--pos-wrong)]'
             : userChar.toLowerCase() === char.toLowerCase()
-              ? 'text-[#009687]'
-              : 'text-[#f5a79b]';
-        return (
-          <span key={i} className={color}>
-            {char}
-          </span>
-        );
-      })}
+              ? 'text-[var(--pos-correct)]'
+              : 'text-[var(--pos-wrong)]';
+        return { char, color, i };
+      }),
+    [answer, userAnswer],
+  );
+  return (
+    <>
+      {chars.map(({ char, color, i }) => (
+        <span key={i} className={color}>
+          {char}
+        </span>
+      ))}
     </>
   );
 }

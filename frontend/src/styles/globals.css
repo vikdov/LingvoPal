@@ -11,6 +11,18 @@
     --font-sans: 'Inter Variable', sans-serif;
     --font-mono: 'Geist Mono Variable', monospace;
     --color-navy: var(--navy);
+    --color-pos-noun: var(--pos-noun);
+    --color-pos-verb: var(--pos-verb);
+    --color-pos-adjective: var(--pos-adjective);
+    --color-pos-adverb: var(--pos-adverb);
+    --color-pos-pronoun: var(--pos-pronoun);
+    --color-pos-preposition: var(--pos-preposition);
+    --color-pos-conjunction: var(--pos-conjunction);
+    --color-pos-article: var(--pos-article);
+    --color-pos-interjection: var(--pos-interjection);
+    --color-pos-default: var(--pos-default);
+    --color-pos-correct: var(--pos-correct);
+    --color-pos-wrong: var(--pos-wrong);
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -85,6 +97,21 @@
     --sidebar-accent-foreground: oklch(0.218 0.008 223.9);
     --sidebar-border: oklch(0.925 0.005 214.3);
     --sidebar-ring: oklch(0.723 0.014 214.4);
+
+    /* Part-of-speech semantic colors — used in practice mode */
+    --pos-noun: #2195f3;
+    --pos-verb: #009687;
+    --pos-adjective: #9c27b0;
+    --pos-adverb: #3f51b5;
+    --pos-pronoun: #795554;
+    --pos-preposition: #795553;
+    --pos-conjunction: #7cb83a;
+    --pos-article: #f9936a;
+    --pos-interjection: #795553;
+    --pos-default: #888888;
+    /* Answer feedback colors */
+    --pos-correct: #009687;
+    --pos-wrong: #f5a79b;
 }
 
 .dark {

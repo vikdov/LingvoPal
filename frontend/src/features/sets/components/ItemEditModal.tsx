@@ -103,15 +103,6 @@ interface PendingTranslation {
   context_trans: string;
 }
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 // Replace standalone _ with the actual word (e.g. "She _ home" → "She went home")
 function resolveContext(ctx: string, word: string): string {
   const resolved = ctx.replace(/\b_\b/g, word);
@@ -394,9 +385,17 @@ function AudioUploadRow({ label, audioUrl, pendingFileName, isPending, isStale, 
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
+function parseContextParts(text: string) {
+  return text.split(/(\{[^}]+\})/).map((part, i) => {
+    if (part.startsWith('{') && part.endsWith('}')) {
+      return <strong key={i} className="font-semibold not-italic">{part.slice(1, -1)}</strong>;
+    }
+    return part || null;
+  });
+}
+
 function ContextDisplay({ text }: { text: string }) {
-  const html = escapeHtml(text).replace(/\{([^}]+)\}/g, '<strong class="font-semibold not-italic">$1</strong>');
-  return <span className="mt-0.5 text-xs text-muted-foreground" dangerouslySetInnerHTML={{ __html: html }} />;
+  return <span className="mt-0.5 text-xs text-muted-foreground">{parseContextParts(text)}</span>;
 }
 
 interface ContextEditProps {
@@ -429,9 +428,7 @@ function ContextEdit({ value, onChange, disabled }: ContextEditProps) {
     });
   }
 
-  const preview = value.includes('{')
-    ? escapeHtml(value).replace(/\{([^}]+)\}/g, '<mark class="bg-primary/20 text-primary font-semibold rounded px-0.5">$1</mark>')
-    : '';
+  const hasMarkers = value.includes('{');
 
   return (
     <div className="flex flex-col gap-1">
@@ -450,10 +447,16 @@ function ContextEdit({ value, onChange, disabled }: ContextEditProps) {
         rows={2}
         className="resize-none overflow-hidden text-sm"
       />
-      {preview && (
+      {hasMarkers && (
         <p className="rounded bg-muted/60 px-2 py-1 text-xs text-muted-foreground">
           <span className="mr-1 font-medium text-muted-foreground/60">Preview:</span>
-          <span dangerouslySetInnerHTML={{ __html: preview }} />
+          <span>
+            {value.split(/(\{[^}]+\})/).map((part, i) =>
+              part.startsWith('{') && part.endsWith('}')
+                ? <mark key={i} className="bg-primary/20 text-primary font-semibold rounded px-0.5">{part.slice(1, -1)}</mark>
+                : part || null
+            )}
+          </span>
         </p>
       )}
     </div>

@@ -2,27 +2,28 @@ interface PosColor {
   text: string;
   bg: string;
   border: string;
+  /** CSS variable reference — usable in inline `style={{ color }}` props */
   hex: string;
 }
 
 const POS_MAP: Record<string, PosColor> = {
-  noun:        { text: 'text-[#2195f3]', bg: 'bg-[#2195f3]/10', border: 'border-[#2195f3]', hex: '#2195f3' },
-  verb:        { text: 'text-[#009687]', bg: 'bg-[#009687]/10', border: 'border-[#009687]', hex: '#009687' },
-  adjective:   { text: 'text-[#9c27b0]', bg: 'bg-[#9c27b0]/10', border: 'border-[#9c27b0]', hex: '#9c27b0' },
-  adverb:      { text: 'text-[#3f51b5]', bg: 'bg-[#3f51b5]/10', border: 'border-[#3f51b5]', hex: '#3f51b5' },
-  'modal verb':{ text: 'text-[#009687]', bg: 'bg-[#009687]/10', border: 'border-[#009687]', hex: '#009687' },
-  pronoun:     { text: 'text-[#795554]', bg: 'bg-[#795554]/10', border: 'border-[#795554]', hex: '#795554' },
-  preposition: { text: 'text-[#795553]', bg: 'bg-[#795553]/10', border: 'border-[#795553]', hex: '#795553' },
-  conjunction: { text: 'text-[#7cb83a]', bg: 'bg-[#7cb83a]/10', border: 'border-[#7cb83a]', hex: '#7cb83a' },
-  article:     { text: 'text-[#f9936a]', bg: 'bg-[#f9936a]/10', border: 'border-[#f9936a]', hex: '#f9936a' },
-  interjection:{ text: 'text-[#795553]', bg: 'bg-[#795553]/10', border: 'border-[#795553]', hex: '#795553' },
+  noun:         { text: 'text-pos-noun',         bg: 'bg-pos-noun/10',         border: 'border-pos-noun',         hex: 'var(--pos-noun)' },
+  verb:         { text: 'text-pos-verb',         bg: 'bg-pos-verb/10',         border: 'border-pos-verb',         hex: 'var(--pos-verb)' },
+  adjective:    { text: 'text-pos-adjective',    bg: 'bg-pos-adjective/10',    border: 'border-pos-adjective',    hex: 'var(--pos-adjective)' },
+  adverb:       { text: 'text-pos-adverb',       bg: 'bg-pos-adverb/10',       border: 'border-pos-adverb',       hex: 'var(--pos-adverb)' },
+  'modal verb': { text: 'text-pos-verb',         bg: 'bg-pos-verb/10',         border: 'border-pos-verb',         hex: 'var(--pos-verb)' },
+  pronoun:      { text: 'text-pos-pronoun',      bg: 'bg-pos-pronoun/10',      border: 'border-pos-pronoun',      hex: 'var(--pos-pronoun)' },
+  preposition:  { text: 'text-pos-preposition',  bg: 'bg-pos-preposition/10',  border: 'border-pos-preposition',  hex: 'var(--pos-preposition)' },
+  conjunction:  { text: 'text-pos-conjunction',  bg: 'bg-pos-conjunction/10',  border: 'border-pos-conjunction',  hex: 'var(--pos-conjunction)' },
+  article:      { text: 'text-pos-article',      bg: 'bg-pos-article/10',      border: 'border-pos-article',      hex: 'var(--pos-article)' },
+  interjection: { text: 'text-pos-interjection', bg: 'bg-pos-interjection/10', border: 'border-pos-interjection', hex: 'var(--pos-interjection)' },
 };
 
 const DEFAULT_POS_COLOR: PosColor = {
   text: 'text-muted-foreground',
   bg: 'bg-muted',
   border: 'border-foreground',
-  hex: '#888888',
+  hex: 'var(--pos-default)',
 };
 
 export function getPosColor(pos: string | null): PosColor {

@@ -27,6 +27,7 @@ from app.models.user import User
 from app.repositories.user_language_repo import UserLanguageRepository
 from app.repositories.user_repo import UserRepository
 from app.schemas.user import UserPrivateResponse, UserUpdateRequest
+from app.services.user_profile_service import UserProfileService
 from app.schemas.user_language import (
     AddUserLanguageRequest,
     UserLanguageResponse,
@@ -77,19 +78,14 @@ async def patch_my_profile(
     if not patch:
         return await _build_user_response(current_user, db)
 
-    repo = UserRepository(db)
-    if "username" in patch and patch["username"] is not None:
-        existing = await repo.get_by_username(patch["username"])
-        if existing is not None and existing.id != current_user.id:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                detail="This username is already taken.",
-            )
-
-    await repo.update_profile_fields(current_user.id, patch)
+    svc = UserProfileService(db)
+    try:
+        await svc.update_profile(current_user.id, patch)
+    except DuplicateResourceError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc))
     await db.commit()
 
-    refreshed = await db.get(User, current_user.id)
+    refreshed = await UserRepository(db).get_by_id(current_user.id)
     return await _build_user_response(refreshed, db)
 
 
@@ -102,7 +98,7 @@ async def delete_my_account(
     current_user: VerifiedUser,
     db: DBSession,
 ) -> None:
-    await UserRepository(db).soft_delete(current_user.id)
+    await UserProfileService(db).soft_delete(current_user.id)
     await db.commit()
 
 
