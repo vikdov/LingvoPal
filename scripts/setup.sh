@@ -99,24 +99,20 @@ uv sync --quiet
 ok "Dependencies synced"
 
 # ── Database migrations ───────────────────────────────────────────────────────
-if ! PGPASSWORD=$DATABASE_PASSWORD psql -h localhost -p "$DATABASE_PORT" \
-  -U "$DATABASE_USER" -d "$DATABASE_NAME" \
-  -tAc "SELECT 1 FROM information_schema.tables WHERE table_name='users'" |
-  grep -q 1; then
-  PGPASSWORD=$DATABASE_PASSWORD psql -h localhost -p "$DATABASE_PORT" \
-    -U "$DATABASE_USER" -d "$DATABASE_NAME" \
-    -v ON_ERROR_STOP=1 <schema.sql
-  ok "Schema applied"
-else
-  ok "Schema already present — skipped"
-fi
+step "Running database migrations..."
+# Run alembic locally — config.py reads DATABASE_URL from .env via the
+# docker-compose.yml anchor. Do NOT use `docker compose exec app` here:
+# the app container is not started for local dev; uvicorn runs on the host.
+uv run alembic upgrade head
+ok "Migrations applied"
 
 # ── Seed initial data ─────────────────────────────────────────────────────────
 if [[ "${SEED_DB:-true}" == "true" ]]; then
   step "Seeding database..."
-  PGPASSWORD=$DATABASE_PASSWORD psql -h localhost -p $DATABASE_PORT \
-    -U $DATABASE_USER -d $DATABASE_NAME \
-    -v ON_ERROR_STOP=1 <seed.sql ||
+  # PYTHONPATH=. ensures `app` is importable from backend/ without a package install.
+  # seed_db.py was written for Docker (where backend/ is mounted at /app/);
+  # PYTHONPATH=. replicates that mapping for local execution.
+  PYTHONPATH=. uv run python ../backend/scripts/seed_db.py ||
     warn "Seeding reported errors — data likely already exists, safe to ignore"
 else
   step "Skipping seed  (SEED_DB=false)"
