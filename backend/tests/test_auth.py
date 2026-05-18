@@ -28,7 +28,6 @@ from app.core.security import (
 )
 from app.services.auth_service import _DUMMY_HASH, _parse_accept_language
 
-
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
 
