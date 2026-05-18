@@ -103,8 +103,12 @@ const RESET_STATE = {
 };
 
 const _initialState = (() => {
-  const restored = loadSession();
-  return restored ? { ...RESET_STATE, ...restored } : RESET_STATE;
+  try {
+    const restored = loadSession();
+    return restored ? { ...RESET_STATE, ...restored } : RESET_STATE;
+  } catch {
+    return RESET_STATE;
+  }
 })();
 
 export const usePracticeStore = create<PracticeState>()((set, get) => ({
@@ -228,7 +232,9 @@ export const usePracticeStore = create<PracticeState>()((set, get) => ({
   nextItem: () => {
     const { currentIndex, items, pendingPayload } = get();
     if (pendingPayload) {
-      void practiceApi.submitAnswer(pendingPayload.sessionId, pendingPayload.body).catch(() => {});
+      practiceApi.submitAnswer(pendingPayload.sessionId, pendingPayload.body).catch((err) => {
+        console.warn('[practice] answer submit failed (will retry on finalise):', err);
+      });
       set({ pendingPayload: null });
     }
     if (currentIndex < items.length - 1) {
@@ -240,15 +246,20 @@ export const usePracticeStore = create<PracticeState>()((set, get) => ({
     const { sessionId, pendingPayload } = get();
     if (!sessionId) return;
     if (pendingPayload) {
-      void practiceApi.submitAnswer(pendingPayload.sessionId, pendingPayload.body).catch(() => {});
+      try {
+        await practiceApi.submitAnswer(pendingPayload.sessionId, pendingPayload.body);
+      } catch (err) {
+        console.warn('[practice] final answer submit failed:', err);
+      }
       set({ pendingPayload: null });
     }
     set({ phase: 'finalising' });
     try {
       const summary = await practiceApi.finalise(sessionId);
       set({ summary, phase: 'complete' });
-    } catch {
-      set({ phase: 'complete' });
+    } catch (err) {
+      console.error('[practice] finalise failed:', err);
+      set({ phase: 'error', error: 'Failed to save session. Please try again.' });
     }
   },
 

@@ -104,6 +104,20 @@ async def lifespan(app: FastAPI):
         logger.error(f"Startup failed: {e}")
         raise
 
+    # Verify Redis is reachable — required for rate limiting, session management,
+    # auth lockout, and refresh tokens. Fail hard in production; warn in dev.
+    try:
+        from app.core.redis import get_redis_client
+
+        redis_check = get_redis_client()
+        await redis_check.ping()
+        logger.info("Redis connection verified")
+    except Exception as e:
+        if settings.is_production:
+            logger.error(f"Redis unavailable in production — refusing to start: {e}")
+            raise RuntimeError(f"Redis is required in production: {e}") from e
+        logger.warning(f"Redis unavailable: {e}")
+
     # Ensure S3 bucket exists
     try:
         from app.services.storage import StorageService
@@ -209,9 +223,29 @@ def create_app() -> FastAPI:
         )
 
     # ========================================================================
+    # JWT User Extraction Middleware
+    # Decodes the Bearer token (best-effort) and sets request.state.user
+    # so slowapi can key rate limits by user ID instead of IP.
+    # ========================================================================
+    from types import SimpleNamespace
+
+    from starlette.responses import Response as StarletteResponse
+
+    @app.middleware("http")
+    async def _extract_auth_user(request: Request, call_next) -> StarletteResponse:
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            try:
+                from app.core.security import decode_token
+                payload = decode_token(auth[7:])
+                request.state.user = SimpleNamespace(id=int(payload["sub"]))
+            except Exception:
+                pass
+        return await call_next(request)
+
+    # ========================================================================
     # Security Headers Middleware
     # ========================================================================
-    from starlette.responses import Response as StarletteResponse
 
     @app.middleware("http")
     async def _security_headers(request: Request, call_next) -> StarletteResponse:
@@ -220,6 +254,23 @@ def create_app() -> FastAPI:
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["X-XSS-Protection"] = "0"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self'; "
+            # TODO: 'unsafe-inline' here because landing page components use
+            # dynamic inline styles (clamp(), CSS-var boxShadow, etc.).
+            # Long-term fix: move to per-response nonces injected by Vite + this
+            # middleware, then drop 'unsafe-inline'.
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: blob:; "
+            "connect-src 'self'; "
+            "font-src 'self'; "
+            "frame-ancestors 'none'"
+        )
+        if settings.is_production:
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
         return response
 
     # ========================================================================
@@ -229,8 +280,8 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
     )
 
     # ========================================================================

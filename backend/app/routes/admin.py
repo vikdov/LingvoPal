@@ -13,16 +13,11 @@ Routes:
 
 from typing import NoReturn
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 
 from app.core.dependencies import AdminUser, ModerationServiceDep
-from app.core.exceptions import (
-    BusinessRuleViolationError,
-    ConcurrencyError,
-    InvalidStateTransitionError,
-    LingvoPalError,
-    ResourceNotFoundError,
-)
+from app.core.exceptions import LingvoPalError
+from app.core.http_errors import domain_error_to_http
 from app.models.enums import ModerationStatus, ModerationTargetType
 from app.schemas.admin import AdminOverviewStats, AuditLogEntry, PromoteToOfficialRequest
 from app.schemas.common import PaginatedResponse
@@ -38,24 +33,8 @@ from app.schemas.moderation import (
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
-# ============================================================================
-# ERROR MAPPING
-# ============================================================================
-
-
 def _handle(exc: LingvoPalError) -> NoReturn:
-    if isinstance(exc, ResourceNotFoundError):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
-    if isinstance(exc, ConcurrencyError):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="This entry was already resolved by another admin.",
-        )
-    if isinstance(exc, InvalidStateTransitionError):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
-    if isinstance(exc, BusinessRuleViolationError):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
-    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    domain_error_to_http(exc)
 
 
 # ============================================================================
@@ -70,7 +49,7 @@ def _handle(exc: LingvoPalError) -> NoReturn:
     description="Includes quality metrics and complaint count per entry.",
 )
 async def list_moderation(
-    admin: AdminUser,
+    _admin: AdminUser,
     svc: ModerationServiceDep,
     target_type: ModerationTargetType | None = Query(None),
     status_filter: ModerationStatus | None = Query(None, alias="status"),
@@ -94,7 +73,7 @@ async def list_moderation(
 )
 async def get_moderation_detail(
     moderation_id: int,
-    admin: AdminUser,
+    _admin: AdminUser,
     svc: ModerationServiceDep,
 ) -> PendingModerationResponse:
     try:
@@ -218,8 +197,7 @@ async def promote_item_to_official(
     svc: ModerationServiceDep,
 ) -> ItemResponse:
     try:
-        await svc.promote_to_official(admin.id, item_id, override=body.override)
-        item = await svc._items.get_by_id(item_id)
+        item = await svc.promote_to_official(admin.id, item_id, override=body.override)
         return ItemResponse.model_validate(item)
     except LingvoPalError as exc:
         _handle(exc)
@@ -231,7 +209,7 @@ async def promote_item_to_official(
     summary="List APPROVED items meeting OFFICIAL promotion thresholds",
 )
 async def list_promotion_candidates(
-    admin: AdminUser,
+    _admin: AdminUser,
     svc: ModerationServiceDep,
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
@@ -249,7 +227,7 @@ async def list_promotion_candidates(
     summary="Admin overview statistics",
 )
 async def get_admin_overview(
-    admin: AdminUser,
+    _admin: AdminUser,
     svc: ModerationServiceDep,
 ) -> AdminOverviewStats:
     stats = await svc.get_overview_stats()
@@ -262,7 +240,7 @@ async def get_admin_overview(
     summary="List all complaints",
 )
 async def list_complaints(
-    admin: AdminUser,
+    _admin: AdminUser,
     svc: ModerationServiceDep,
     target_type: ModerationTargetType | None = Query(None),
     skip: int = Query(0, ge=0),
@@ -299,7 +277,7 @@ async def dismiss_complaint(
     summary="System audit log",
 )
 async def list_audit_log(
-    admin: AdminUser,
+    _admin: AdminUser,
     svc: ModerationServiceDep,
     table_name: str | None = Query(None),
     action: str | None = Query(None),

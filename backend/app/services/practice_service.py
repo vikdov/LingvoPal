@@ -37,6 +37,7 @@ Flush lock:
   callers (user + sweeper) from running _flush_session simultaneously.
 """
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -52,6 +53,7 @@ from app.core.exceptions import (
 )
 from app.models.enums import EvaluationMode, SessionStatus
 from app.models.set import Set
+from app.models.user import UserSettings
 from app.repositories.practice_repo import PracticeRepository
 from app.schemas.practice import (
     ComparisonConfig,
@@ -190,13 +192,16 @@ class PracticeService:
                     self._user_id, None, source_lang_id=source_lang_id
                 )
             else:
-                db_set = await self._repo.get_set(set_id)
+                db_set, prefetched_settings = await asyncio.gather(
+                    self._repo.get_set(set_id),
+                    self._repo.get_user_settings(self._user_id),
+                )
                 if db_set is None:
                     raise ResourceNotFoundError("Set", set_id)
                 if not await self._user_can_study_set(db_set):
                     raise NotAuthorizedToStudyError(set_id, self._user_id)
 
-                config = await self._build_batch_config(db_set)
+                config = await self._build_batch_config(db_set, settings=prefetched_settings)
                 item_ids = await self._select_items(set_id, config, force=force)
                 if not item_ids:
                     next_review_at = await self._repo.get_next_review_at(self._user_id, set_id)
@@ -280,10 +285,10 @@ class PracticeService:
             raise NotAuthorizedToStudyError(state.set_id, self._user_id)
 
         if state.is_complete:
-            raise ResourceNotFoundError("pending item", session_id)
+            raise BusinessRuleViolationError("Session is already complete.")
 
         if req.item_id != state.next_item_id:
-            raise ValueError(
+            raise BusinessRuleViolationError(
                 f"Expected item {state.next_item_id}, got {req.item_id}. "
                 "Submit answers in order."
             )
@@ -399,6 +404,9 @@ class PracticeService:
                 session_mgr=self._session_mgr,
                 final_status=status,
             )
+        except Exception:
+            await self._db.rollback()
+            raise
         finally:
             await self._session_mgr.release_flush_lock(session_id)
 
@@ -604,8 +612,9 @@ class PracticeService:
             return True
         return await self._repo.check_library_access(self._user_id, db_set.id)
 
-    async def _build_batch_config(self, db_set: Set | None) -> BatchConfig:
-        settings = await self._repo.get_user_settings(self._user_id)
+    async def _build_batch_config(self, db_set: Set | None, settings: UserSettings | None = None) -> BatchConfig:
+        if settings is None:
+            settings = await self._repo.get_user_settings(self._user_id)
 
         if db_set is not None:
             target_lang_id = db_set.target_lang_id or 0

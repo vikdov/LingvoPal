@@ -10,18 +10,17 @@ export interface User {
   active_target_lang_id: number | null;
 }
 
-// Mirrors backend TokenResponse
+// Mirrors backend TokenResponse (refresh_token is an HttpOnly cookie, not in JSON)
 export interface TokenResponse {
   access_token: string;
-  refresh_token: string;
   token_type: string;
   expires_in: number;
   user: User;
 }
 
+// Mirrors backend RefreshResponse (refresh_token is an HttpOnly cookie, not in JSON)
 export interface RefreshResponse {
   access_token: string;
-  refresh_token: string;
   expires_in: number;
   token_type: string;
 }

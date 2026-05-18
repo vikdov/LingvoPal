@@ -16,14 +16,8 @@ from typing import NoReturn
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.dependencies import CurrentUser, ModerationServiceDep
-from app.core.exceptions import (
-    BusinessRuleViolationError,
-    ContentValidationError,
-    InvalidStateTransitionError,
-    LingvoPalError,
-    NotAuthorizedError,
-    ResourceNotFoundError,
-)
+from app.core.exceptions import LingvoPalError
+from app.core.http_errors import domain_error_to_http
 from app.models.enums import ModerationTargetType
 from app.schemas.common import PaginatedResponse
 from app.schemas.moderation import ModerationSubmissionResponse, SubmitForReviewRequest
@@ -37,20 +31,7 @@ router = APIRouter(prefix="/moderation", tags=["moderation"])
 
 
 def _handle(exc: LingvoPalError) -> NoReturn:
-    if isinstance(exc, ResourceNotFoundError):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
-    if isinstance(exc, NotAuthorizedError):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
-    if isinstance(exc, ContentValidationError):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"field": exc.field, "reason": exc.reason},
-        )
-    if isinstance(exc, InvalidStateTransitionError):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
-    if isinstance(exc, BusinessRuleViolationError):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
-    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    domain_error_to_http(exc, business_rule_status=status.HTTP_409_CONFLICT)
 
 
 # ============================================================================

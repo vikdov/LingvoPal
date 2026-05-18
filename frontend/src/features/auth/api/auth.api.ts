@@ -16,8 +16,9 @@ export const authApi = {
   signup: (body: SignupRequest) =>
     api.post<TokenResponse>('/auth/signup', body),
 
-  refresh: (refreshToken: string) =>
-    rawPost<RefreshResponse>('/auth/refresh', { refresh_token: refreshToken }),
+  // Refresh token is an HttpOnly cookie — no body required.
+  refresh: () =>
+    rawPost<RefreshResponse>('/auth/refresh'),
 
   // POST /auth/logout is now stateful — revokes refresh token server-side.
   logout: () => api.post<undefined>('/auth/logout'),

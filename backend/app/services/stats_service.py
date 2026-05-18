@@ -8,6 +8,7 @@ populated by ProgressUpdater.finalise_batch() during session finalization.
 No writes happen here.
 """
 
+import asyncio
 from datetime import date, timedelta
 
 from sqlalchemy import select
@@ -47,8 +48,10 @@ class StatsService:
         else:
             lang_map = {}
 
-        streaks = await self._repo.get_streak_batch(self._user_id, lang_ids)
-        today_stats = await self._repo.get_today_stats_batch(self._user_id, lang_ids)
+        streaks, today_stats = await asyncio.gather(
+            self._repo.get_streak_batch(self._user_id, lang_ids),
+            self._repo.get_today_stats_batch(self._user_id, lang_ids),
+        )
 
         # Per-language: today's stats + streak
         languages_overview = []

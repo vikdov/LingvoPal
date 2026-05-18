@@ -12,11 +12,15 @@ Responsibilities:
 
 from datetime import datetime, timedelta, timezone
 
+import redis.asyncio as aioredis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from sqlalchemy.exc import IntegrityError
+
 from app.core.exceptions import (
+    AccountDisabledError,
     AlreadyVerifiedError,
     EmailAlreadyExistsError,
     InvalidCredentialsError,
@@ -41,12 +45,14 @@ from app.schemas.user import UserPrivateResponse
 from app.services.refresh_token_service import RefreshTokenService
 from app.services.user_settings_service import UserSettingsService
 
-settings = get_settings()
-
 # Precomputed bcrypt hash for a known dummy password ("dummy").
 # Used to ensure constant-time verification when user is not found.
 # Prevents timing attacks that could enumerate valid emails.
 _DUMMY_HASH = "$2b$12$GHlj3GDmGBhNSBqBVG4N4uK5kHm9VJR3HqE8BgJj1zTdUnkjJOXkG"
+
+_LOGIN_FAIL_PREFIX = "login_fails:"
+_MAX_LOGIN_FAILS = 10
+_LOCKOUT_TTL_SECONDS = 900  # 15 minutes
 
 
 # ============================================================================
@@ -75,9 +81,10 @@ def _build_token(user: User) -> tuple[str, int]:
       - Adding a new claim = one-line change in one place
       - security.py never needs to know about User or roles
     """
+    settings = get_settings()
     expires_in = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-    exp = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
     now = datetime.now(timezone.utc)
+    exp = now + timedelta(seconds=expires_in)
 
     payload = {
         "sub": str(user.id),
@@ -125,12 +132,16 @@ class AuthService:
     Instantiated with a session; repositories are constructed internally.
     """
 
-    def __init__(self, session: AsyncSession, refresh_svc: RefreshTokenService) -> None:
+    def __init__(self, session: AsyncSession, refresh_svc: RefreshTokenService, redis: aioredis.Redis) -> None:
         self._session = session
         self._users = UserRepository(session)
         self._user_settings = UserSettingsService(session)
         self._user_languages = UserLanguageRepository(session)
         self._refresh = refresh_svc
+        self._redis = redis
+
+    async def get_user_by_email(self, email: str) -> "User | None":
+        return await self._users.get_by_email(email)
 
     async def signup(
         self, data: SignupRequest, accept_language: str | None = None
@@ -152,11 +163,15 @@ class AuthService:
             accept_language, fallback=data.native_lang_id
         )
 
-        user = await self._users.create(
-            email=data.email,
-            password_hash=hash_password(data.password),
-            username=data.username,
-        )
+        try:
+            user = await self._users.create(
+                email=data.email,
+                password_hash=hash_password(data.password),
+                username=data.username,
+            )
+        except IntegrityError:
+            await self._session.rollback()
+            raise EmailAlreadyExistsError()
 
         settings = await self._user_settings.create_for_user(
             user_id=user.id,
@@ -183,20 +198,56 @@ class AuthService:
                 return lang.id
         return fallback
 
-    async def login(self, data: LoginRequest) -> TokenResponse:
+    async def _check_login_lockout(self, email: str, client_ip: str | None) -> None:
+        keys = [f"{_LOGIN_FAIL_PREFIX}{email}"]
+        if client_ip:
+            keys.append(f"login_fails_ip:{client_ip}")
+        for key in keys:
+            count = await self._redis.get(key)
+            if count and int(count) >= _MAX_LOGIN_FAILS:
+                raise AccountDisabledError(
+                    f"Account temporarily locked after {_MAX_LOGIN_FAILS} failed attempts. "
+                    f"Try again in {_LOCKOUT_TTL_SECONDS // 60} minutes."
+                )
+
+    async def _record_login_fail(self, email: str, client_ip: str | None) -> None:
+        key = f"{_LOGIN_FAIL_PREFIX}{email}"
+        count = await self._redis.incr(key)
+        if count == 1:
+            await self._redis.expire(key, _LOCKOUT_TTL_SECONDS)
+        if client_ip:
+            ip_key = f"login_fails_ip:{client_ip}"
+            ip_count = await self._redis.incr(ip_key)
+            if ip_count == 1:
+                await self._redis.expire(ip_key, _LOCKOUT_TTL_SECONDS)
+
+    async def _clear_login_fails(self, email: str, client_ip: str | None) -> None:
+        keys = [f"{_LOGIN_FAIL_PREFIX}{email}"]
+        if client_ip:
+            keys.append(f"login_fails_ip:{client_ip}")
+        await self._redis.delete(*keys)
+
+    async def login(self, data: LoginRequest, client_ip: str | None = None) -> TokenResponse:
         """
         Validate credentials and return an access token.
-        Raises: InvalidCredentialsError
+        Raises: InvalidCredentialsError, AccountDisabledError (temporary lockout)
 
         Timing-safe: bcrypt runs even when the user doesn't exist,
         preventing enumeration via response-time differences.
+        Lockout: 10 consecutive failures lock the account for 15 minutes.
+        Keyed on both email and client IP to prevent victim-targeted DoS lockout.
         """
+        await self._check_login_lockout(data.email, client_ip)
+
         user = await self._users.get_by_email(data.email)
         candidate_hash = user.password_hash if user else _DUMMY_HASH
 
         if not verify_password(data.password, candidate_hash) or not user:
+            if user:
+                await self._record_login_fail(data.email, client_ip)
             raise InvalidCredentialsError()
 
+        await self._clear_login_fails(data.email, client_ip)
         settings = await self._user_settings.get_or_create(user.id)
         active_lang_id = await self._user_languages.get_active_lang_id(user.id)
         return await _build_token_response(user, settings, active_lang_id, self._refresh)

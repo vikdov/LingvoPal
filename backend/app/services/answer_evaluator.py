@@ -167,21 +167,22 @@ def evaluate(ctx: EvaluationContext) -> EvaluationResult:
 
 def normalise(text: str) -> str:
     """
-    Normalise for comparison. Pipeline (must mirror frontend answerMatcher.ts):
+    Normalise for comparison. Pipeline mirrors frontend answerMatcher.ts normalize():
       1. lowercase
       2. trim leading/trailing whitespace
       3. collapse internal whitespace to single space
       4. strip punctuation — retain letters, digits, apostrophes
-      5. NFD decompose → drop diacritic combining marks
+      5. NFD decompose → drop combining marks (Unicode category Mn) only
+         Preserves CJK, Cyrillic, Greek base characters.
 
-    "café" → "cafe", "Üniversität" → "universitat", "don't" → "don't"
+    "café" → "cafe", "Üniversität" → "universitat", "don't" → "don't", "日本語" → "日本語"
     """
     text = text.strip().lower()
     text = " ".join(text.split())
     text = re.sub(r"[^\w\s']", "", text)
     text = text.replace("_", "")
     text = unicodedata.normalize("NFD", text)
-    text = text.encode("ascii", "ignore").decode("ascii")
+    text = "".join(c for c in text if unicodedata.category(c) != "Mn")
     return text.strip()
 
 

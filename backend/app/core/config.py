@@ -200,7 +200,7 @@ class Settings(BaseSettings):
             'Generate with: python -c "import secrets; print(secrets.token_urlsafe(32))"'
         ),
     )
-    ALGORITHM: str = "HS256"
+    ALGORITHM: Literal["HS256"] = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
@@ -254,6 +254,7 @@ class Settings(BaseSettings):
 
     S3_HOST: str = "localhost"
     S3_PORT: int = 9000
+    S3_USE_TLS: bool = Field(False, description="Use HTTPS for S3 endpoint (required in production)")
     S3_ACCESS_KEY: str
     S3_SECRET_KEY: str
     S3_BUCKET: str = "lingvopal"
@@ -321,7 +322,8 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def S3_ENDPOINT_URL(self) -> str:
-        return f"http://{self.S3_HOST}:{self.S3_PORT}"
+        scheme = "https" if self.S3_USE_TLS else "http"
+        return f"{scheme}://{self.S3_HOST}:{self.S3_PORT}"
 
     # =========================================================================
     # Pydantic configuration
@@ -356,15 +358,21 @@ class Settings(BaseSettings):
         others — both are passed as keyword arguments by the framework).
 
         Priority (first source = highest priority in pydantic-settings):
-          system env > .env.local > .env.{ENV} > .env
+          constructor kwargs > system env > .env.local > .env.{ENV} > .env
+
+        init_settings (constructor kwargs) is listed first so tests can call
+        Settings(ENV="production", ...) and override env-file values cleanly.
+        In production, get_settings() calls Settings() with no args, so
+        init_settings is empty and has no effect.
         """
+        init_settings = kwargs["init_settings"]
         env_settings = kwargs["env_settings"]
         env_file_sources = tuple(
             DotEnvSettingsSource(settings_cls, env_file=path)
             for path in _get_env_files()
         )
-        # First source wins. System env first, then local overrides, then base.
-        return (env_settings, *reversed(env_file_sources))
+        # First source wins. Constructor args first, then system env, then env files.
+        return (init_settings, env_settings, *reversed(env_file_sources))
 
     # =========================================================================
     # Field validators
@@ -405,6 +413,22 @@ class Settings(BaseSettings):
     # order. All production checks are co-located so the full constraint surface
     # is visible in one place.
     # =========================================================================
+
+    @model_validator(mode="after")
+    def validate_ai_model_provider_pairing(self) -> "Settings":
+        groq_models = {"llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"}
+        google_models = {"gemini-2.0-flash-lite", "gemini-1.5-pro", "gemini-1.5-flash"}
+        if self.AI_PROVIDER == "groq" and self.AI_MODEL in google_models:
+            raise ValueError(
+                f"AI_MODEL '{self.AI_MODEL}' is a Google model but AI_PROVIDER='groq'. "
+                f"Set AI_PROVIDER='google' or use a Groq model: {groq_models}"
+            )
+        if self.AI_PROVIDER == "google" and self.AI_MODEL in groq_models:
+            raise ValueError(
+                f"AI_MODEL '{self.AI_MODEL}' is a Groq model but AI_PROVIDER='google'. "
+                f"Set AI_PROVIDER='groq' or use a Google model: {google_models}"
+            )
+        return self
 
     @model_validator(mode="after")
     def validate_tts_credentials(self) -> "Settings":
@@ -457,6 +481,13 @@ class Settings(BaseSettings):
             raise ValueError(
                 "DEBUG must be False in production. "
                 "Debug mode exposes sensitive information."
+            )
+
+        # --- S3 TLS ---
+        if not self.S3_USE_TLS:
+            raise ValueError(
+                "S3_USE_TLS must be True in production. "
+                "Plaintext S3 connections leak credentials and object data."
             )
 
         return self

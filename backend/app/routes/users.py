@@ -8,7 +8,7 @@ Admin management of other users lives in routes/admin.py.
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import (
@@ -25,6 +25,7 @@ from app.core.exceptions import (
 )
 from app.models.user import User
 from app.repositories.user_language_repo import UserLanguageRepository
+from app.repositories.user_repo import UserRepository
 from app.schemas.user import UserPrivateResponse, UserUpdateRequest
 from app.schemas.user_language import (
     AddUserLanguageRequest,
@@ -76,20 +77,16 @@ async def patch_my_profile(
     if not patch:
         return await _build_user_response(current_user, db)
 
+    repo = UserRepository(db)
     if "username" in patch and patch["username"] is not None:
-        existing = await db.scalar(
-            select(User.id).where(
-                User.username == patch["username"],
-                User.id != current_user.id,
-            )
-        )
-        if existing is not None:
+        existing = await repo.get_by_username(patch["username"])
+        if existing is not None and existing.id != current_user.id:
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
                 detail="This username is already taken.",
             )
 
-    await db.execute(update(User).where(User.id == current_user.id).values(**patch))
+    await repo.update_profile_fields(current_user.id, patch)
     await db.commit()
 
     refreshed = await db.get(User, current_user.id)
@@ -105,13 +102,7 @@ async def delete_my_account(
     current_user: VerifiedUser,
     db: DBSession,
 ) -> None:
-    from datetime import datetime, timezone
-
-    await db.execute(
-        update(User)
-        .where(User.id == current_user.id)
-        .values(deleted_at=datetime.now(timezone.utc))
-    )
+    await UserRepository(db).soft_delete(current_user.id)
     await db.commit()
 
 
@@ -253,7 +244,7 @@ async def request_email_change(
         )
 
     token = await email_change_svc.generate_token(current_user.id, new_email)
-    await db.execute(update(User).where(User.id == current_user.id).values(pending_email=new_email))
+    await UserRepository(db).update_pending_email(current_user.id, new_email)
     await db.commit()
 
     try:
@@ -280,11 +271,7 @@ async def confirm_email_change(
             detail={"error": "email_change_token_invalid", "message": "Email change token is invalid or has expired."},
         )
 
-    await db.execute(
-        update(User)
-        .where(User.id == user_id)
-        .values(email=new_email, pending_email=None, email_verified=True)
-    )
+    await UserRepository(db).confirm_email_change(user_id, new_email)
     await db.commit()
 
     user = await db.get(User, user_id)
@@ -304,5 +291,5 @@ async def cancel_email_change(
     email_change_svc: EmailChangeServiceDep,
 ) -> None:
     await email_change_svc.cancel_token(current_user.id)
-    await db.execute(update(User).where(User.id == current_user.id).values(pending_email=None))
+    await UserRepository(db).update_pending_email(current_user.id, None)
     await db.commit()

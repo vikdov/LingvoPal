@@ -12,13 +12,8 @@ from typing import NoReturn
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.dependencies import ComplaintServiceDep, CurrentUser, SetServiceDep
-from app.core.exceptions import (
-    BusinessRuleViolationError,
-    DuplicateResourceError,
-    LingvoPalError,
-    NotAuthorizedError,
-    ResourceNotFoundError,
-)
+from app.core.exceptions import LingvoPalError
+from app.core.http_errors import domain_error_to_http
 from app.schemas.common import PaginatedResponse
 from app.schemas.complaint import ComplaintRequest, ComplaintResponse
 from app.schemas.set import (
@@ -41,15 +36,7 @@ router = APIRouter(prefix="/sets", tags=["sets"])
 
 
 def _handle(exc: LingvoPalError) -> NoReturn:
-    if isinstance(exc, ResourceNotFoundError):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
-    if isinstance(exc, NotAuthorizedError):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
-    if isinstance(exc, DuplicateResourceError):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
-    if isinstance(exc, BusinessRuleViolationError):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
-    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    domain_error_to_http(exc)
 
 
 def _build_set_response(s, item_count: int, creator_username: str | None = None) -> SetResponse:

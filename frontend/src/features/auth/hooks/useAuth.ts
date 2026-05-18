@@ -20,7 +20,7 @@ export function useAuth() {
   const login = useCallback(
     async (body: LoginRequest) => {
       const data = await authApi.login(body);
-      setAuth(data.access_token, data.refresh_token, data.user);
+      setAuth(data.access_token, data.user);
       return data.user;
     },
     [setAuth],
@@ -29,7 +29,7 @@ export function useAuth() {
   const signup = useCallback(
     async (body: SignupRequest) => {
       const data = await authApi.signup(body);
-      setAuth(data.access_token, data.refresh_token, data.user);
+      setAuth(data.access_token, data.user);
       return data.user;
     },
     [setAuth],

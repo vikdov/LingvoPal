@@ -11,15 +11,12 @@ logger = logging.getLogger(__name__)
 
 def get_limiter_storage() -> str:
     settings = get_settings()
-    if settings.ENV == "production":
-        # In production, in-memory fallback silently breaks distributed rate limiting.
-        # Fail loud so misconfiguration is caught at startup, not silently bypassed.
-        return settings.REDIS_URL
-    try:
-        return settings.REDIS_URL
-    except Exception as e:
-        logger.warning(f"Rate limiter falling back to in-memory storage: {e}")
-        return "memory://"
+    # Always use Redis. In production a missing Redis is caught by the startup
+    # health check (main.py lifespan). In development, Redis is expected via
+    # docker-compose; if absent, slowapi will fail at the first rate-limited
+    # request with a clear error rather than silently falling back to in-memory
+    # (which would not work across workers anyway).
+    return settings.REDIS_URL
 
 
 def user_or_ip_identifier(request: Request) -> str:
@@ -36,7 +33,7 @@ def user_or_ip_identifier(request: Request) -> str:
 limiter = Limiter(
     key_func=user_or_ip_identifier,
     storage_uri=get_limiter_storage(),
-    strategy="fixed-window",
+    strategy="moving-window",
     storage_options={"socket_connect_timeout": 1},
 )
 

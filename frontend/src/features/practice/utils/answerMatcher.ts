@@ -12,7 +12,7 @@ function normalize(s: string): string {
   let t = s.trim().toLowerCase();
   t = t.replace(/\s+/g, ' ');
   t = t.replace(/[^\w\s']/g, '').replace(/_/g, '');
-  t = t.normalize('NFD').replace(/[̀-ͯ]/g, '');
+  t = t.normalize('NFD').replace(/\p{Mn}/gu, '');
   return t.trim();
 }
 

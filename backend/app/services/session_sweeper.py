@@ -20,7 +20,6 @@ Idempotency:
 
 import asyncio
 import logging
-from datetime import datetime, timezone
 
 import redis.asyncio as aioredis
 
@@ -29,6 +28,7 @@ from app.repositories.practice_repo import PracticeRepository
 from app.services.progress_updater import ProgressUpdater
 from app.services.session_manager import (
     INTENSITY_MAP,
+    TTL_SECONDS,
     BatchConfig,
     RawAnswerEvent,
     SessionManager,
@@ -129,7 +129,7 @@ class SessionSweeper:
             ttl = await mgr.session_ttl_seconds(db_session.id)
             should_flush = ttl < 0 or ttl < FLUSH_THRESHOLD_SECONDS
             if not should_flush:
-                should_flush = await self._is_inactive(mgr, db_session.id)
+                should_flush = self._is_inactive(ttl)
             if should_flush:
                 to_flush.append((db_session.id, db_session.user_id))
 
@@ -147,19 +147,15 @@ class SessionSweeper:
         if flushed:
             logger.info("sweeper_sweep_done", extra={"flushed": flushed})
 
-    async def _is_inactive(self, mgr: SessionManager, session_id: int) -> bool:
-        """Return True if the session has had no answers for INACTIVITY_TIMEOUT_SECONDS."""
-        state = await mgr.load_session(session_id)
-        if state is None or state.last_answered_at is None:
+    def _is_inactive(self, ttl: int) -> bool:
+        """Return True if the session has had no answers for INACTIVITY_TIMEOUT_SECONDS.
+
+        TTL_SECONDS is reset on every answer (Lua script). So TTL_SECONDS - current_ttl
+        approximates seconds since last answer, with no extra Redis round-trip.
+        """
+        if ttl < 0:
             return False
-        try:
-            last = datetime.fromisoformat(state.last_answered_at)
-            if last.tzinfo is None:
-                last = last.replace(tzinfo=timezone.utc)
-            idle = (datetime.now(timezone.utc) - last).total_seconds()
-            return idle > INACTIVITY_TIMEOUT_SECONDS
-        except (ValueError, TypeError):
-            return False
+        return (TTL_SECONDS - ttl) > INACTIVITY_TIMEOUT_SECONDS
 
     async def _flush_one(self, session_id: int, user_id: int) -> None:
         mgr = SessionManager(self._redis)

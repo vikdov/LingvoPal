@@ -125,7 +125,7 @@ async def submit_answer(
         is_correct, similarity, _, updated_state = await svc.submit_answer(session_id, req)
     except ResourceNotFoundError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc))
-    except ValueError as exc:
+    except BusinessRuleViolationError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
 
     return AnswerBufferedResponse(

@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useAuth } from '../hooks/useAuth';
 import { ApiError } from '@/services/api';
-import { languagesApi, detectNativeLangId } from '@/services/languages.api';
+import { languagesApi, detectNativeLangId } from '@/features/languages';
 import { LingvoLogo } from '@/components/LingvoLogo';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -35,11 +35,11 @@ const schema = z
     password: z
       .string()
       .min(8, 'At least 8 characters')
-      .max(128, 'At most 128 characters')
+      .max(72, 'At most 72 characters')
       .regex(/[A-Z]/, 'Must contain an uppercase letter')
       .regex(/[a-z]/, 'Must contain a lowercase letter')
       .regex(/[0-9]/, 'Must contain a digit')
-      .regex(/[!@#$%^&*+-]/, 'Must contain a special character (!@#$%^&*+-)'),
+      .regex(/[^a-zA-Z0-9\s]/, 'Must contain a special character (e.g. !@#$%^&*)'),
     confirmPassword: z.string(),
     native_lang_id: z.coerce
       .number({ invalid_type_error: 'Select your native language' })
@@ -65,7 +65,7 @@ export function RegisterView() {
 
   const { data: languages = [], isLoading: loadingLanguages } = useQuery({
     queryKey: ['languages'],
-    queryFn: languagesApi.list,
+    queryFn: languagesApi.getAll,
     staleTime: Infinity,
   });
 

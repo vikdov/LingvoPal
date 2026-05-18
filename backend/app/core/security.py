@@ -106,8 +106,8 @@ def validate_password_strength(password: str) -> list[str]:
         errors.append("at least one lowercase letter")
     if not any(c.isdigit() for c in password):
         errors.append("at least one digit")
-    if not any(c in "!@#$%^&*+-" for c in password):
-        errors.append("at least one special character (!@#$%^&*+-)")
+    if not any(not c.isalnum() and not c.isspace() for c in password):
+        errors.append("at least one special character (e.g. !@#$%^&*)")
     return errors
 
 

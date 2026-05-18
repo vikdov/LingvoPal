@@ -38,7 +38,7 @@ def _password_validator(password: str) -> str:
 # AfterValidator runs *after* min/max length checks from Field constraints.
 StrongPassword = Annotated[
     str,
-    Field(min_length=8, max_length=128, description="Password (8–128 chars)"),
+    Field(min_length=8, max_length=72, description="Password (8–72 chars; bcrypt limit)"),
     AfterValidator(_password_validator),
 ]
 
@@ -153,14 +153,15 @@ class TokenResponse(BaseModel):
         default="bearer", description="Token type (always 'bearer')"
     )
     expires_in: int = Field(..., gt=0, description="Access token lifetime in seconds")
-    refresh_token: str = Field(..., description="Opaque refresh token (7-day TTL)")
     user: UserPrivateResponse = Field(..., description="Authenticated user data")
+    # Not serialized in JSON — the route reads this and sets it as an HttpOnly cookie.
+    refresh_token: str = Field(default="", exclude=True)
 
 
 class RefreshRequest(BaseModel):
-    """POST /api/v1/auth/refresh"""
+    """POST /api/v1/auth/refresh — token may also be supplied via HttpOnly cookie."""
 
-    refresh_token: str = Field(..., min_length=1, max_length=128)
+    refresh_token: str | None = Field(None, min_length=1, max_length=128)
 
 
 class RefreshResponse(BaseModel):
@@ -169,9 +170,18 @@ class RefreshResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     access_token: str
-    refresh_token: str
     expires_in: int
     token_type: str = "bearer"
+    # Not serialized in JSON — the route reads this and sets it as an HttpOnly cookie.
+    refresh_token: str = Field(default="", exclude=True)
+
+
+class VerifyEmailResponse(BaseModel):
+    """POST /api/v1/auth/verify-email success response."""
+
+    model_config = ConfigDict(frozen=True)
+
+    message: str
 
 
 class AuthErrorResponse(BaseModel):
@@ -199,5 +209,6 @@ __all__ = [
     "TokenResponse",
     "RefreshRequest",
     "RefreshResponse",
+    "VerifyEmailResponse",
     "AuthErrorResponse",
 ]

@@ -88,7 +88,7 @@ class UserRepository:
 
     async def username_exists(self, username: str) -> bool:
         result = await self._session.execute(
-            select(User.id).where(User.username == username)
+            select(User.id).where(User.username == username, User.deleted_at.is_(None))
         )
         return result.scalar_one_or_none() is not None
 
@@ -131,6 +131,11 @@ class UserRepository:
         await self._session.flush()  # populate user.id without committing
         return user
 
+    async def update_profile_fields(self, user_id: int, patch: dict) -> None:
+        await self._session.execute(
+            update(User).where(User.id == user_id).values(**patch)
+        )
+
     async def update_password(self, user_id: int, new_hash: str) -> None:
         await self._session.execute(
             update(User).where(User.id == user_id).values(password_hash=new_hash)
@@ -152,6 +157,18 @@ class UserRepository:
             update(User)
             .where(User.id == user_id)
             .values(deleted_at=datetime.now(timezone.utc))
+        )
+
+    async def update_pending_email(self, user_id: int, pending_email: str | None) -> None:
+        await self._session.execute(
+            update(User).where(User.id == user_id).values(pending_email=pending_email)
+        )
+
+    async def confirm_email_change(self, user_id: int, new_email: str) -> None:
+        await self._session.execute(
+            update(User)
+            .where(User.id == user_id)
+            .values(email=new_email, pending_email=None, email_verified=True)
         )
 
 

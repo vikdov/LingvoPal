@@ -13,7 +13,8 @@ Rules:
 import logging
 from typing import NoReturn
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, status
+import redis.asyncio as aioredis
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response, status
 
 from app.core.config import get_settings
 from app.core.dependencies import (  # ← single import source, always
@@ -24,6 +25,7 @@ from app.core.dependencies import (  # ← single import source, always
     RedisDep,
 )
 from app.core.exceptions import (
+    AccountDisabledError,
     AlreadyVerifiedError,
     AuthError,
     EmailAlreadyExistsError,
@@ -47,10 +49,28 @@ from app.schemas.auth import (
     SignupRequest,
     TokenResponse,
     VerifyEmailRequest,
+    VerifyEmailResponse,
 )
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _set_refresh_cookie(response: Response, token: str) -> None:
+    settings = get_settings()
+    response.set_cookie(
+        key="lingvopal_rt",
+        value=token,
+        httponly=True,
+        secure=settings.is_production,
+        samesite="strict" if settings.is_production else "lax",
+        path="/api/v1/auth",
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(key="lingvopal_rt", path="/api/v1/auth")
 
 
 # ============================================================================
@@ -60,6 +80,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 _AUTH_ERROR_STATUS: dict[type[AuthError], int] = {
     InvalidCredentialsError: status.HTTP_401_UNAUTHORIZED,
+    AccountDisabledError: status.HTTP_403_FORBIDDEN,
     EmailAlreadyExistsError: status.HTTP_409_CONFLICT,
     UsernameAlreadyExistsError: status.HTTP_409_CONFLICT,
     SamePasswordError: status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -93,7 +114,8 @@ def _handle_auth_error(exc: AuthError) -> NoReturn:
 # ============================================================================
 
 
-async def _send_password_reset_background(user_id: int, email: str, redis: RedisDep) -> None:
+async def _send_password_reset_background(user_id: int, email: str, redis: aioredis.Redis) -> None:
+    # redis is the already-resolved client forwarded from the route — not injected by FastAPI.
     from app.services.email_service import EmailService
     from app.services.password_reset_service import PasswordResetService
 
@@ -107,7 +129,8 @@ async def _send_password_reset_background(user_id: int, email: str, redis: Redis
         )
 
 
-async def _send_verification_background(user_id: int, email: str, redis: RedisDep) -> None:
+async def _send_verification_background(user_id: int, email: str, redis: aioredis.Redis) -> None:
+    # redis is the already-resolved client forwarded from the route — not injected by FastAPI.
     from app.services.email_service import EmailService
     from app.services.email_verification_service import EmailVerificationService
 
@@ -141,25 +164,26 @@ async def _send_verification_background(user_id: int, email: str, redis: RedisDe
 @auth_rate_limit("5/minute")
 async def signup(
     request: Request,
+    response: Response,
     body: SignupRequest,
     auth: AuthServiceDep,
     redis: RedisDep,
     background_tasks: BackgroundTasks,
 ) -> TokenResponse:
     try:
-        response = await auth.signup(
+        result = await auth.signup(
             body, accept_language=request.headers.get("Accept-Language")
         )
+        _set_refresh_cookie(response, result.refresh_token)
+        background_tasks.add_task(
+            _send_verification_background,
+            user_id=result.user.id,
+            email=result.user.email,
+            redis=redis,
+        )
+        return result
     except (EmailAlreadyExistsError, UsernameAlreadyExistsError) as exc:
         _handle_auth_error(exc)
-
-    background_tasks.add_task(
-        _send_verification_background,
-        user_id=response.user.id,
-        email=response.user.email,
-        redis=redis,
-    )
-    return response
 
 
 @router.post(
@@ -173,12 +197,16 @@ async def signup(
 @auth_rate_limit("10/minute")
 async def login(
     request: Request,
+    response: Response,
     body: LoginRequest,
     auth: AuthServiceDep,
 ) -> TokenResponse:
+    client_ip = request.client.host if request.client else None
     try:
-        return await auth.login(body)
-    except InvalidCredentialsError as exc:
+        result = await auth.login(body, client_ip=client_ip)
+        _set_refresh_cookie(response, result.refresh_token)
+        return result
+    except (InvalidCredentialsError, AccountDisabledError) as exc:
         _handle_auth_error(exc)
 
 
@@ -194,11 +222,11 @@ async def verify_email(
     body: VerifyEmailRequest,
     auth: AuthServiceDep,
     email_verif: EmailVerifServiceDep,
-) -> dict:
+) -> VerifyEmailResponse:
     try:
         user_id = await email_verif.consume_token(body.token)
         await auth.mark_email_verified(user_id)
-        return {"message": "Email verified successfully."}
+        return VerifyEmailResponse(message="Email verified successfully.")
     except (VerificationTokenInvalidError, AlreadyVerifiedError) as exc:
         _handle_auth_error(exc)
 
@@ -277,9 +305,7 @@ async def forgot_password(
     Always returns 204 — never reveals whether the email exists.
     Reset email is sent in a background task.
     """
-    from app.repositories.user_repo import UserRepository
-
-    user = await UserRepository(auth._session).get_by_email(body.email)
+    user = await auth.get_user_by_email(body.email)
     if user:
         background_tasks.add_task(
             _send_password_reset_background,
@@ -323,12 +349,23 @@ async def reset_password(
 @auth_rate_limit("20/minute")
 async def refresh_token(
     request: Request,
-    body: RefreshRequest,
+    response: Response,
     auth: AuthServiceDep,
+    body: RefreshRequest | None = None,
 ) -> RefreshResponse:
+    token = request.cookies.get("lingvopal_rt") or (body.refresh_token if body else None)
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": "refresh_token_invalid", "message": "No refresh token provided."},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     try:
-        return await auth.refresh(body.refresh_token)
+        result = await auth.refresh(token)
+        _set_refresh_cookie(response, result.refresh_token)
+        return result
     except RefreshTokenInvalidError as exc:
+        _clear_refresh_cookie(response)
         _handle_auth_error(exc)
 
 
@@ -337,6 +374,6 @@ async def refresh_token(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Logout — revokes refresh token",
 )
-async def logout(current_user: CurrentUser, auth: AuthServiceDep) -> None:
+async def logout(current_user: CurrentUser, auth: AuthServiceDep, response: Response) -> None:
     await auth.revoke_refresh_token(current_user.id)
-    return None
+    _clear_refresh_cookie(response)

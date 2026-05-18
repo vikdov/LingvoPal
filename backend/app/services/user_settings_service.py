@@ -292,8 +292,10 @@ class UserSettingsService:
         updated = await self._repo.update(
             user_id, get_default_settings(), load_languages=True
         )
+        if updated is None:
+            return await self.get_or_create(user_id)
         await self._session.commit()
-        return updated  # type: ignore[return-value]
+        return updated
 
 
 __all__ = ["UserSettingsService", "get_default_settings"]

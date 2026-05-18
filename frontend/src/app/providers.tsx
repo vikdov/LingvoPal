@@ -40,6 +40,13 @@ queryClient.getQueryCache().config.onError = (error) => {
   }
 };
 
+// NOTE: BootRefresh was removed. It called authApi.refresh() via rawPost,
+// which bypassed the _refreshPromise dedup lock in api.ts. On page reload,
+// both BootRefresh and the first 401-triggered auto-retry in api.ts would
+// fire concurrently, consuming the rotated refresh token twice — silently
+// logging the user out. The auto-retry in api.ts handles the silent refresh
+// correctly and is sufficient on its own.
+
 interface Props {
   children: ReactNode;
 }

@@ -10,6 +10,7 @@ Two-phase flow:
   confirm_import()           — loads from temp, bulk-creates set/items, uploads media
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -220,15 +221,15 @@ class AnkiImportService:
             )
 
             await self._session.commit()
-        finally:
-            if apkg_archive is not None:
-                apkg_archive.close()
-            # Clean up temp files
+            # Clean up only after a successful commit — failure must allow retry.
             await self._redis.delete(key)
             try:
                 os.unlink(apkg_path)
             except OSError:
                 pass
+        finally:
+            if apkg_archive is not None:
+                apkg_archive.close()
 
         return AnkiImportResponse(
             set_id=new_set.id,
@@ -336,15 +337,17 @@ class AnkiImportService:
             else:
                 # NEW PATH: upload media, create item, create translation
                 card = data["card"]
-                image_url = await self._upload_image(
-                    card.raw_fields.get(mapping.image_field, "") if mapping.image_field else "",
-                    apkg_archive,
-                    media_lookup,
-                )
-                audio_url = await self._upload_audio(
-                    card.raw_fields.get(mapping.audio_field, "") if mapping.audio_field else "",
-                    apkg_archive,
-                    media_lookup,
+                image_url, audio_url = await asyncio.gather(
+                    self._upload_image(
+                        card.raw_fields.get(mapping.image_field, "") if mapping.image_field else "",
+                        apkg_archive,
+                        media_lookup,
+                    ),
+                    self._upload_audio(
+                        card.raw_fields.get(mapping.audio_field, "") if mapping.audio_field else "",
+                        apkg_archive,
+                        media_lookup,
+                    ),
                 )
                 try:
                     async with self._session.begin_nested():  # savepoint

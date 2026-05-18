@@ -12,13 +12,8 @@ from app.core.dependencies import (
     ItemSuggestionServiceDep,
     StorageDep,
 )
-from app.core.exceptions import (
-    BusinessRuleViolationError,
-    DuplicateResourceError,
-    LingvoPalError,
-    NotAuthorizedError,
-    ResourceNotFoundError,
-)
+from app.core.exceptions import LingvoPalError
+from app.core.http_errors import domain_error_to_http
 from app.core.limiter import limiter
 from app.models.enums import PartOfSpeech
 from app.schemas.common import PaginatedResponse
@@ -46,21 +41,14 @@ items_router = APIRouter(prefix="/items", tags=["items"])
 set_items_router = APIRouter(prefix="/sets/{set_id}/items", tags=["items"])
 
 
+
 # ============================================================================
 # ERROR MAPPING
 # ============================================================================
 
 
 def _handle(exc: LingvoPalError) -> NoReturn:
-    if isinstance(exc, ResourceNotFoundError):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
-    if isinstance(exc, NotAuthorizedError):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
-    if isinstance(exc, DuplicateResourceError):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
-    if isinstance(exc, BusinessRuleViolationError):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
-    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    domain_error_to_http(exc, business_rule_status=status.HTTP_409_CONFLICT)
 
 
 # ============================================================================

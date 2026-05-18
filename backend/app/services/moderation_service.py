@@ -26,6 +26,7 @@ from app.core.exceptions import (
     ResourceNotFoundError,
 )
 from app.models.enums import ContentStatus, ModerationStatus, ModerationTargetType
+from app.models.item import Item
 from app.models.pending_moderation import PendingModeration
 from app.repositories.audit_repo import AuditRepository
 from app.repositories.complaint_repo import ComplaintRepository
@@ -326,7 +327,7 @@ class ModerationService:
         admin_id: int,
         item_id: int,
         override: bool = False,
-    ) -> None:
+    ) -> Item:
         """
         Promote an APPROVED item to OFFICIAL.
 
@@ -372,6 +373,8 @@ class ModerationService:
             new_values={"status": ContentStatus.OFFICIAL.value},
         )
         await self._session.commit()
+        await self._session.refresh(item)
+        return item
 
     # ------------------------------------------------------------------
     # ADMIN: Promotion candidates

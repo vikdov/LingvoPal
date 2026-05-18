@@ -1,7 +1,21 @@
 const BASE_URL = import.meta.env.VITE_API_URL as string;
 
-export const TOKEN_KEY = 'lingvopal_token';
-export const REFRESH_TOKEN_KEY = 'lingvopal_refresh_token';
+// Persisted session hint — non-sensitive flag indicating an HttpOnly refresh
+// cookie may exist. Allows the app to attempt a silent refresh on boot without
+// storing the actual token value in localStorage.
+export const SESSION_HINT_KEY = 'lingvopal_session';
+
+// User profile key — non-sensitive, used for optimistic UI on page reload.
+export const USER_KEY = 'lingvopal_user';
+
+// ── In-memory access token ────────────────────────────────────────────────────
+// Never persisted to storage. Lost on page close; recovered via silent refresh.
+
+let _accessToken: string | null = null;
+
+export function setAccessToken(token: string | null): void {
+  _accessToken = token;
+}
 
 // ── Error types ───────────────────────────────────────────────────────────────
 
@@ -57,28 +71,31 @@ const TOKEN_ERROR_CODES = new Set(['token_expired', 'token_invalid']);
 let _refreshPromise: Promise<string> | null = null;
 
 async function _doRefresh(): Promise<string> {
-  const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-  if (!refreshToken) throw new UnauthorizedError();
-
+  // The refresh token travels as an HttpOnly cookie — no body required.
   const res = await fetch(`${BASE_URL}/auth/refresh`, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token: refreshToken }),
   });
 
   if (!res.ok) {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    _accessToken = null;
+    localStorage.removeItem(SESSION_HINT_KEY);
+    localStorage.removeItem(USER_KEY);
     throw new UnauthorizedError();
   }
 
-  const data = await res.json() as { access_token: string; refresh_token: string };
-  localStorage.setItem(TOKEN_KEY, data.access_token);
-  localStorage.setItem(REFRESH_TOKEN_KEY, data.refresh_token);
+  const data = await res.json() as { access_token?: string };
+  if (!data.access_token) {
+    _accessToken = null;
+    throw new UnauthorizedError('Refresh response missing access_token');
+  }
+  _accessToken = data.access_token;
   return data.access_token;
 }
 
 async function tryRefresh(): Promise<string> {
+  if (!localStorage.getItem(SESSION_HINT_KEY)) throw new UnauthorizedError();
   if (!_refreshPromise) {
     _refreshPromise = _doRefresh().finally(() => { _refreshPromise = null; });
   }
@@ -88,13 +105,13 @@ async function tryRefresh(): Promise<string> {
 // ── Core request ──────────────────────────────────────────────────────────────
 
 async function _fetch(method: string, path: string, body?: unknown, headers?: Record<string, string>): Promise<Response> {
-  const token = localStorage.getItem(TOKEN_KEY);
   const h: Record<string, string> = { 'Content-Type': 'application/json', ...headers };
-  if (token) h['Authorization'] = `Bearer ${token}`;
+  if (_accessToken) h['Authorization'] = `Bearer ${_accessToken}`;
 
   return fetch(`${BASE_URL}${path}`, {
     method,
     headers: h,
+    credentials: 'include',
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 }
@@ -115,19 +132,21 @@ async function request<T>(method: string, path: string, body?: unknown, _retry =
 
       if (isSessionExpiry) {
         // Try refresh once, then retry the original request.
-        if (_retry && localStorage.getItem(REFRESH_TOKEN_KEY)) {
+        if (_retry && localStorage.getItem(SESSION_HINT_KEY)) {
           try {
             await tryRefresh();
             return request<T>(method, path, body, false);
           } catch {
             // Refresh failed — clear everything, let providers clear React state.
-            localStorage.removeItem(TOKEN_KEY);
-            localStorage.removeItem(REFRESH_TOKEN_KEY);
+            _accessToken = null;
+            localStorage.removeItem(SESSION_HINT_KEY);
+            localStorage.removeItem(USER_KEY);
             throw new UnauthorizedError(typeof data.detail === 'string' ? undefined : message);
           }
         }
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(REFRESH_TOKEN_KEY);
+        _accessToken = null;
+        localStorage.removeItem(SESSION_HINT_KEY);
+        localStorage.removeItem(USER_KEY);
         throw new UnauthorizedError(typeof data.detail === 'string' ? undefined : message);
       }
     }
@@ -138,12 +157,11 @@ async function request<T>(method: string, path: string, body?: unknown, _retry =
   return data as T;
 }
 
-async function requestForm<T>(method: string, path: string, form: FormData): Promise<T> {
-  const token = localStorage.getItem(TOKEN_KEY);
+async function requestForm<T>(method: string, path: string, form: FormData, _retry = true): Promise<T> {
   const headers: Record<string, string> = {};
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (_accessToken) headers['Authorization'] = `Bearer ${_accessToken}`;
 
-  const res = await fetch(`${BASE_URL}${path}`, { method, headers, body: form });
+  const res = await fetch(`${BASE_URL}${path}`, { method, headers, credentials: 'include', body: form });
 
   if (res.status === 204) return undefined as T;
 
@@ -152,8 +170,20 @@ async function requestForm<T>(method: string, path: string, form: FormData): Pro
   if (!res.ok) {
     const { code, message } = parseDetail(data.detail);
     if (res.status === 401) {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(REFRESH_TOKEN_KEY);
+      if (_retry && localStorage.getItem(SESSION_HINT_KEY)) {
+        try {
+          await tryRefresh();
+          return requestForm<T>(method, path, form, false);
+        } catch {
+          _accessToken = null;
+          localStorage.removeItem(SESSION_HINT_KEY);
+          localStorage.removeItem(USER_KEY);
+          throw new UnauthorizedError(typeof data.detail === 'string' ? undefined : message);
+        }
+      }
+      _accessToken = null;
+      localStorage.removeItem(SESSION_HINT_KEY);
+      localStorage.removeItem(USER_KEY);
       throw new UnauthorizedError(typeof data.detail === 'string' ? undefined : message);
     }
     throw new ApiError(res.status, code, message);

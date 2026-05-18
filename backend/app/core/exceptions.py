@@ -54,8 +54,6 @@ class AuthErrorCode(str, Enum):
 class LingvoPalError(Exception):
     """Base exception for all domain errors."""
 
-    status_code = 500  # Default to Server Error
-
 
 # ============================================================================
 # AUTH DOMAIN
@@ -104,11 +102,8 @@ class SamePasswordError(AuthError):
 
 
 class AccountDisabledError(AuthError):
-    def __init__(self) -> None:
-        super().__init__(
-            AuthErrorCode.ACCOUNT_DISABLED,
-            "This account has been disabled.",
-        )
+    def __init__(self, message: str = "This account has been disabled.") -> None:
+        super().__init__(AuthErrorCode.ACCOUNT_DISABLED, message)
 
 
 class VerificationTokenInvalidError(AuthError):

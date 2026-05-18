@@ -36,6 +36,10 @@ def _split_cloze(
 
     Returns strings, not integer offsets, to avoid Python code-point vs JS UTF-16
     index mismatch for non-ASCII content.
+
+    Limitations: \b word boundaries don't match CJK/Arabic/Hebrew scripts (no
+    word-boundary concept). For those languages, use the explicit {{term}}
+    annotation in content. Only the first occurrence of the term is highlighted.
     """
     if not context or not term:
         return None, None, None
@@ -43,7 +47,7 @@ def _split_cloze(
     if marker:
         s, e = marker.start(), marker.end()
         return context[:s], marker.group(1), context[e:]
-    match = re.search(r"\b" + re.escape(term) + r"\b", context, re.IGNORECASE)
+    match = re.search(r"\b" + re.escape(term) + r"\b", context, re.IGNORECASE | re.UNICODE)
     if not match:
         return None, None, None
     s, e = match.start(), match.end()

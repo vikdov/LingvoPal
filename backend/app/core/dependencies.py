@@ -234,14 +234,6 @@ async def get_redis_client() -> AsyncGenerator[aioredis.Redis, None]:
         yield client
 
 
-async def get_refresh_token_service(
-    redis: Annotated[aioredis.Redis, Depends(get_redis_client)],
-) -> "RefreshTokenService":
-    from app.services.refresh_token_service import RefreshTokenService
-    settings = get_settings()
-    return RefreshTokenService(redis, ttl_seconds=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400)
-
-
 async def get_auth_service(
     db: DBSession,
     redis: Annotated[aioredis.Redis, Depends(get_redis_client)],
@@ -250,7 +242,7 @@ async def get_auth_service(
     from app.services.refresh_token_service import RefreshTokenService
     settings = get_settings()
     refresh_svc = RefreshTokenService(redis, ttl_seconds=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400)
-    return AuthService(db, refresh_svc)
+    return AuthService(db, refresh_svc, redis)
 
 
 async def get_practice_service(
@@ -333,7 +325,6 @@ PasswordResetServiceDep = Annotated[
 EmailChangeServiceDep = Annotated["EmailChangeService", Depends(get_email_change_service)]
 EmailServiceDep = Annotated[EmailService, Depends(get_email_service)]
 RedisDep = Annotated[aioredis.Redis, Depends(get_redis_client)]
-RefreshTokenServiceDep = Annotated["RefreshTokenService", Depends(get_refresh_token_service)]
 ItemSuggestionServiceDep = Annotated[
     ItemSuggestionService, Depends(get_item_suggestion_service)
 ]
