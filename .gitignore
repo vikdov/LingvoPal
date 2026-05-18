@@ -47,6 +47,7 @@ env/
 data/
 *.egg-info/
 *.pyc
+backend/mutants/
 
 
 

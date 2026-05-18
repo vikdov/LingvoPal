@@ -195,7 +195,9 @@ def _handle_lapse(
 
     mature = state.interval_days > _MATURE_CARD_DAYS
     if mature:
-        recovery_days = max(MIN_LAPSE_DAYS, round(state.interval_days * float(LAPSE_INTERVAL_FACTOR)))
+        recovery_days = max(
+            MIN_LAPSE_DAYS, round(state.interval_days * float(LAPSE_INTERVAL_FACTOR))
+        )
         new_repetitions = 1
     else:
         recovery_days = MIN_LAPSE_DAYS

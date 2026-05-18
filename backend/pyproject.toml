@@ -38,6 +38,8 @@ dependencies = [
 dev = [
     "ruff>=0.15.9",
     "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+    "mutmut>=3.5.0",
 ]
 
 # =============================================================================
@@ -73,3 +75,7 @@ ignore = [
 "scripts/seed_db.py" = ["E402"]
 # Tests may import fixtures/markers not directly referenced in function bodies
 "tests/*" = ["F401"]
+
+[tool.mutmut]
+paths_to_mutate= [ "app/services/sm2_engine.py" ]
+pytest_add_cli_args_test_selection = [ "tests/test_sm2_engine.py" ]
