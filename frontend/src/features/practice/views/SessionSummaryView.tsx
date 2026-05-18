@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Volume2, ArrowRightIcon, Flame } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePracticeStore } from '../store/practice.store';
@@ -30,7 +31,6 @@ function getMilestoneLabel(streak: number): string | null {
   return null;
 }
 
-// Per-character coloring: correctly typed chars → navy, wrong/missing → orange
 function WordChars({ answer, userAnswer }: { answer: string; userAnswer: string }) {
   return (
     <>
@@ -48,6 +48,7 @@ function WordChars({ answer, userAnswer }: { answer: string; userAnswer: string 
 }
 
 export function SessionSummaryView() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const store = usePracticeStore();
@@ -59,7 +60,6 @@ export function SessionSummaryView() {
   const streak = activeLang?.streak_days ?? 0;
   const milestoneLabel = getMilestoneLabel(streak);
 
-  // Invalidate stats so dashboard/nav badge update after session
   useEffect(() => {
     queryClient.invalidateQueries({ queryKey: statKeys.overview() });
     queryClient.invalidateQueries({ queryKey: statKeys.totals() });
@@ -106,22 +106,20 @@ export function SessionSummaryView() {
     <div className="flex flex-col min-h-screen bg-muted">
       <div className="flex-1 flex flex-col items-center justify-center px-8 py-16 gap-10">
 
-        {/* Accuracy headline */}
         <div className="flex flex-col items-center gap-2 text-center">
-          <h1 className="text-6xl font-bold text-navy">{accuracyPct}% accuracy</h1>
+          <h1 className="text-6xl font-bold text-navy">{t('summary.accuracy', { pct: accuracyPct })}</h1>
           <p className="text-base text-navy">
-            {newWordsCount > 0 && <><span className="font-bold">{newWordsCount}</span> new · </>}
-            <span className="font-bold">{summary?.total_reviewed ?? 0}</span> reviewed
-            {correctedCount > 0 && <> · <span className="font-bold">{correctedCount}</span> corrected</>}
+            {newWordsCount > 0 && <><span className="font-bold">{newWordsCount}</span> {t('summary.new')} · </>}
+            <span className="font-bold">{summary?.total_reviewed ?? 0}</span> {t('summary.reviewed')}
+            {correctedCount > 0 && <> · <span className="font-bold">{correctedCount}</span> {t('summary.corrected')}</>}
           </p>
         </div>
 
-        {/* Streak indicator */}
         {streak > 0 && (
           <div className="flex flex-col items-center gap-1">
             <div className="flex items-center gap-1.5 text-orange-500">
               <Flame className="size-5" />
-              <span className="text-lg font-bold">{streak} day streak</span>
+              <span className="text-lg font-bold">{t('summary.dayStreak', { streak })}</span>
             </div>
             {milestoneLabel && (
               <span className="text-xs font-mono text-orange-400 uppercase tracking-widest">
@@ -131,7 +129,6 @@ export function SessionSummaryView() {
           </div>
         )}
 
-        {/* Word list — 3 columns */}
         {items.length > 0 && (
           <div className="w-full max-w-5xl">
             <div className="columns-1 sm:columns-2 lg:columns-3 gap-x-12 gap-y-1">
@@ -169,7 +166,6 @@ export function SessionSummaryView() {
           </div>
         )}
 
-        {/* Divider + motivational message */}
         {summary && (
           <div className="flex flex-col items-center gap-3 text-center max-w-sm">
             <div className="flex items-center gap-3 w-full">
@@ -187,17 +183,16 @@ export function SessionSummaryView() {
         )}
       </div>
 
-      {/* Bottom actions — flex row, no absolute positioning */}
       <div className="flex items-center justify-between px-6 pb-6 pt-2 shrink-0">
         <button
           onClick={handleExit}
           className="text-sm font-semibold text-navy underline underline-offset-2 hover:opacity-60 transition-opacity"
         >
-          Exit
+          {t('summary.exit')}
         </button>
         <button
           onClick={handleContinue}
-          aria-label="Continue practicing"
+          aria-label={t('summary.continueAria')}
           className="flex items-center justify-center w-12 h-12 rounded-full bg-navy text-white shadow-md hover:opacity-80 active:scale-95 transition-all duration-150"
         >
           <ArrowRightIcon className="w-5 h-5" strokeWidth={2.5} />

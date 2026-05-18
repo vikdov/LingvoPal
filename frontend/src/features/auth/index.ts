@@ -7,3 +7,4 @@ export { RegisterView } from './views/RegisterView';
 export { VerifyEmailView } from './views/VerifyEmailView';
 export { ForgotPasswordView } from './views/ForgotPasswordView';
 export { ResetPasswordView } from './views/ResetPasswordView';
+export { EmailChangeConfirmView } from './views/EmailChangeConfirmView';

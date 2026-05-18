@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Loader2, LayersIcon, BookOpenIcon, PlayIcon, PlusCircleIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,14 +9,17 @@ import { usePracticeStore } from '../store/practice.store';
 import { PracticeCard } from '../components/PracticeCard';
 import { formatRelativeTime } from '../utils/formatReviewTime';
 import { useTouchSet, useMyLibrary } from '@/features/sets/hooks/useSetsQuery';
-import { useAllLanguages } from '@/features/languages';
+import { useAllLanguages, useUserLanguages } from '@/features/languages';
+import { AddFirstLanguagePrompt } from '@/features/languages';
 import { useLanguageStore } from '@/features/languages/store/language.store';
 import { langName } from '@/features/sets/utils/formatters';
 
 function PracticeSetPicker() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const touchSet = useTouchSet();
   const { data, isLoading } = useMyLibrary(0, 50);
+  const { data: userLangsData, isLoading: loadingLangs } = useUserLanguages();
   const { data: languages = [] } = useAllLanguages();
   const activeLanguageId = useLanguageStore((s) => s.activeLanguageId);
 
@@ -25,8 +29,9 @@ function PracticeSetPicker() {
 
   const totalDue = withDue.reduce((sum, e) => sum + e.due_count, 0);
   const activeLangHasDue = withDue.some((e) => e.set.source_lang_id === activeLanguageId);
+  const hasLanguages = (userLangsData?.languages ?? []).length > 0;
 
-  if (isLoading) {
+  if (isLoading || loadingLangs) {
     return (
       <div className="flex-1 flex flex-col gap-4 items-center justify-center px-6 max-w-lg mx-auto w-full">
         {Array.from({ length: 3 }).map((_, i) => (
@@ -36,13 +41,21 @@ function PracticeSetPicker() {
     );
   }
 
+  if (!hasLanguages) {
+    return (
+      <div className="flex-1 overflow-auto">
+        <AddFirstLanguagePrompt />
+      </div>
+    );
+  }
+
   if (entries.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-6">
-        <p className="text-sm text-muted-foreground">No sets in your library yet.</p>
+        <p className="text-sm text-muted-foreground">{t('practice.noSetsYet')}</p>
         <Button onClick={() => navigate('/sets/discover')}>
           <PlusCircleIcon className="size-4" />
-          Browse sets
+          {t('practice.browseSets')}
         </Button>
       </div>
     );
@@ -65,7 +78,7 @@ function PracticeSetPicker() {
           <div className="flex items-center gap-2 mt-0.5">
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <LayersIcon className="size-3" />
-              {set.item_count} {set.item_count === 1 ? 'item' : 'items'}
+              {set.item_count} {set.item_count === 1 ? t('practice.item') : t('practice.items')}
             </span>
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <BookOpenIcon className="size-3" />
@@ -75,9 +88,9 @@ function PracticeSetPicker() {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {entry.due_count > 0 ? (
-            <Badge className="text-xs tabular-nums">{entry.due_count} due</Badge>
+            <Badge className="text-xs tabular-nums">{entry.due_count} {t('practice.item')}</Badge>
           ) : (
-            <span className="text-xs text-muted-foreground">fresh</span>
+            <span className="text-xs text-muted-foreground">{t('practice.fresh')}</span>
           )}
           <PlayIcon className="size-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
         </div>
@@ -92,13 +105,13 @@ function PracticeSetPicker() {
           <p className="text-sm text-foreground">
             <span className="font-bold tabular-nums">{totalDue}</span>
             <span className="text-muted-foreground">
-              {' '}word{totalDue === 1 ? '' : 's'} due across{' '}
+              {' '}{totalDue === 1 ? t('practice.item') : t('practice.items')} due across{' '}
               {withDue.length} {withDue.length === 1 ? 'set' : 'sets'}
             </span>
           </p>
           {activeLangHasDue && activeLanguageId && (
             <Button size="sm" onClick={() => navigate(`/practice?all=true&lang=${activeLanguageId}`)}>
-              Start all due
+              {t('practice.startAllDue')}
             </Button>
           )}
         </div>
@@ -106,7 +119,7 @@ function PracticeSetPicker() {
 
       {withDue.length > 0 && (
         <div className="w-full flex flex-col gap-2">
-          <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Due for review</p>
+          <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">{t('practice.dueForReview')}</p>
           {withDue.map((e) => <SetRow key={e.set_id} entry={e} />)}
         </div>
       )}
@@ -114,20 +127,21 @@ function PracticeSetPicker() {
       {noDue.length > 0 && (
         <div className="w-full flex flex-col gap-2">
           <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
-            {withDue.length > 0 ? 'Practice anyway' : 'Your sets'}
+            {withDue.length > 0 ? t('practice.practiceAnywaySection') : t('practice.yourSets')}
           </p>
           {noDue.map((e) => <SetRow key={e.set_id} entry={e} />)}
         </div>
       )}
 
       <Button variant="outline" size="sm" onClick={() => navigate('/sets')}>
-        Manage library
+        {t('practice.manageLibrary')}
       </Button>
     </div>
   );
 }
 
 export function PracticeView() {
+  const { t } = useTranslation();
   const { phase, error, nextReviewAt, startSession, startSessionAll, reset } = usePracticeStore();
   const store = usePracticeStore();
   const navigate = useNavigate();
@@ -139,11 +153,10 @@ export function PracticeView() {
 
   useEffect(() => {
     if (phase !== 'idle') {
-      // Restored session — check if it matches current URL params.
       const matches = practiceAll
         ? store.practiceAllMode && store.sourceLangId === sourceLangId
         : !store.practiceAllMode && store.setId === setId;
-      if (!matches) reset(); // phase → idle, effect re-fires, starts correct session
+      if (!matches) reset();
       return;
     }
     if (practiceAll && sourceLangId > 0) {
@@ -165,7 +178,7 @@ export function PracticeView() {
     return (
       <div className="flex-1 flex items-center justify-center gap-3 text-muted-foreground">
         <Loader2 className="w-5 h-5 animate-spin" />
-        <span>Loading session…</span>
+        <span>{t('practice.loadingSession')}</span>
       </div>
     );
   }
@@ -174,7 +187,7 @@ export function PracticeView() {
     return (
       <div className="flex-1 flex items-center justify-center gap-3 text-muted-foreground">
         <Loader2 className="w-5 h-5 animate-spin" />
-        <span>Saving results…</span>
+        <span>{t('practice.savingResults')}</span>
       </div>
     );
   }
@@ -182,11 +195,11 @@ export function PracticeView() {
   if (phase === 'no_due_items') {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 text-center">
-        <p className="text-base font-medium">All caught up!</p>
+        <p className="text-base font-medium">{t('practice.allCaughtUp')}</p>
         <p className="text-sm text-muted-foreground">
           {nextReviewAt
-            ? `Next review ${formatRelativeTime(nextReviewAt, true)}`
-            : 'No items due right now.'}
+            ? t('practice.nextReview', { time: formatRelativeTime(nextReviewAt, true) })
+            : t('practice.noItemsDue')}
         </p>
         <div className="flex gap-2">
           <button
@@ -196,13 +209,13 @@ export function PracticeView() {
             }}
             className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted transition-colors"
           >
-            Practice anyway
+            {t('practice.practiceAnyway')}
           </button>
           <button
             onClick={() => navigate(setId > 0 ? '/sets' : '/')}
             className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted transition-colors"
           >
-            {setId > 0 ? 'Back to library' : 'Dashboard'}
+            {setId > 0 ? t('practice.backToLibrary') : t('practice.dashboard')}
           </button>
         </div>
       </div>
@@ -212,7 +225,7 @@ export function PracticeView() {
   if (phase === 'error') {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 text-center">
-        <p className="text-sm text-muted-foreground">{error ?? 'Something went wrong.'}</p>
+        <p className="text-sm text-muted-foreground">{error ?? t('common.somethingWrong')}</p>
         <button
           onClick={() => {
             reset();
@@ -221,7 +234,7 @@ export function PracticeView() {
           }}
           className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted transition-colors"
         >
-          Try again
+          {t('practice.tryAgain')}
         </button>
       </div>
     );

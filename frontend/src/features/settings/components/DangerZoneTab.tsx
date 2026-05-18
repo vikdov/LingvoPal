@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { RotateCcw, Trash2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from '@/components/ui/card';
@@ -17,6 +18,7 @@ import { useAuthStore } from '@/features/auth/store/auth.store';
 import { useResetSettings, useDeleteAccount, useMyProfile } from '../hooks/useSettings';
 
 export function DangerZoneTab() {
+  const { t } = useTranslation();
   const { data: profile } = useMyProfile();
   const resetSettings = useResetSettings();
   const deleteAccount = useDeleteAccount();
@@ -31,9 +33,9 @@ export function DangerZoneTab() {
     resetSettings.mutate(undefined, {
       onSuccess: () => {
         setResetConfirmOpen(false);
-        toast.success('Settings reset to defaults');
+        toast.success(t('settings.danger.resetSuccess'));
       },
-      onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Failed to reset settings'),
+      onError: (err) => toast.error(err instanceof ApiError ? err.message : t('settings.danger.failedReset')),
     });
   }
 
@@ -42,9 +44,9 @@ export function DangerZoneTab() {
       onSuccess: () => {
         clearAuth();
         navigate('/', { replace: true });
-        toast.success('Account deleted');
+        toast.success(t('settings.danger.deleteSuccess'));
       },
-      onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Failed to delete account'),
+      onError: (err) => toast.error(err instanceof ApiError ? err.message : t('settings.danger.failedDelete')),
     });
   }
 
@@ -52,36 +54,29 @@ export function DangerZoneTab() {
 
   return (
     <div className="space-y-6">
-      {/* Reset settings */}
       <Card className="border-amber-200 dark:border-amber-800">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <RotateCcw className="size-4" />
-            Reset settings
+            {t('settings.danger.resetTitle')}
           </CardTitle>
-          <CardDescription>
-            Restore all learning preferences to their default values. Your language settings and
-            study history are preserved.
-          </CardDescription>
+          <CardDescription>{t('settings.danger.resetDescription')}</CardDescription>
         </CardHeader>
         <CardContent>
           <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/30">
-                Reset to defaults
+                {t('settings.danger.resetToDefaults')}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Reset settings to defaults?</DialogTitle>
-                <DialogDescription>
-                  All learning preferences will be restored to their default values. Your languages
-                  and study history are not affected.
-                </DialogDescription>
+                <DialogTitle>{t('settings.danger.resetDialogTitle')}</DialogTitle>
+                <DialogDescription>{t('settings.danger.resetDialogDescription')}</DialogDescription>
               </DialogHeader>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setResetConfirmOpen(false)}>
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
                 <Button
                   variant="outline"
@@ -89,7 +84,7 @@ export function DangerZoneTab() {
                   onClick={handleReset}
                   disabled={resetSettings.isPending}
                 >
-                  {resetSettings.isPending ? 'Resetting…' : 'Yes, reset'}
+                  {resetSettings.isPending ? t('settings.danger.resetting') : t('settings.danger.yesReset')}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -97,33 +92,27 @@ export function DangerZoneTab() {
         </CardContent>
       </Card>
 
-      {/* Delete account */}
       <Card className="border-destructive/40">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-destructive">
             <Trash2 className="size-4" />
-            Delete account
+            {t('settings.danger.deleteTitle')}
           </CardTitle>
-          <CardDescription>
-            Permanently delete your account and all associated data. This action cannot be undone.
-          </CardDescription>
+          <CardDescription>{t('settings.danger.deleteDescription')}</CardDescription>
         </CardHeader>
         <CardContent>
           <Dialog open={deleteDialogOpen} onOpenChange={(open) => { setDeleteDialogOpen(open); if (!open) setConfirmEmail(''); }}>
             <DialogTrigger asChild>
-              <Button variant="destructive">Delete my account</Button>
+              <Button variant="destructive">{t('settings.danger.deleteMyAccount')}</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Delete your account?</DialogTitle>
-                <DialogDescription>
-                  This will permanently erase your account, all sets, items, and study history.
-                  There is no recovery.
-                </DialogDescription>
+                <DialogTitle>{t('settings.danger.deleteDialogTitle')}</DialogTitle>
+                <DialogDescription>{t('settings.danger.deleteDialogDescription')}</DialogDescription>
               </DialogHeader>
               <div className="space-y-1.5 py-2">
                 <Label htmlFor="confirm-email">
-                  Type <span className="font-mono font-medium">{profile?.email}</span> to confirm
+                  {t('settings.danger.confirmEmailLabel', { email: profile?.email })}
                 </Label>
                 <Input
                   id="confirm-email"
@@ -136,14 +125,14 @@ export function DangerZoneTab() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setDeleteDialogOpen(false); setConfirmEmail(''); }}>
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
                 <Button
                   variant="destructive"
                   disabled={!deleteConfirmed || deleteAccount.isPending}
                   onClick={handleDelete}
                 >
-                  {deleteAccount.isPending ? 'Deleting…' : 'Delete account'}
+                  {deleteAccount.isPending ? t('settings.danger.deleting') : t('settings.danger.deleteAccount')}
                 </Button>
               </DialogFooter>
             </DialogContent>

@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { ApiError, UnauthorizedError } from '@/services/api';
 import { useAuthStore } from '@/features/auth/store/auth.store';
+import i18n from '@/i18n/config';
 
 // One QueryClient for the whole app. Created outside the component so it
 // survives re-renders and isn't recreated on every mount.
@@ -22,7 +23,7 @@ const queryClient = new QueryClient({
         if (error instanceof UnauthorizedError) {
           useAuthStore.getState().clearAuth();
         } else if (error instanceof ApiError && error.status === 429) {
-          toast.error('Too many requests — slow down a moment.');
+          toast.error(i18n.t('common.tooManyRequests'));
         }
       },
     },
@@ -35,7 +36,7 @@ queryClient.getQueryCache().config.onError = (error) => {
   if (error instanceof UnauthorizedError) {
     useAuthStore.getState().clearAuth();
   } else if (error instanceof ApiError && error.status === 429) {
-    toast.error('Too many requests — slow down a moment.');
+    toast.error(i18n.t('common.tooManyRequests'));
   }
 };
 

@@ -1,28 +1,32 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { ApiError } from '@/services/api';
 import { useMySettings, useUpdateSettings } from '../hooks/useSettings';
 import type { RetentionPriority } from '../types/settings.types';
 
-const RETENTION_OPTIONS: { value: RetentionPriority; label: string; description: string }[] = [
-  { value: 'speed_learning', label: 'Speed', description: 'Learn fast, review less' },
-  { value: 'balanced', label: 'Balanced', description: 'Default pace' },
-  { value: 'long_term_mastery', label: 'Mastery', description: 'Deep retention' },
-];
-
 export function AdvancedTab() {
+  const { t } = useTranslation();
   const { data: settings, isLoading } = useMySettings();
   const updateSettings = useUpdateSettings();
+
+  const RETENTION_OPTIONS: { value: RetentionPriority; label: string; description: string }[] = [
+    { value: 'speed_learning', label: t('settings.advanced.retentionSpeed'), description: t('settings.advanced.retentionSpeedHint') },
+    { value: 'balanced', label: t('settings.advanced.retentionBalanced'), description: t('settings.advanced.retentionBalancedHint') },
+    { value: 'long_term_mastery', label: t('settings.advanced.retentionMastery'), description: t('settings.advanced.retentionMasteryHint') },
+  ];
 
   const [perDay, setPerDay] = useState('');
   const [perSession, setPerSession] = useState('');
   const [maxReview, setMaxReview] = useState('');
+  const [reminderTime, setReminderTime] = useState('');
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
@@ -30,6 +34,7 @@ export function AdvancedTab() {
       setPerDay(String(settings.new_items_per_day_limit));
       setPerSession(String(settings.new_items_per_session));
       setMaxReview(settings.max_review_load_per_day != null ? String(settings.max_review_load_per_day) : '');
+      setReminderTime(settings.reminder_time ?? '');
       setInitialized(true);
     }
   }, [settings, initialized]);
@@ -40,15 +45,15 @@ export function AdvancedTab() {
     const parsedMaxReview = maxReview ? parseInt(maxReview, 10) : null;
 
     if (isNaN(parsedPerDay) || parsedPerDay < 1 || parsedPerDay > 500) {
-      toast.error('New items per day must be between 1 and 500');
+      toast.error(t('settings.advanced.perDayError'));
       return;
     }
     if (isNaN(parsedPerSession) || parsedPerSession < 1 || parsedPerSession > 100) {
-      toast.error('New items per session must be between 1 and 100');
+      toast.error(t('settings.advanced.perSessionError'));
       return;
     }
     if (parsedMaxReview !== null && (isNaN(parsedMaxReview) || parsedMaxReview < 1 || parsedMaxReview > 9999)) {
-      toast.error('Max review load must be between 1 and 9999, or empty for unlimited');
+      toast.error(t('settings.advanced.maxReviewError'));
       return;
     }
 
@@ -59,8 +64,8 @@ export function AdvancedTab() {
         max_review_load_per_day: parsedMaxReview,
       },
       {
-        onSuccess: () => toast.success('Limits saved'),
-        onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Failed to save'),
+        onSuccess: () => toast.success(t('settings.advanced.limitsSaved')),
+        onError: (err) => toast.error(err instanceof ApiError ? err.message : t('common.failedSave_short')),
       },
     );
   }
@@ -70,7 +75,26 @@ export function AdvancedTab() {
     updateSettings.mutate(
       { retention_priority: v as RetentionPriority },
       {
-        onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Failed to save'),
+        onError: (err) => toast.error(err instanceof ApiError ? err.message : t('common.failedSave_short')),
+      },
+    );
+  }
+
+  function handleStreakToggle(enabled: boolean) {
+    updateSettings.mutate(
+      { streak_reminders_enabled: enabled },
+      {
+        onError: (err) => toast.error(err instanceof ApiError ? err.message : t('common.failedSave_short')),
+      },
+    );
+  }
+
+  function handleSaveReminderTime() {
+    updateSettings.mutate(
+      { reminder_time: reminderTime || null },
+      {
+        onSuccess: () => toast.success(t('settings.advanced.reminderSaved')),
+        onError: (err) => toast.error(err instanceof ApiError ? err.message : t('common.failedSave_short')),
       },
     );
   }
@@ -99,16 +123,15 @@ export function AdvancedTab() {
 
   return (
     <div className="space-y-6">
-      {/* Item limits */}
       <Card>
         <CardHeader>
-          <CardTitle>Item limits</CardTitle>
-          <CardDescription>Control how many new items enter your queue each day and session.</CardDescription>
+          <CardTitle>{t('settings.advanced.limitsTitle')}</CardTitle>
+          <CardDescription>{t('settings.advanced.limitsDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="per-day">New items per day</Label>
+              <Label htmlFor="per-day">{t('settings.advanced.perDayLabel')}</Label>
               <Input
                 id="per-day"
                 type="number"
@@ -117,10 +140,10 @@ export function AdvancedTab() {
                 value={perDay}
                 onChange={(e) => setPerDay(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">Max 500.</p>
+              <p className="text-xs text-muted-foreground">{t('settings.advanced.perDayHint')}</p>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="per-session">New items per session</Label>
+              <Label htmlFor="per-session">{t('settings.advanced.perSessionLabel')}</Label>
               <Input
                 id="per-session"
                 type="number"
@@ -129,11 +152,11 @@ export function AdvancedTab() {
                 value={perSession}
                 onChange={(e) => setPerSession(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">Max 100.</p>
+              <p className="text-xs text-muted-foreground">{t('settings.advanced.perSessionHint')}</p>
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="max-review">Max reviews per day</Label>
+            <Label htmlFor="max-review">{t('settings.advanced.maxReviewLabel')}</Label>
             <Input
               id="max-review"
               type="number"
@@ -141,23 +164,20 @@ export function AdvancedTab() {
               max={9999}
               value={maxReview}
               onChange={(e) => setMaxReview(e.target.value)}
-              placeholder="Unlimited"
+              placeholder={t('settings.advanced.maxReviewPlaceholder')}
             />
-            <p className="text-xs text-muted-foreground">Leave empty for no cap on daily reviews.</p>
+            <p className="text-xs text-muted-foreground">{t('settings.advanced.maxReviewHint')}</p>
           </div>
           <Button onClick={handleSaveLimits} disabled={updateSettings.isPending}>
-            Save limits
+            {t('settings.advanced.saveLimits')}
           </Button>
         </CardContent>
       </Card>
 
-      {/* Retention priority */}
       <Card>
         <CardHeader>
-          <CardTitle>Retention priority</CardTitle>
-          <CardDescription>
-            Tune the trade-off between learning speed and long-term retention.
-          </CardDescription>
+          <CardTitle>{t('settings.advanced.retentionTitle')}</CardTitle>
+          <CardDescription>{t('settings.advanced.retentionDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <ToggleGroup
@@ -174,6 +194,45 @@ export function AdvancedTab() {
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('settings.advanced.notificationsTitle')}</CardTitle>
+          <CardDescription>{t('settings.advanced.notificationsDescription')}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="streak-reminders">{t('settings.advanced.streakReminders')}</Label>
+              <p className="text-xs text-muted-foreground">{t('settings.advanced.streakRemindersHint')}</p>
+            </div>
+            <Switch
+              id="streak-reminders"
+              checked={settings.streak_reminders_enabled}
+              onCheckedChange={handleStreakToggle}
+              disabled={updateSettings.isPending}
+            />
+          </div>
+          {settings.streak_reminders_enabled && (
+            <div className="space-y-2 pt-1">
+              <Label htmlFor="reminder-time">{t('settings.advanced.reminderTimeLabel')}</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="reminder-time"
+                  type="time"
+                  value={reminderTime}
+                  onChange={(e) => setReminderTime(e.target.value)}
+                  className="w-36"
+                />
+                <Button size="sm" onClick={handleSaveReminderTime} disabled={updateSettings.isPending}>
+                  {t('settings.advanced.save')}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">{t('settings.advanced.reminderTimeHint')}</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

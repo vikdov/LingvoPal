@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 import { authApi } from '../api/auth.api';
 import { ApiError } from '@/services/api';
@@ -12,6 +13,7 @@ import { Button } from '@/components/ui/button';
 type Status = 'loading' | 'success' | 'already_verified' | 'error';
 
 export function VerifyEmailView() {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
   const [status, setStatus] = useState<Status>('loading');
@@ -26,7 +28,7 @@ export function VerifyEmailView() {
     calledRef.current = true;
 
     if (!token) {
-      setErrorMessage('No verification token found. Check your email link.');
+      setErrorMessage(t('auth.verifyEmail.noToken'));
       setStatus('error');
       return;
     }
@@ -46,19 +48,19 @@ export function VerifyEmailView() {
         setErrorMessage(
           err instanceof ApiError
             ? err.message
-            : 'Verification failed. The link may have expired.',
+            : t('auth.verifyEmail.linkExpired'),
         );
         setStatus('error');
       });
-  }, [token, updateUser]);
+  }, [token, updateUser, t]);
 
   async function handleResend() {
     setResending(true);
     try {
       await authApi.resendVerification();
-      toast.success('Verification email sent — check your inbox.');
+      toast.success(t('auth.verifyEmail.successToast'));
     } catch {
-      toast.error('Failed to send. Try again from Settings → Account.');
+      toast.error(t('auth.verifyEmail.errorToast'));
     } finally {
       setResending(false);
     }
@@ -73,7 +75,7 @@ export function VerifyEmailView() {
       {status === 'loading' && (
         <div className="space-y-3">
           <Loader2 className="mx-auto size-10 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Verifying your email…</p>
+          <p className="text-sm text-muted-foreground">{t('auth.verifyEmail.verifying')}</p>
         </div>
       )}
 
@@ -81,15 +83,15 @@ export function VerifyEmailView() {
         <div className="space-y-4">
           <CheckCircle className="mx-auto size-12 text-green-500" />
           <div className="space-y-1">
-            <h1 className="text-2xl font-bold tracking-tight">Email verified</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{t('auth.verifyEmail.successTitle')}</h1>
             <p className="text-sm text-muted-foreground">
               {status === 'already_verified'
-                ? 'Your email was already confirmed.'
-                : 'Your email address has been confirmed.'}
+                ? t('auth.verifyEmail.alreadyVerified')
+                : t('auth.verifyEmail.justVerified')}
             </p>
           </div>
           <Button asChild className="w-full">
-            <Link to="/dashboard">Go to dashboard</Link>
+            <Link to="/dashboard">{t('auth.verifyEmail.goToDashboard')}</Link>
           </Button>
         </div>
       )}
@@ -98,7 +100,7 @@ export function VerifyEmailView() {
         <div className="space-y-4">
           <XCircle className="mx-auto size-12 text-destructive" />
           <div className="space-y-1">
-            <h1 className="text-2xl font-bold tracking-tight">Verification failed</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{t('auth.verifyEmail.errorTitle')}</h1>
             <p className="text-sm text-muted-foreground">{errorMessage}</p>
           </div>
           <div className="space-y-2">
@@ -108,11 +110,11 @@ export function VerifyEmailView() {
                 onClick={handleResend}
                 disabled={resending}
               >
-                {resending ? 'Sending…' : 'Resend verification email'}
+                {resending ? t('common.sending') : t('auth.verifyEmail.resend')}
               </Button>
             )}
             <Button asChild variant="outline" className="w-full">
-              <Link to="/dashboard">Go to dashboard</Link>
+              <Link to="/dashboard">{t('auth.verifyEmail.goToDashboard')}</Link>
             </Button>
           </div>
         </div>

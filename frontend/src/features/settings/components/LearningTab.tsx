@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,18 +13,6 @@ import { ApiError } from '@/services/api';
 import { useAllLanguages } from '@/features/languages';
 import { useMySettings, useUpdateSettings } from '../hooks/useSettings';
 import type { LearningIntensity, EvaluationMode } from '../types/settings.types';
-
-const INTENSITY_OPTIONS: { value: LearningIntensity; label: string }[] = [
-  { value: 'light', label: 'Light' },
-  { value: 'balanced', label: 'Balanced' },
-  { value: 'intensive', label: 'Intensive' },
-];
-
-const EVAL_OPTIONS: { value: EvaluationMode; label: string }[] = [
-  { value: 'forgiving', label: 'Forgiving' },
-  { value: 'normal', label: 'Normal' },
-  { value: 'strict', label: 'Strict' },
-];
 
 function SettingsSkeleton() {
   return (
@@ -63,6 +52,7 @@ function SwitchRow({
 }
 
 export function LearningTab() {
+  const { t } = useTranslation();
   const { data: settings, isLoading } = useMySettings();
   const { data: languages } = useAllLanguages();
   const updateSettings = useUpdateSettings();
@@ -71,6 +61,18 @@ export function LearningTab() {
   const [goalInitialized, setGoalInitialized] = useState(false);
   const [reminderTime, setReminderTime] = useState('');
   const [reminderInitialized, setReminderInitialized] = useState(false);
+
+  const INTENSITY_OPTIONS: { value: LearningIntensity; label: string }[] = [
+    { value: 'light', label: t('settings.learning.intensityLight') },
+    { value: 'balanced', label: t('settings.learning.intensityBalanced') },
+    { value: 'intensive', label: t('settings.learning.intensityIntensive') },
+  ];
+
+  const EVAL_OPTIONS: { value: EvaluationMode; label: string }[] = [
+    { value: 'forgiving', label: t('settings.learning.evalForgiving') },
+    { value: 'normal', label: t('settings.learning.evalNormal') },
+    { value: 'strict', label: t('settings.learning.evalStrict') },
+  ];
 
   useEffect(() => {
     if (settings && !goalInitialized) {
@@ -85,15 +87,15 @@ export function LearningTab() {
 
   function save(patch: Parameters<typeof updateSettings.mutate>[0], silent = false) {
     updateSettings.mutate(patch, {
-      onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Failed to save settings'),
-      onSuccess: silent ? undefined : () => toast.success('Settings saved'),
+      onError: (err) => toast.error(err instanceof ApiError ? err.message : t('common.failedSave')),
+      onSuccess: silent ? undefined : () => toast.success(t('settings.learning.saved')),
     });
   }
 
   function handleSaveSchedule() {
     const parsed = parseInt(dailyGoal, 10);
     if (isNaN(parsed) || parsed < 1 || parsed > 9999) {
-      toast.error('Daily goal must be between 1 and 9999');
+      toast.error(t('settings.learning.dailyGoalError'));
       return;
     }
     save({
@@ -114,15 +116,14 @@ export function LearningTab() {
 
   return (
     <div className="space-y-6">
-      {/* Languages */}
       <Card>
         <CardHeader>
-          <CardTitle>Languages</CardTitle>
-          <CardDescription>Your native and interface language preferences.</CardDescription>
+          <CardTitle>{t('settings.learning.languagesTitle')}</CardTitle>
+          <CardDescription>{t('settings.learning.languagesDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-1.5">
-            <Label>Native language</Label>
+            <Label>{t('settings.learning.nativeLanguage')}</Label>
             <Select
               value={String(settings.native_language.id)}
               onValueChange={(v) => save({ native_lang_id: Number(v) }, true)}
@@ -141,7 +142,7 @@ export function LearningTab() {
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Interface language</Label>
+            <Label>{t('settings.learning.interfaceLanguage')}</Label>
             <Select
               value={String(settings.interface_language.id)}
               onValueChange={(v) => save({ interface_lang_id: Number(v) }, true)}
@@ -162,15 +163,14 @@ export function LearningTab() {
         </CardContent>
       </Card>
 
-      {/* Learning behavior */}
       <Card>
         <CardHeader>
-          <CardTitle>Learning behavior</CardTitle>
-          <CardDescription>How practice sessions are structured and graded.</CardDescription>
+          <CardTitle>{t('settings.learning.behaviorTitle')}</CardTitle>
+          <CardDescription>{t('settings.learning.behaviorDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
-            <Label>Learning intensity</Label>
+            <Label>{t('settings.learning.intensityLabel')}</Label>
             <ToggleGroup
               type="single"
               variant="outline"
@@ -184,13 +184,11 @@ export function LearningTab() {
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
-            <p className="text-xs text-muted-foreground">
-              Controls how aggressively SM-2 intervals are scaled.
-            </p>
+            <p className="text-xs text-muted-foreground">{t('settings.learning.intensityHint')}</p>
           </div>
 
           <div className="space-y-2">
-            <Label>Evaluation strictness</Label>
+            <Label>{t('settings.learning.evaluationLabel')}</Label>
             <ToggleGroup
               type="single"
               variant="outline"
@@ -204,14 +202,12 @@ export function LearningTab() {
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
-            <p className="text-xs text-muted-foreground">
-              How strictly typed answers are graded (typos, capitalisation, etc.).
-            </p>
+            <p className="text-xs text-muted-foreground">{t('settings.learning.evaluationHint')}</p>
           </div>
 
           <SwitchRow
-            label="Show hints on failure"
-            description="Display the correct answer after a wrong attempt."
+            label={t('settings.learning.hintsOnFail')}
+            description={t('settings.learning.hintsOnFailDescription')}
             checked={settings.show_hints_on_fails}
             onCheckedChange={(v) => save({ show_hints_on_fails: v }, true)}
             disabled={updateSettings.isPending}
@@ -219,16 +215,15 @@ export function LearningTab() {
         </CardContent>
       </Card>
 
-      {/* Schedule */}
       <Card>
         <CardHeader>
-          <CardTitle>Schedule</CardTitle>
-          <CardDescription>Daily goals and reminder settings.</CardDescription>
+          <CardTitle>{t('settings.learning.scheduleTitle')}</CardTitle>
+          <CardDescription>{t('settings.learning.scheduleDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="daily-goal">Daily study goal (items)</Label>
+              <Label htmlFor="daily-goal">{t('settings.learning.dailyGoalLabel')}</Label>
               <Input
                 id="daily-goal"
                 type="number"
@@ -239,7 +234,7 @@ export function LearningTab() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="reminder-time">Reminder time</Label>
+              <Label htmlFor="reminder-time">{t('settings.learning.reminderTimeLabel')}</Label>
               <Input
                 id="reminder-time"
                 type="time"
@@ -249,14 +244,14 @@ export function LearningTab() {
             </div>
           </div>
           <SwitchRow
-            label="Streak reminders"
-            description="Get notified if you're about to break your streak."
+            label={t('settings.learning.streakReminders')}
+            description={t('settings.learning.streakRemindersDescription')}
             checked={settings.streak_reminders_enabled}
             onCheckedChange={(v) => save({ streak_reminders_enabled: v }, true)}
             disabled={updateSettings.isPending}
           />
           <Button onClick={handleSaveSchedule} disabled={updateSettings.isPending}>
-            Save schedule
+            {t('settings.learning.saveSchedule')}
           </Button>
         </CardContent>
       </Card>
