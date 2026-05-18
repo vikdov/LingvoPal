@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ClockIcon, CheckCircleIcon, XCircleIcon, LayersIcon, BookOpenIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -10,28 +11,31 @@ import { useMySubmissions } from '@/features/sets/hooks/useSetsQuery';
 import type { ModerationSubmission } from '@/features/sets/types/sets.types';
 
 function StatusBadge({ status }: { status: ModerationSubmission['status'] }) {
+  const { t } = useTranslation();
+
   if (status === 'pending') {
     return (
       <Badge variant="outline" className="border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-400 gap-1">
-        <ClockIcon className="size-3" /> Under review
+        <ClockIcon className="size-3" /> {t('settings.submissions.underReview')}
       </Badge>
     );
   }
   if (status === 'approved') {
     return (
       <Badge variant="outline" className="border-green-300 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950/30 dark:text-green-400 gap-1">
-        <CheckCircleIcon className="size-3" /> Approved
+        <CheckCircleIcon className="size-3" /> {t('settings.submissions.approved')}
       </Badge>
     );
   }
   return (
     <Badge variant="outline" className="border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400 gap-1">
-      <XCircleIcon className="size-3" /> Rejected
+      <XCircleIcon className="size-3" /> {t('settings.submissions.rejected')}
     </Badge>
   );
 }
 
 function SubmissionCard({ entry }: { entry: ModerationSubmission }) {
+  const { t } = useTranslation();
   const targetPath = entry.target_type === 'set' ? `/sets/${entry.target_id}` : null;
 
   return (
@@ -49,14 +53,14 @@ function SubmissionCard({ entry }: { entry: ModerationSubmission }) {
                 {entry.target_type} #{entry.target_id}
                 {targetPath && (
                   <Link to={targetPath} className="ml-1 text-xs text-muted-foreground underline-offset-2 hover:underline">
-                    view
+                    {t('common.view')}
                   </Link>
                 )}
               </CardTitle>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Submitted {new Date(entry.created_at).toLocaleDateString()}
-              {entry.resolved_at && ` · Resolved ${new Date(entry.resolved_at).toLocaleDateString()}`}
+              {t('common.submitted')} {new Date(entry.created_at).toLocaleDateString()}
+              {entry.resolved_at && ` · ${t('common.resolved')} ${new Date(entry.resolved_at).toLocaleDateString()}`}
             </p>
           </div>
           <StatusBadge status={entry.status} />
@@ -67,14 +71,14 @@ function SubmissionCard({ entry }: { entry: ModerationSubmission }) {
         <CardContent className="flex flex-col gap-2">
           {entry.feedback && (
             <div>
-              <p className="text-xs font-medium text-muted-foreground">Your note</p>
+              <p className="text-xs font-medium text-muted-foreground">{t('settings.submissions.yourNote')}</p>
               <p className="text-sm text-foreground/80 italic">&ldquo;{entry.feedback}&rdquo;</p>
             </div>
           )}
           {entry.resolution_feedback && (
             <div>
               <p className="text-xs font-medium text-muted-foreground">
-                {entry.status === 'rejected' ? 'Rejection reason' : 'Moderator note'}
+                {entry.status === 'rejected' ? t('settings.submissions.rejectionReason') : t('settings.submissions.moderatorNote')}
               </p>
               <p className={`text-sm italic ${entry.status === 'rejected' ? 'text-red-700 dark:text-red-400' : 'text-foreground/80'}`}>
                 &ldquo;{entry.resolution_feedback}&rdquo;
@@ -88,6 +92,7 @@ function SubmissionCard({ entry }: { entry: ModerationSubmission }) {
 }
 
 export function SubmissionsTab() {
+  const { t } = useTranslation();
   const [page, setPage] = useState(1);
   const pageSize = 20;
   const skip = (page - 1) * pageSize;
@@ -119,10 +124,8 @@ export function SubmissionsTab() {
           <ClockIcon className="size-4" />
         </EmptyMedia>
         <EmptyHeader>
-          <EmptyTitle>No submissions yet</EmptyTitle>
-          <EmptyDescription>
-            Submit a set or expression for review to see it here.
-          </EmptyDescription>
+          <EmptyTitle>{t('settings.submissions.emptyTitle')}</EmptyTitle>
+          <EmptyDescription>{t('settings.submissions.emptyDescription')}</EmptyDescription>
         </EmptyHeader>
       </Empty>
     );

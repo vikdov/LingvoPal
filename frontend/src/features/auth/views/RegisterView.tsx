@@ -6,6 +6,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 import { useAuth } from '../hooks/useAuth';
 import { ApiError } from '@/services/api';
@@ -56,6 +57,7 @@ const schema = z
 type FormData = z.infer<typeof schema>;
 
 export function RegisterView() {
+  const { t } = useTranslation();
   const { signup } = useAuth();
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
@@ -83,6 +85,7 @@ export function RegisterView() {
     if (languages.length > 0) {
       form.setValue('native_lang_id', detectNativeLangId(languages));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [languages]);
 
   async function onSubmit(data: FormData) {
@@ -94,7 +97,7 @@ export function RegisterView() {
       });
       navigate('/dashboard');
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Registration failed. Please try again.');
+      toast.error(err instanceof ApiError ? err.message : t('auth.register.error'));
     }
   }
 
@@ -105,10 +108,8 @@ export function RegisterView() {
       </div>
 
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">Create an account</h1>
-        <p className="text-sm text-muted-foreground">
-          Start your language learning journey
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight">{t('auth.register.title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('auth.register.subtitle')}</p>
       </div>
 
       <Form {...form}>
@@ -118,11 +119,11 @@ export function RegisterView() {
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email</FormLabel>
+                <FormLabel>{t('common.email')}</FormLabel>
                 <FormControl>
                   <Input
                     type="email"
-                    placeholder="you@example.com"
+                    placeholder={t('auth.emailPlaceholder')}
                     autoComplete="email"
                     {...field}
                   />
@@ -137,10 +138,10 @@ export function RegisterView() {
             name="username"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Username</FormLabel>
+                <FormLabel>{t('common.username')}</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder="your_username"
+                    placeholder={t('auth.register.usernamePlaceholder')}
                     autoComplete="username"
                     {...field}
                   />
@@ -155,12 +156,12 @@ export function RegisterView() {
             name="password"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Password</FormLabel>
+                <FormLabel>{t('common.password')}</FormLabel>
                 <FormControl>
                   <div className="relative">
                     <Input
                       type={showPassword ? 'text' : 'password'}
-                      placeholder="••••••••"
+                      placeholder={t('auth.passwordPlaceholder')}
                       autoComplete="new-password"
                       className="pr-10"
                       {...field}
@@ -171,7 +172,7 @@ export function RegisterView() {
                       size="icon-sm"
                       onClick={() => setShowPassword((v) => !v)}
                       className="absolute inset-y-0 right-1 my-auto text-muted-foreground hover:text-foreground"
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                     >
                       {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </Button>
@@ -187,12 +188,12 @@ export function RegisterView() {
             name="confirmPassword"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Confirm password</FormLabel>
+                <FormLabel>{t('auth.register.confirmPassword')}</FormLabel>
                 <FormControl>
                   <div className="relative">
                     <Input
                       type={showConfirm ? 'text' : 'password'}
-                      placeholder="••••••••"
+                      placeholder={t('auth.passwordPlaceholder')}
                       autoComplete="new-password"
                       className="pr-10"
                       {...field}
@@ -203,7 +204,7 @@ export function RegisterView() {
                       size="icon-sm"
                       onClick={() => setShowConfirm((v) => !v)}
                       className="absolute inset-y-0 right-1 my-auto text-muted-foreground hover:text-foreground"
-                      aria-label={showConfirm ? 'Hide password' : 'Show password'}
+                      aria-label={showConfirm ? t('auth.hidePassword') : t('auth.showPassword')}
                     >
                       {showConfirm ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </Button>
@@ -227,13 +228,13 @@ export function RegisterView() {
                 </FormControl>
                 <div className="space-y-1 leading-none">
                   <FormLabel className="text-sm font-normal cursor-pointer">
-                    I agree to the{' '}
+                    {t('auth.register.agreeTermsPre')}{' '}
                     <Link to="/terms" className="underline hover:text-foreground">
-                      Terms of Service
+                      {t('auth.register.termsOfService')}
                     </Link>
-                    {' '}and{' '}
+                    {' '}{t('auth.register.and')}{' '}
                     <Link to="/privacy" className="underline hover:text-foreground">
-                      Privacy Policy
+                      {t('auth.register.privacyPolicy')}
                     </Link>
                   </FormLabel>
                   <FormMessage />
@@ -247,15 +248,15 @@ export function RegisterView() {
             className="w-full"
             disabled={form.formState.isSubmitting || loadingLanguages}
           >
-            {form.formState.isSubmitting ? 'Creating account…' : 'Create account'}
+            {form.formState.isSubmitting ? t('auth.register.creatingAccount') : t('auth.register.createAccount')}
           </Button>
         </form>
       </Form>
 
       <p className="text-center text-sm text-muted-foreground">
-        Already have an account?{' '}
+        {t('auth.register.alreadyHaveAccount')}{' '}
         <Button variant="link" size="sm" asChild className="h-auto p-0 font-medium">
-          <Link to="/auth/login">Sign in</Link>
+          <Link to="/auth/login">{t('common.signIn')}</Link>
         </Button>
       </p>
     </div>

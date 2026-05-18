@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AccountTab } from '../components/AccountTab';
 import { LearningTab } from '../components/LearningTab';
@@ -6,21 +7,23 @@ import { AdvancedTab } from '../components/AdvancedTab';
 import { DangerZoneTab } from '../components/DangerZoneTab';
 import { SubmissionsTab } from '../components/SubmissionsTab';
 
-const TABS = [
-  { value: 'account', label: 'Account' },
-  { value: 'learning', label: 'Learning' },
-  { value: 'preferences', label: 'Preferences' },
-  { value: 'submissions', label: 'Submissions' },
-  { value: 'advanced', label: 'Advanced' },
-  { value: 'danger', label: 'Danger zone' },
-] as const;
-
 export function SettingsView() {
+  const { t } = useTranslation();
+
+  const TABS = [
+    { value: 'account', label: t('settings.tabs.account') },
+    { value: 'learning', label: t('settings.tabs.learning') },
+    { value: 'preferences', label: t('settings.tabs.preferences') },
+    { value: 'submissions', label: t('settings.tabs.submissions') },
+    { value: 'advanced', label: t('settings.tabs.advanced') },
+    { value: 'danger', label: t('settings.tabs.dangerZone') },
+  ] as const;
+
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">Manage your account and learning preferences.</p>
+        <h1 className="text-2xl font-bold tracking-tight">{t('settings.title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('settings.subtitle')}</p>
       </div>
 
       <Tabs defaultValue="account">

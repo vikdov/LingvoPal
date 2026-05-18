@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link } from 'react-router-dom';
 import { CheckCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { authApi } from '../api/auth.api';
 import { LingvoLogo } from '@/components/LingvoLogo';
@@ -25,6 +26,7 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 export function ForgotPasswordView() {
+  const { t } = useTranslation();
   const [submitted, setSubmitted] = useState(false);
 
   const form = useForm<FormData>({
@@ -45,14 +47,13 @@ export function ForgotPasswordView() {
         </div>
         <CheckCircle className="mx-auto size-12 text-green-500" />
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight">Check your inbox</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('auth.forgotPassword.successTitle')}</h1>
           <p className="text-sm text-muted-foreground">
-            If an account exists for that email, a reset link has been sent.
-            The link expires in 1 hour.
+            {t('auth.forgotPassword.successMessage')}
           </p>
         </div>
         <Button asChild variant="outline" className="w-full">
-          <Link to="/auth/login">Back to sign in</Link>
+          <Link to="/auth/login">{t('auth.forgotPassword.backToSignIn')}</Link>
         </Button>
       </div>
     );
@@ -65,10 +66,8 @@ export function ForgotPasswordView() {
       </div>
 
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">Forgot your password?</h1>
-        <p className="text-sm text-muted-foreground">
-          Enter your email and we&apos;ll send you a reset link.
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight">{t('auth.forgotPassword.title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('auth.forgotPassword.subtitle')}</p>
       </div>
 
       <Form {...form}>
@@ -78,11 +77,11 @@ export function ForgotPasswordView() {
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email</FormLabel>
+                <FormLabel>{t('common.email')}</FormLabel>
                 <FormControl>
                   <Input
                     type="email"
-                    placeholder="you@example.com"
+                    placeholder={t('auth.emailPlaceholder')}
                     autoComplete="email"
                     {...field}
                   />
@@ -93,15 +92,15 @@ export function ForgotPasswordView() {
           />
 
           <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? 'Sending…' : 'Send reset link'}
+            {form.formState.isSubmitting ? t('common.sending') : t('auth.forgotPassword.sendResetLink')}
           </Button>
         </form>
       </Form>
 
       <p className="text-center text-sm text-muted-foreground">
-        Remember it?{' '}
+        {t('auth.forgotPassword.rememberIt')}{' '}
         <Button variant="link" size="sm" asChild className="h-auto p-0 font-medium">
-          <Link to="/auth/login">Sign in</Link>
+          <Link to="/auth/login">{t('common.signIn')}</Link>
         </Button>
       </p>
     </div>

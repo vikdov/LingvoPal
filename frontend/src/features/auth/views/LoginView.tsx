@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 import { useAuth } from '../hooks/useAuth';
 import { ApiError } from '@/services/api';
@@ -28,6 +29,7 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 export function LoginView() {
+  const { t } = useTranslation();
   const { login } = useAuth();
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
@@ -42,7 +44,7 @@ export function LoginView() {
       await login(data);
       navigate('/dashboard');
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Login failed. Please try again.');
+      toast.error(err instanceof ApiError ? err.message : t('auth.login.error'));
     }
   }
 
@@ -53,10 +55,8 @@ export function LoginView() {
       </div>
 
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
-        <p className="text-sm text-muted-foreground">
-          Sign in to continue your language journey
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight">{t('auth.login.title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('auth.login.subtitle')}</p>
       </div>
 
       <Form {...form}>
@@ -66,11 +66,11 @@ export function LoginView() {
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email</FormLabel>
+                <FormLabel>{t('common.email')}</FormLabel>
                 <FormControl>
                   <Input
                     type="email"
-                    placeholder="you@example.com"
+                    placeholder={t('auth.emailPlaceholder')}
                     autoComplete="email"
                     {...field}
                   />
@@ -86,7 +86,7 @@ export function LoginView() {
             render={({ field }) => (
               <FormItem>
                 <div className="flex items-center justify-between">
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel>{t('common.password')}</FormLabel>
                   <Button
                     variant="link"
                     size="sm"
@@ -94,14 +94,14 @@ export function LoginView() {
                     className="h-auto p-0 text-xs font-normal text-muted-foreground"
                     tabIndex={-1}
                   >
-                    <Link to="/auth/forgot-password">Forgot password?</Link>
+                    <Link to="/auth/forgot-password">{t('auth.login.forgotPassword')}</Link>
                   </Button>
                 </div>
                 <FormControl>
                   <div className="relative">
                     <Input
                       type={showPassword ? 'text' : 'password'}
-                      placeholder="••••••••"
+                      placeholder={t('auth.passwordPlaceholder')}
                       autoComplete="current-password"
                       className="pr-10"
                       {...field}
@@ -112,7 +112,7 @@ export function LoginView() {
                       size="icon-sm"
                       onClick={() => setShowPassword((v) => !v)}
                       className="absolute inset-y-0 right-1 my-auto text-muted-foreground hover:text-foreground"
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                     >
                       {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </Button>
@@ -128,15 +128,15 @@ export function LoginView() {
             className="w-full"
             disabled={form.formState.isSubmitting}
           >
-            {form.formState.isSubmitting ? 'Signing in…' : 'Sign in'}
+            {form.formState.isSubmitting ? t('auth.login.signingIn') : t('common.signIn')}
           </Button>
         </form>
       </Form>
 
       <p className="text-center text-sm text-muted-foreground">
-        Don&apos;t have an account?{' '}
+        {t('auth.login.noAccount')}{' '}
         <Button variant="link" size="sm" asChild className="h-auto p-0 font-medium">
-          <Link to="/auth/register">Sign up</Link>
+          <Link to="/auth/register">{t('common.signUp')}</Link>
         </Button>
       </p>
     </div>

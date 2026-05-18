@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { PenLine, BookOpen, Compass, Flame, Sparkles, AlertTriangle, ArrowRight } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,21 +18,9 @@ import { DailyActivityChart } from '../components/DailyActivityChart';
 import { MaturityDonut } from '../components/MaturityDonut';
 import { RecentlyStabilized } from '../components/RecentlyStabilized';
 import { StudyTimeTrend } from '../components/StudyTimeTrend';
-import { useLanguageStore } from '@/features/languages';
+import { useLanguageStore, useUserLanguages } from '@/features/languages';
+import { AddFirstLanguagePrompt } from '@/features/languages';
 import type { LanguageOverview, LanguageTotals } from '../types/stats.types';
-
-function getGreeting() {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
-}
-
-function formatDate() {
-  return new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-}
-
-// ── Stat card ─────────────────────────────────────────────────────────────────
 
 function StatCard({ label, value, icon: Icon, sub, highlight }: {
   label: string;
@@ -56,9 +45,8 @@ function StatCard({ label, value, icon: Icon, sub, highlight }: {
   );
 }
 
-// ── Words due CTA card ────────────────────────────────────────────────────────
-
 function DueCard({ dueNow }: { dueNow: number }) {
+  const { t } = useTranslation();
   const due = dueNow > 0;
   return (
     <Link
@@ -68,24 +56,22 @@ function DueCard({ dueNow }: { dueNow: number }) {
       <div className="pt-5 pb-4 px-4 flex flex-col gap-1">
         <div className="flex items-center justify-between">
           <span className={`font-mono text-[10px] uppercase tracking-widest ${due ? 'text-primary/80' : 'text-muted-foreground'}`}>
-            Words due
+            {t('dashboard.wordsDue')}
           </span>
           <PenLine className={`size-3.5 ${due ? 'text-primary' : 'text-muted-foreground'}`} />
         </div>
         <span className={`text-2xl font-bold tracking-tight ${due ? 'text-primary' : 'text-foreground'}`}>{dueNow}</span>
         {due ? (
           <span className="text-[11px] text-primary/80 flex items-center gap-1 font-medium">
-            Start review <ArrowRight className="size-3" />
+            {t('dashboard.startReview')} <ArrowRight className="size-3" />
           </span>
         ) : (
-          <span className="text-[11px] text-muted-foreground">all caught up</span>
+          <span className="text-[11px] text-muted-foreground">{t('dashboard.allCaughtUp')}</span>
         )}
       </div>
     </Link>
   );
 }
-
-// ── Learning balance banner ───────────────────────────────────────────────────
 
 function LearningBalanceBanner({ message }: { message: string }) {
   return (
@@ -96,9 +82,13 @@ function LearningBalanceBanner({ message }: { message: string }) {
   );
 }
 
-// ── Empty state ───────────────────────────────────────────────────────────────
-
 function EmptyState() {
+  const { t } = useTranslation();
+  const steps = [
+    { step: '01', title: t('dashboard.step01Title'), body: t('dashboard.step01Body') },
+    { step: '02', title: t('dashboard.step02Title'), body: t('dashboard.step02Body') },
+    { step: '03', title: t('dashboard.step03Title'), body: t('dashboard.step03Body') },
+  ];
   return (
     <div className="flex flex-col items-center justify-center gap-8 py-20 text-center">
       <div className="flex flex-col items-center gap-3">
@@ -106,10 +96,10 @@ function EmptyState() {
           <PenLine className="size-6 text-primary" />
         </div>
         <h2 className="text-xl font-semibold tracking-tight text-foreground">
-          Your practice journey starts here.
+          {t('dashboard.emptyTitle')}
         </h2>
         <p className="text-sm text-muted-foreground max-w-[36ch] leading-relaxed">
-          Add words to a set, then practice them. After your first session, this page fills with your progress.
+          {t('dashboard.emptyDescription')}
         </p>
       </div>
 
@@ -117,23 +107,19 @@ function EmptyState() {
         <Button asChild>
           <Link to="/sets/discover">
             <Compass className="size-4" />
-            Find a set to study
+            {t('dashboard.findASet')}
           </Link>
         </Button>
         <Button variant="outline" asChild>
           <Link to="/sets">
             <BookOpen className="size-4" />
-            Create my own
+            {t('dashboard.createMyOwn')}
           </Link>
         </Button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-xl mt-4">
-        {[
-          { step: '01', title: 'Add a set', body: 'Create your own or clone from the community.' },
-          { step: '02', title: 'Practice daily', body: 'Type the word from memory in its sentence.' },
-          { step: '03', title: 'Track retention', body: 'SM-2 schedules reviews. Your stats grow here.' },
-        ].map(({ step, title, body }) => (
+        {steps.map(({ step, title, body }) => (
           <div key={step} className="flex flex-col gap-2 p-4 rounded-lg border border-border bg-card text-left">
             <span className="font-mono text-[10px] text-primary uppercase tracking-widest">{step}</span>
             <p className="text-sm font-semibold text-foreground">{title}</p>
@@ -144,8 +130,6 @@ function EmptyState() {
     </div>
   );
 }
-
-// ── Loading skeleton ──────────────────────────────────────────────────────────
 
 function LoadingSkeleton() {
   return (
@@ -169,16 +153,17 @@ function LoadingSkeleton() {
   );
 }
 
-// ── Main view ─────────────────────────────────────────────────────────────────
-
 export function DashboardView() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [selectedDays, setSelectedDays] = useState(30);
   const [scope, setScope] = useState('overall');
 
+  const { data: userLangsData, isLoading: loadingUserLangs } = useUserLanguages();
   const { data: overview, isLoading: loadingOverview } = useOverview();
   const { data: totals, isLoading: loadingTotals } = useTotals();
 
+  const hasLanguages = (userLangsData?.languages ?? []).length > 0;
   const languages: LanguageOverview[] = overview?.languages ?? [];
   const totalsList: LanguageTotals[] = totals ?? [];
   const hasData = languages.length > 0;
@@ -192,7 +177,6 @@ export function DashboardView() {
   const activeLang = languages.find((l) => l.language_id === selectedLangId);
   const activeTotals = totalsList.find((t) => t.language_id === selectedLangId);
 
-  // Aggregate values for "overall" scope
   const aggStreak    = Math.max(0, ...languages.map((l) => l.streak_days));
   const aggNewToday  = languages.reduce((s, l) => s + (l.today_new_words ?? 0), 0);
   const aggLearned   = totalsList.reduce((s, t) => s + (t.total_words_learned ?? 0), 0);
@@ -203,63 +187,71 @@ export function DashboardView() {
   const displayLearned = scope === 'overall' ? aggLearned  : (activeTotals?.total_words_learned ?? 0);
   const displayHours   = scope === 'overall' ? aggHours    : (activeTotals?.total_hours ?? 0);
 
-  if (loadingOverview || loadingTotals) return <LoadingSkeleton />;
+  function getGreeting() {
+    const h = new Date().getHours();
+    if (h < 12) return t('dashboard.greetingMorning');
+    if (h < 17) return t('dashboard.greetingAfternoon');
+    return t('dashboard.greetingEvening');
+  }
+
+  if (loadingOverview || loadingTotals || loadingUserLangs) return <LoadingSkeleton />;
 
   return (
     <div className="flex flex-col gap-6 p-6 lg:p-8 max-w-5xl mx-auto w-full">
-
-      {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">
             {getGreeting()}{user ? `, ${user.username}` : ''}.
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{formatDate()}</p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+          </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Select value={scope} onValueChange={setScope}>
-            <SelectTrigger className="h-8 text-xs font-mono w-44 border-border">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="overall" className="text-xs font-mono">All languages</SelectItem>
-              <SelectItem value="language" className="text-xs font-mono">
-                {activeLang ? `${activeLang.language_name ?? 'Language'} only` : 'Active language'}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-
-        </div>
+        {hasLanguages && (
+          <div className="flex items-center gap-2">
+            <Select value={scope} onValueChange={setScope}>
+              <SelectTrigger className="h-8 text-xs font-mono w-44 border-border">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="overall" className="text-xs font-mono">{t('dashboard.allLanguages')}</SelectItem>
+                <SelectItem value="language" className="text-xs font-mono">
+                  {activeLang ? t('dashboard.activeLanguageOnly', { name: activeLang.language_name ?? 'Language' }) : t('dashboard.activeLanguage')}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
-      {!hasData ? (
+      {!hasLanguages ? (
+        <AddFirstLanguagePrompt />
+      ) : !hasData ? (
         <EmptyState />
       ) : (
         <>
-          {/* Stat cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <StatCard
-              label="Streak"
+              label={t('dashboard.streak')}
               value={`${displayStreak}d`}
               icon={Flame}
-              sub={scope === 'overall' ? 'best streak' : 'current streak'}
+              sub={scope === 'overall' ? t('dashboard.bestStreak') : t('dashboard.currentStreak')}
             />
             <StatCard
-              label="New today"
+              label={t('dashboard.newToday')}
               value={displayNew}
               icon={Sparkles}
             />
             <StatCard
-              label="Total practiced"
+              label={t('dashboard.totalPracticed')}
               value={displayLearned}
               icon={BookOpen}
-              sub={`${displayHours.toFixed(1)}h total`}
+              sub={t('dashboard.totalHours', { hours: displayHours.toFixed(1) })}
             />
             <DueCard dueNow={overview?.total_due_now ?? 0} />
           </div>
 
-          {/* Daily activity chart */}
           <DailyActivityChart
             data={rangeStats}
             selectedDays={selectedDays}
@@ -268,42 +260,20 @@ export function DashboardView() {
             langLabel={activeLang?.language_name ?? undefined}
           />
 
-          {/* Maturity + milestones */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <MaturityDonut data={maturity} isLoading={loadingMaturity} langLabel={activeLang?.language_name ?? undefined} />
             <RecentlyStabilized data={maturity} isLoading={loadingMaturity} />
           </div>
 
-          {/* Study time trend (soft metric) */}
           <StudyTimeTrend
             data={rangeStats?.daily}
             days={selectedDays}
             isLoading={loadingRange}
           />
 
-          {/* Learning balance warning */}
           {maturity?.learning_balance && (
             <LearningBalanceBanner message={maturity.learning_balance.message} />
           )}
-
-          {/* Quick actions */}
-          <div className="flex gap-3 flex-wrap">
-            <Button asChild variant="outline" size="sm">
-              <Link to="/practice">
-                <PenLine className="size-3.5" /> Practice now
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link to="/sets">
-                <BookOpen className="size-3.5" /> My sets
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link to="/sets/discover">
-                <Compass className="size-3.5" /> Discover
-              </Link>
-            </Button>
-          </div>
         </>
       )}
     </div>
