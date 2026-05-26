@@ -37,7 +37,7 @@ def _resolve_project_root() -> Path:
     """
     Resolve the project root by walking up the directory tree.
 
-    Uses a two-pass strategy with explicit priority:
+    Uses a three-pass strategy with explicit priority:
 
     Pass 1 — look for docker-compose.yml.
         This is the canonical project root anchor. It lives in LingvoPal/,
@@ -49,7 +49,12 @@ def _resolve_project_root() -> Path:
         images directly. In this case pyproject.toml in backend/ is the best
         available anchor, and the .env file is expected there too.
 
-    The two passes are intentionally separate — OR-ing the anchors in a single
+    Pass 3 — fall back to requirements.txt (bare pip / pre-uv baseline).
+        This covers the experiment/00-baseline state where neither Docker nor
+        uv tooling is present. requirements.txt lives in backend/, which is
+        the correct root for .env resolution in that context.
+
+    The passes are intentionally separate — OR-ing the anchors in a single
     pass would stop at pyproject.toml in backend/ before reaching
     docker-compose.yml in the parent, returning the wrong root.
 
@@ -57,7 +62,7 @@ def _resolve_project_root() -> Path:
         Path pointing to the project root directory.
 
     Raises:
-        RuntimeError: If neither anchor is found anywhere in the tree.
+        RuntimeError: If no anchor is found anywhere in the tree.
     """
     current = Path(__file__).resolve()
     parents = list(current.parents)
@@ -72,10 +77,15 @@ def _resolve_project_root() -> Path:
         if (parent / "pyproject.toml").exists():
             return parent
 
+    # Pass 3: fall back to requirements.txt — bare pip / pre-uv baseline
+    for parent in parents:
+        if (parent / "requirements.txt").exists():
+            return parent
+
     raise RuntimeError(
         f"Could not find project root from {current}. "
-        f"Looked for docker-compose.yml then pyproject.toml in all parent "
-        f"directories. This indicates a broken project structure."
+        f"Looked for docker-compose.yml, pyproject.toml, then requirements.txt "
+        f"in all parent directories. This indicates a broken project structure."
     )
 
 
