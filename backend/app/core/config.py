@@ -216,8 +216,8 @@ class Settings(BaseSettings):
 
     # =========================================================================
     # CORS
-    # Accepts a comma-separated string or a JSON array string from .env:
-    #   CORS_ORIGINS=http://localhost:5173,https://example.com
+    # Must be a JSON array string in .env (pydantic-settings parses list fields
+    # as JSON before validators run):
     #   CORS_ORIGINS=["http://localhost:5173","https://example.com"]
     # =========================================================================
 
