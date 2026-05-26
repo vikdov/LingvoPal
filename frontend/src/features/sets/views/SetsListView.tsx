@@ -58,6 +58,11 @@ interface LangFilterBarProps {
   onChange: (id: number | null) => void;
 }
 
+interface TabFilterProps {
+  filterLangId: number | null;
+  onFilterChange: (id: number | null) => void;
+}
+
 function LangFilterBar({ langIds, languages, value, onChange }: LangFilterBarProps) {
   if (langIds.length < 2) return null;
 
@@ -252,16 +257,10 @@ export function LibraryEntryCard({ entry, languages }: LibraryEntryCardProps) {
   );
 }
 
-function LibraryTab() {
+function LibraryTab({ filterLangId, onFilterChange }: TabFilterProps) {
   const { data, isLoading, isError, error } = useMyLibrary(0, 200);
   const { data: languages = [] } = useAllLanguages();
-  const activeLanguageId = useLanguageStore((s) => s.activeLanguageId);
-  const [filterLangId, setFilterLangId] = useState<number | null>(activeLanguageId);
   const [search, setSearch] = useState('');
-
-  useEffect(() => {
-    setFilterLangId(activeLanguageId);
-  }, [activeLanguageId]);
 
   const uniqueLangIds = useMemo(() => {
     if (!data) return [];
@@ -277,10 +276,6 @@ function LibraryTab() {
     }
     return result;
   }, [data, filterLangId, search]);
-
-  function handleFilterChange(id: number | null) {
-    setFilterLangId(id);
-  }
 
   if (isLoading) {
     return (
@@ -335,7 +330,7 @@ function LibraryTab() {
           langIds={uniqueLangIds}
           languages={languages}
           value={filterLangId}
-          onChange={handleFilterChange}
+          onChange={onFilterChange}
         />
       </div>
 
@@ -442,20 +437,14 @@ function CreatedSetCard({ set, languages }: CreatedSetCardProps) {
   );
 }
 
-interface CreatedTabProps {
+interface CreatedTabProps extends TabFilterProps {
   onCreateClick: () => void;
 }
 
-function CreatedTab({ onCreateClick }: CreatedTabProps) {
+function CreatedTab({ onCreateClick, filterLangId, onFilterChange }: CreatedTabProps) {
   const { data, isLoading, isError, error } = useCreatedSets(0, 200);
   const { data: languages = [] } = useAllLanguages();
-  const activeLanguageId = useLanguageStore((s) => s.activeLanguageId);
-  const [filterLangId, setFilterLangId] = useState<number | null>(activeLanguageId);
   const [search, setSearch] = useState('');
-
-  useEffect(() => {
-    setFilterLangId(activeLanguageId);
-  }, [activeLanguageId]);
 
   const uniqueLangIds = useMemo(() => {
     if (!data) return [];
@@ -471,10 +460,6 @@ function CreatedTab({ onCreateClick }: CreatedTabProps) {
     }
     return result;
   }, [data, filterLangId, search]);
-
-  function handleFilterChange(id: number | null) {
-    setFilterLangId(id);
-  }
 
   if (isLoading) {
     return (
@@ -531,7 +516,7 @@ function CreatedTab({ onCreateClick }: CreatedTabProps) {
           langIds={uniqueLangIds}
           languages={languages}
           value={filterLangId}
-          onChange={handleFilterChange}
+          onChange={onFilterChange}
         />
       </div>
 
@@ -562,12 +547,21 @@ export function SetsListView() {
   const [importOpen, setImportOpen] = useState(false);
   const navigate = useNavigate();
   const activeLanguageId = useLanguageStore((s) => s.activeLanguageId);
+  const [filterLangId, setFilterLangId] = useState<number | null>(activeLanguageId);
   const { data: libraryData } = useMyLibrary(0, 1);
   const libraryEmpty = libraryData?.total === 0;
   const practiceAllDisabled = !activeLanguageId || libraryEmpty;
 
+  useEffect(() => {
+    setFilterLangId(activeLanguageId);
+  }, [activeLanguageId]);
+
   function handlePracticeAll() {
     navigate(`/practice?all=true&lang=${activeLanguageId}`);
+  }
+
+  function handleSetCreated(created: import('../types/sets.types').SetResponse) {
+    setFilterLangId(created.source_lang_id);
   }
 
   return (
@@ -611,15 +605,19 @@ export function SetsListView() {
         </TabsList>
 
         <TabsContent value="library" className="mt-4">
-          <LibraryTab />
+          <LibraryTab filterLangId={filterLangId} onFilterChange={setFilterLangId} />
         </TabsContent>
 
         <TabsContent value="created" className="mt-4">
-          <CreatedTab onCreateClick={() => setEditorOpen(true)} />
+          <CreatedTab
+            onCreateClick={() => setEditorOpen(true)}
+            filterLangId={filterLangId}
+            onFilterChange={setFilterLangId}
+          />
         </TabsContent>
       </Tabs>
 
-      <SetEditor open={editorOpen} onOpenChange={setEditorOpen} />
+      <SetEditor open={editorOpen} onOpenChange={setEditorOpen} onSuccess={handleSetCreated} />
       <AnkiImportModal open={importOpen} onOpenChange={setImportOpen} />
     </div>
   );

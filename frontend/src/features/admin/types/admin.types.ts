@@ -71,6 +71,24 @@ export interface AdminOverviewStats {
   total_complaints: number;
 }
 
+export interface OfficialSetEntry {
+  id: number;
+  title: string;
+  source_lang_id: number;
+  target_lang_id: number | null;
+  difficulty: number | null;
+  item_count: number;
+  created_at: string;
+}
+
+export interface ImportSetResult {
+  set_id: number;
+  title: string;
+  item_count: number;
+  skipped_count: number;
+  media_uploaded: number;
+}
+
 export interface AuditLogEntry {
   id: number;
   created_at: string;

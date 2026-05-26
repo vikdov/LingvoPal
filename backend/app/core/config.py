@@ -168,6 +168,7 @@ class Settings(BaseSettings):
 
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
+    DATABASE_SSL_REQUIRE: bool = False
 
     # =========================================================================
     # Application
@@ -231,6 +232,7 @@ class Settings(BaseSettings):
 
     REDIS_HOST: str = "redis"
     REDIS_PORT: int = 6379
+    REDIS_PASSWORD: str = ""
 
     # =========================================================================
     # Email / SMTP
@@ -531,6 +533,8 @@ class Settings(BaseSettings):
     @property
     def REDIS_URL(self) -> str:
         """Redis connection string. Database index 0."""
+        if self.REDIS_PASSWORD:
+            return f"redis://default:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/0"
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/0"
 
     # =========================================================================
@@ -564,11 +568,14 @@ class Settings(BaseSettings):
         """
         user = urllib.parse.quote_plus(self.DATABASE_USER)
         password = urllib.parse.quote_plus(self.DATABASE_PASSWORD)
-        return (
+        url = (
             f"{driver}://{user}:{password}"
             f"@{self.DATABASE_HOST}:{self.DATABASE_PORT}"
             f"/{self.DATABASE_NAME}"
         )
+        if self.DATABASE_SSL_REQUIRE:
+            url += "?ssl=require"
+        return url
 
 
 # =============================================================================

@@ -72,6 +72,21 @@ class StorageService:
             )
         return f"{self._base_url}/{key}"
 
+    async def get_object_by_url(self, url: str) -> bytes | None:
+        """Download object bytes by public URL. Returns None if not found."""
+        prefix = self._base_url + "/"
+        if not url.startswith(prefix):
+            return None
+        key = url[len(prefix):]
+        async with self._client() as s3:
+            try:
+                resp = await s3.get_object(Bucket=self._settings.S3_BUCKET, Key=key)
+                return await resp["Body"].read()
+            except ClientError as e:
+                if e.response["Error"]["Code"] in ("404", "NoSuchKey"):
+                    return None
+                raise
+
     async def delete(self, url: str) -> None:
         """Delete object by public URL. No-op if URL doesn't belong to this bucket."""
         prefix = self._base_url + "/"

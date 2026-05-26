@@ -3,167 +3,96 @@ name: CD
 on:
   push:
     branches: [main]
-    tags:
-      - "v*.*.*"
 
-# Only one CD run at a time per ref
+# One deploy at a time — never cancel in-progress deploys
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  REGISTRY: ghcr.io
-  BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/lingvopal-backend
-  FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/lingvopal-frontend
-
 jobs:
   # --------------------------------------------------------------------------
-  # Determine image tag from ref
+  # Gate: all CI checks must pass before deploy
   # --------------------------------------------------------------------------
-  meta:
-    name: Resolve image tags
+  ci-gate:
+    name: CI gate
+    uses: ./.github/workflows/ci.yml
+
+  # --------------------------------------------------------------------------
+  # Deploy backend to Render
+  #
+  # Required GitHub secret:
+  #   RENDER_DEPLOY_HOOK_URL  — Render dashboard → service → Settings → Deploy Hook
+  # --------------------------------------------------------------------------
+  deploy-backend:
+    name: Deploy backend → Render
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.meta.outputs.version }}
-      tags_backend: ${{ steps.meta-backend.outputs.tags }}
-      tags_frontend: ${{ steps.meta-frontend.outputs.tags }}
+    needs: ci-gate
+    environment: production
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Backend image metadata
-        id: meta-backend
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.BACKEND_IMAGE }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=ref,event=branch
-            type=sha,prefix=sha-
-
-      - name: Frontend image metadata
-        id: meta-frontend
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.FRONTEND_IMAGE }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=ref,event=branch
-            type=sha,prefix=sha-
-
-      - name: Resolve version label
-        id: meta
+      - name: Trigger Render deploy
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-          else
-            echo "version=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-          fi
+          curl -f -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" \
+            -H "Accept: application/json"
+
+      - name: Wait for deploy to start
+        run: sleep 10
 
   # --------------------------------------------------------------------------
-  # Build + push backend image
-  # --------------------------------------------------------------------------
-  build-backend:
-    name: Build & push backend
-    runs-on: ubuntu-latest
-    needs: meta
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backend
-          push: true
-          tags: ${{ needs.meta.outputs.tags_backend }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          labels: |
-            org.opencontainers.image.version=${{ needs.meta.outputs.version }}
-            org.opencontainers.image.revision=${{ github.sha }}
-
-  # --------------------------------------------------------------------------
-  # Build + push frontend image
-  # --------------------------------------------------------------------------
-  build-frontend:
-    name: Build & push frontend
-    runs-on: ubuntu-latest
-    needs: meta
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: ./frontend
-          push: true
-          tags: ${{ needs.meta.outputs.tags_frontend }}
-          build-args: |
-            VITE_API_URL=${{ secrets.VITE_API_URL }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          labels: |
-            org.opencontainers.image.version=${{ needs.meta.outputs.version }}
-            org.opencontainers.image.revision=${{ github.sha }}
-
-  # --------------------------------------------------------------------------
-  # Deploy to Railway (backend + frontend services)
+  # Run DB migrations after Render deploy starts
   #
   # Required GitHub secrets:
-  #   RAILWAY_TOKEN               — from Railway dashboard → Account Settings → Tokens
-  #   RAILWAY_BACKEND_SERVICE_ID  — Railway service ID for backend
-  #   RAILWAY_FRONTEND_SERVICE_ID — Railway service ID for frontend
+  #   NEON_DATABASE_URL  — full asyncpg URL from Neon dashboard
   # --------------------------------------------------------------------------
-  deploy:
-    name: Deploy to Railway
+  migrate:
+    name: Run migrations
     runs-on: ubuntu-latest
-    needs: [build-backend, build-frontend]
-    environment: production
-    if: github.ref == 'refs/heads/main'
+    needs: deploy-backend
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      ENV: production
+      DATABASE_SSL_REQUIRE: "true"
+      DATABASE_USER: ${{ secrets.PROD_DATABASE_USER }}
+      DATABASE_PASSWORD: ${{ secrets.PROD_DATABASE_PASSWORD }}
+      DATABASE_HOST: ${{ secrets.PROD_DATABASE_HOST }}
+      DATABASE_PORT: "5432"
+      DATABASE_NAME: ${{ secrets.PROD_DATABASE_NAME }}
+      REDIS_HOST: ${{ secrets.PROD_REDIS_HOST }}
+      REDIS_PORT: ${{ secrets.PROD_REDIS_PORT }}
+      REDIS_PASSWORD: ${{ secrets.PROD_REDIS_PASSWORD }}
+      SECRET_KEY: ${{ secrets.PROD_SECRET_KEY }}
+      S3_ACCESS_KEY: ${{ secrets.PROD_S3_ACCESS_KEY }}
+      S3_SECRET_KEY: ${{ secrets.PROD_S3_SECRET_KEY }}
+      S3_USE_TLS: "true"
+      S3_HOST: ${{ secrets.PROD_S3_HOST }}
+      S3_PORT: ${{ secrets.PROD_S3_PORT }}
+      S3_BUCKET: ${{ secrets.PROD_S3_BUCKET }}
+      MEDIA_BASE_URL: ${{ secrets.PROD_MEDIA_BASE_URL }}
+      AI_API_KEY: ${{ secrets.PROD_AI_API_KEY }}
+      IMAGE_SEARCH_API_KEY: ${{ secrets.PROD_IMAGE_SEARCH_API_KEY }}
+      TTS_ENABLED: "false"
+      CORS_ORIGINS: ${{ secrets.PROD_CORS_ORIGINS }}
+      FRONTEND_URL: ${{ secrets.PROD_FRONTEND_URL }}
 
     steps:
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
+      - uses: actions/checkout@v4
 
-      - name: Deploy backend
-        run: railway redeploy --service ${{ secrets.RAILWAY_BACKEND_SERVICE_ID }} --yes
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
 
-      - name: Deploy frontend
-        run: railway redeploy --service ${{ secrets.RAILWAY_FRONTEND_SERVICE_ID }} --yes
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      - name: Sync dependencies
+        run: uv sync --frozen --no-cache
+
+      - name: Apply migrations
+        run: uv run alembic upgrade head
+
+      - name: Seed official sets
+        run: uv run python scripts/seed_official.py
 
   # --------------------------------------------------------------------------
   # Create GitHub release on semver tags
@@ -171,7 +100,7 @@ jobs:
   release:
     name: GitHub release
     runs-on: ubuntu-latest
-    needs: [build-backend, build-frontend]
+    needs: ci-gate
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
@@ -185,10 +114,3 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          body: |
-            ## Docker images
-
-            ```
-            docker pull ${{ env.BACKEND_IMAGE }}:${{ needs.meta.outputs.version }}
-            docker pull ${{ env.FRONTEND_IMAGE }}:${{ needs.meta.outputs.version }}
-            ```

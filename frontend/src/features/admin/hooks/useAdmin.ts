@@ -9,6 +9,7 @@ export const adminKeys = {
   promotionCandidates: ['admin', 'promotion-candidates'] as const,
   complaints: (params: object) => ['admin', 'complaints', params] as const,
   auditLog: (params: object) => ['admin', 'audit-log', params] as const,
+  officialSets: ['admin', 'official-sets'] as const,
 };
 
 export function useAdminOverview() {
@@ -88,5 +89,27 @@ export function useDeleteContent() {
     mutationFn: ({ targetType, id, reason }: { targetType: 'item' | 'set'; id: number; reason: string }) =>
       targetType === 'item' ? adminApi.deleteItem(id, reason) : adminApi.deleteSet(id, reason),
     onSuccess: () => qc.invalidateQueries({ queryKey: adminKeys.all }),
+  });
+}
+
+export function useOfficialSets() {
+  return useQuery({
+    queryKey: adminKeys.officialSets,
+    queryFn: () => adminApi.listOfficialSets(),
+  });
+}
+
+export function useImportOfficialSet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => adminApi.importOfficialSet(file),
+    onSuccess: () => qc.invalidateQueries({ queryKey: adminKeys.officialSets }),
+  });
+}
+
+export function useExportSet() {
+  return useMutation({
+    mutationFn: ({ setId, title }: { setId: number; title: string }) =>
+      adminApi.exportSet(setId, title),
   });
 }

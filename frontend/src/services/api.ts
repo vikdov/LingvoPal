@@ -157,6 +157,31 @@ async function request<T>(method: string, path: string, body?: unknown, _retry =
   return data as T;
 }
 
+async function requestBlob(method: string, path: string, _retry = true): Promise<Blob> {
+  const h: Record<string, string> = {};
+  if (_accessToken) h['Authorization'] = `Bearer ${_accessToken}`;
+
+  const res = await fetch(`${BASE_URL}${path}`, { method, headers: h, credentials: 'include' });
+
+  if (res.ok) return res.blob();
+
+  if (res.status === 401 && _retry && localStorage.getItem(SESSION_HINT_KEY)) {
+    try {
+      await tryRefresh();
+      return requestBlob(method, path, false);
+    } catch {
+      _accessToken = null;
+      localStorage.removeItem(SESSION_HINT_KEY);
+      localStorage.removeItem(USER_KEY);
+      throw new UnauthorizedError();
+    }
+  }
+
+  const data = await res.json().catch(() => ({})) as Record<string, unknown>;
+  const { code, message, extra } = parseDetail(data.detail);
+  throw new ApiError(res.status, code, message, extra);
+}
+
 async function requestForm<T>(method: string, path: string, form: FormData, _retry = true): Promise<T> {
   const headers: Record<string, string> = {};
   if (_accessToken) headers['Authorization'] = `Bearer ${_accessToken}`;
@@ -200,6 +225,7 @@ export const api = {
   patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
   delete: <T>(path: string) => request<T>('DELETE', path),
   postForm: <T>(path: string, form: FormData) => requestForm<T>('POST', path, form),
+  getBlob: (path: string) => requestBlob('GET', path),
 };
 
 // rawPost: skip the 401-retry logic (used for /auth/refresh itself).

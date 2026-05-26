@@ -13,12 +13,15 @@ Routes:
 
 from typing import NoReturn
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, HTTPException, Query, UploadFile, status
+from sqlalchemy import select
 
-from app.core.dependencies import AdminUser, ModerationServiceDep
+from app.core.dependencies import AdminUser, ModerationServiceDep, WriteDBSession
 from app.core.exceptions import LingvoPalError
 from app.core.http_errors import domain_error_to_http
-from app.models.enums import ModerationStatus, ModerationTargetType
+from app.models.enums import ContentStatus, ModerationStatus, ModerationTargetType
+from app.models.set import Set
+from app.repositories.set_repo import SetRepository
 from app.schemas.admin import AdminOverviewStats, AuditLogEntry, PromoteToOfficialRequest
 from app.schemas.common import PaginatedResponse
 from app.schemas.complaint import ComplaintResponse
@@ -29,6 +32,8 @@ from app.schemas.moderation import (
     PendingModerationResponse,
     RejectModerationRequest,
 )
+from app.schemas.set import SetResponse
+from app.services.lpset_import_service import LpsetImportError, LpsetImportService
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -269,6 +274,59 @@ async def dismiss_complaint(
         await svc.dismiss_complaint(admin.id, complaint_id)
     except LingvoPalError as exc:
         _handle(exc)
+
+
+# ============================================================================
+# OFFICIAL SETS
+# ============================================================================
+
+
+@router.get(
+    "/sets/official",
+    response_model=list[SetResponse],
+    summary="List official sets",
+)
+async def list_official_sets(
+    _admin: AdminUser,
+    db: WriteDBSession,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+) -> list[SetResponse]:
+    set_repo = SetRepository(db)
+    result = await db.execute(
+        select(Set)
+        .where(Set.status == ContentStatus.OFFICIAL, Set.deleted_at.is_(None))
+        .order_by(Set.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    sets = result.scalars().all()
+    counts = await set_repo.count_items_batch([s.id for s in sets]) if sets else {}
+    return [
+        SetResponse.model_validate(s).model_copy(update={"item_count": counts.get(s.id, 0)})
+        for s in sets
+    ]
+
+
+@router.post(
+    "/sets/import",
+    summary="Import a .lpset bundle as an official set",
+    status_code=status.HTTP_201_CREATED,
+)
+async def admin_import_set(
+    admin: AdminUser,
+    db: WriteDBSession,
+    file: UploadFile,
+) -> dict:
+    data = await file.read()
+    svc = LpsetImportService(db)
+    try:
+        result = await svc.import_lpset(data, user_id=None, status=ContentStatus.OFFICIAL)
+    except LpsetImportError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+    await SetRepository(db).save_to_library(admin.id, result["set_id"])
+    await db.commit()
+    return result
 
 
 @router.get(

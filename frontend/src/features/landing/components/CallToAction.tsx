@@ -75,7 +75,7 @@ export function CallToAction() {
       <FadeUp delay={0.19}>
         <Button
           asChild
-          className="relative px-7 py-3 h-auto text-[15px]"
+          className="relative shimmer-btn px-7 py-3 h-auto text-[15px]"
           style={{ boxShadow: '0 0 40px -8px rgba(99,102,241,0.7), 0 0 80px -20px rgba(139,92,246,0.4)' }}
         >
           <Link to="/auth/register">Start your first recall session →</Link>

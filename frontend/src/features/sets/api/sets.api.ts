@@ -190,4 +190,16 @@ export const setsApi = {
 
   getSynonymSuggestions: (languageId: number, q: string) =>
     api.get<string[]>(`/items/synonym-suggestions?language_id=${languageId}&q=${encodeURIComponent(q)}`),
+
+  exportSet: async (setId: number, title: string): Promise<void> => {
+    const blob = await api.getBlob(`/sets/${setId}/export`);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title}.lpset`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
 };
