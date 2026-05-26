@@ -7,11 +7,14 @@ Rules:
   - Zero business logic here
 """
 
+import io
 from typing import NoReturn
 
 from fastapi import APIRouter, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 
-from app.core.dependencies import ComplaintServiceDep, CurrentUser, SetServiceDep
+from app.core.dependencies import AdminUser, ComplaintServiceDep, CurrentUser, SetServiceDep, WriteDBSession
+from app.services.lpset_export_service import LpsetExportError, LpsetExportService
 from app.core.exceptions import LingvoPalError
 from app.core.http_errors import domain_error_to_http
 from app.schemas.common import PaginatedResponse
@@ -300,6 +303,30 @@ async def fork_set(
         return _build_set_response(s, count)
     except LingvoPalError as exc:
         _handle(exc)
+
+
+@router.get(
+    "/{set_id}/export",
+    summary="Export a set as a .lpset bundle (admin only)",
+    responses={
+        200: {"content": {"application/zip": {}}, "description": "Set as .lpset ZIP"},
+    },
+)
+async def export_set(
+    set_id: int,
+    _admin: AdminUser,
+    db: WriteDBSession,
+) -> StreamingResponse:
+    try:
+        svc = LpsetExportService(db)
+        zip_bytes, filename = await svc.export_set(set_id)
+    except LpsetExportError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    return StreamingResponse(
+        io.BytesIO(zip_bytes),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post(

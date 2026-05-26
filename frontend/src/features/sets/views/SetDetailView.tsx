@@ -21,6 +21,7 @@ import {
   AlertCircleIcon,
   XCircleIcon,
   Volume2Icon,
+  DownloadIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -50,6 +51,7 @@ import {
   useIsInLibrary,
   useLatestSetModeration,
   useSubmitItemForReview,
+  useExportSet,
 } from '../hooks/useSetsQuery';
 import { SubmitReviewDialog } from '../components/SubmitReviewDialog';
 import { SetEditor } from '../components/SetEditor';
@@ -639,6 +641,7 @@ export function SetDetailView() {
   const { data: itemsData, isLoading: itemsLoading, isFetching } = useSetItems(setId, skip, pageSize);
   const { data: languages = [] } = useAllLanguages();
   const touchSet = useTouchSet();
+  const exportSet = useExportSet();
 
   // Record that the user opened this set (fire-and-forget)
   useEffect(() => {
@@ -653,6 +656,7 @@ export function SetDetailView() {
   const [viewingItem, setViewingItem] = useState<ItemDetailResponse | null>(null);
 
   const isOwner = !!user && !!set && set.creator_id === user.id;
+  const isAdmin = !!user?.is_admin;
 
   // Scroll items section into view on page/pageSize change (skip initial mount)
   const isFirstRender = useRef(true);
@@ -763,6 +767,22 @@ export function SetDetailView() {
             </>
           ) : (
             <ViewerActions set={set} />
+          )}
+          {isAdmin && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                exportSet.mutate(
+                  { setId: set.id, title: set.title },
+                  { onError: (err) => toast.error(err.message) },
+                )
+              }
+              disabled={exportSet.isPending}
+            >
+              <DownloadIcon className="size-3.5" />
+              {exportSet.isPending ? 'Exporting…' : 'Export .lpset'}
+            </Button>
           )}
         </div>
       </div>

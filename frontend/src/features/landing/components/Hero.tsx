@@ -88,7 +88,7 @@ export function Hero() {
         <div className="relative flex items-center gap-3 flex-wrap justify-center mt-1">
           <Button
             asChild
-            className="px-6 py-2.5 h-auto text-[14px]"
+            className="shimmer-btn px-6 py-2.5 h-auto text-[14px]"
             style={{
               boxShadow:
                 '0 0 24px -6px rgba(99,102,241,0.5), 0 1px 0 rgba(255,255,255,0.08) inset',

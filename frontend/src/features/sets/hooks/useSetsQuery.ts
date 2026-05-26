@@ -509,3 +509,10 @@ export function useSubmitItemForReview() {
     },
   });
 }
+
+export function useExportSet() {
+  return useMutation({
+    mutationFn: ({ setId, title }: { setId: number; title: string }) =>
+      setsApi.exportSet(setId, title),
+  });
+}

@@ -8,6 +8,8 @@ import type {
   ComplaintResponse,
   AuditLogEntry,
   ModerationTargetType,
+  OfficialSetEntry,
+  ImportSetResult,
 } from '../types/admin.types';
 
 export const adminApi = {
@@ -63,5 +65,26 @@ export const adminApi = {
     if (params.skip != null) qs.set('skip', String(params.skip));
     if (params.limit != null) qs.set('limit', String(params.limit));
     return api.get(`/admin/audit-log?${qs}`);
+  },
+
+  listOfficialSets: (): Promise<OfficialSetEntry[]> =>
+    api.get('/admin/sets/official'),
+
+  importOfficialSet: (file: File): Promise<ImportSetResult> => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.postForm('/admin/sets/import', form);
+  },
+
+  exportSet: async (setId: number, title: string): Promise<void> => {
+    const blob = await api.getBlob(`/sets/${setId}/export`);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title}.lpset`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   },
 };

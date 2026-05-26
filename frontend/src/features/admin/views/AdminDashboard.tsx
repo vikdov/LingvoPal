@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   CheckIcon,
@@ -12,6 +12,8 @@ import {
   ArrowRightIcon,
   Trash2Icon,
   MessageSquareIcon,
+  UploadIcon,
+  DownloadIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -60,6 +62,9 @@ import {
   useAuditLog,
   useDismissComplaint,
   useDeleteContent,
+  useOfficialSets,
+  useImportOfficialSet,
+  useExportSet,
 } from '../hooks/useAdmin';
 import type {
   PendingModerationEntry,
@@ -69,6 +74,7 @@ import type {
   ComplaintResponse,
   ComplaintReason,
   AuditLogEntry,
+  OfficialSetEntry,
 } from '../types/admin.types';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -953,6 +959,125 @@ function AuditLogTab() {
   );
 }
 
+// ── Official Sets tab ─────────────────────────────────────────────────────────
+
+function OfficialSetRow({ set }: { set: OfficialSetEntry }) {
+  const exportSet = useExportSet();
+
+  return (
+    <TableRow>
+      <TableCell className="font-medium">{set.title}</TableCell>
+      <TableCell className="text-sm text-muted-foreground font-mono">
+        {set.source_lang_id}
+        {set.target_lang_id ? ` → ${set.target_lang_id}` : ''}
+      </TableCell>
+      <TableCell className="text-sm tabular-nums">{set.item_count}</TableCell>
+      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+        {fmt(set.created_at)}
+      </TableCell>
+      <TableCell>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-xs"
+          disabled={exportSet.isPending}
+          onClick={() =>
+            exportSet.mutate(
+              { setId: set.id, title: set.title },
+              { onError: (err) => toast.error(err.message) },
+            )
+          }
+        >
+          <DownloadIcon className="size-3.5" />
+          Export
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function OfficialSetsTab() {
+  const { data: sets, isLoading, isError, error } = useOfficialSets();
+  const importSet = useImportOfficialSet();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    importSet.mutate(file, {
+      onSuccess: (result) => {
+        toast.success(
+          `"${result.title}" imported — ${result.item_count} new items, ${result.skipped_count} reused.`,
+        );
+      },
+      onError: (err) => toast.error(err.message),
+    });
+    e.target.value = '';
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          {sets ? `${sets.length} official set${sets.length === 1 ? '' : 's'}` : ''}
+        </p>
+        <Button
+          size="sm"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={importSet.isPending}
+        >
+          <UploadIcon className="size-3.5" />
+          {importSet.isPending ? 'Importing…' : 'Import .lpset'}
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".lpset"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+      </div>
+
+      {isLoading && (
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
+      )}
+
+      {isError && <p className="text-sm text-destructive">{error.message}</p>}
+
+      {!isLoading && !isError && (!sets || sets.length === 0) && (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          No official sets. Import a .lpset bundle to get started.
+        </p>
+      )}
+
+      {!isLoading && !isError && sets && sets.length > 0 && (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Title</TableHead>
+                <TableHead>Languages</TableHead>
+                <TableHead>Items</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sets.map((s) => (
+                <OfficialSetRow key={s.id} set={s} />
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Root ──────────────────────────────────────────────────────────────────────
 
 export function AdminDashboard() {
@@ -971,6 +1096,7 @@ export function AdminDashboard() {
           <TabsTrigger value="queue">Moderation Queue</TabsTrigger>
           <TabsTrigger value="complaints">Complaints</TabsTrigger>
           <TabsTrigger value="promotion">Promotion</TabsTrigger>
+          <TabsTrigger value="official">Official Sets</TabsTrigger>
           <TabsTrigger value="audit">Audit Log</TabsTrigger>
         </TabsList>
 
@@ -988,6 +1114,10 @@ export function AdminDashboard() {
 
         <TabsContent value="promotion" className="mt-4">
           <PromotionTab />
+        </TabsContent>
+
+        <TabsContent value="official" className="mt-4">
+          <OfficialSetsTab />
         </TabsContent>
 
         <TabsContent value="audit" className="mt-4">

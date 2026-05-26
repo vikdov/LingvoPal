@@ -223,6 +223,36 @@ class SetRepository:
             .values(deleted_at=datetime.now(timezone.utc))
         )
 
+    async def restore(self, set_id: int) -> None:
+        await self._session.execute(
+            update(Set).where(Set.id == set_id).values(deleted_at=None)
+        )
+
+    async def find_by_title_and_langs(
+        self,
+        title: str,
+        source_lang_id: int,
+        target_lang_id: int | None,
+    ) -> Sequence[Set]:
+        """Find sets (including soft-deleted) matching title + lang pair."""
+        cond = [Set.title == title, Set.source_lang_id == source_lang_id]
+        if target_lang_id is None:
+            cond.append(Set.target_lang_id.is_(None))
+        else:
+            cond.append(Set.target_lang_id == target_lang_id)
+        result = await self._session.execute(select(Set).where(*cond))
+        return result.scalars().all()
+
+    async def get_ordered_item_hashes(self, set_id: int) -> list[str | None]:
+        """Get content_hashes of set items ordered by sort_order."""
+        result = await self._session.execute(
+            select(Item.content_hash)
+            .join(SetItem, SetItem.item_id == Item.id)
+            .where(SetItem.set_id == set_id)
+            .order_by(SetItem.sort_order)
+        )
+        return list(result.scalars().all())
+
     # ------------------------------------------------------------------
     # User set library
     # ------------------------------------------------------------------
@@ -261,6 +291,9 @@ class SetRepository:
         return result.scalars().all()
 
     async def save_to_library(self, user_id: int, set_id: int) -> UserSetLibrary:
+        existing = await self.get_library_entry(user_id, set_id)
+        if existing:
+            return existing
         entry = UserSetLibrary(user_id=user_id, set_id=set_id)
         self._session.add(entry)
         await self._session.flush()

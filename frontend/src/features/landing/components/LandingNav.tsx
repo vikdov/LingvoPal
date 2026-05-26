@@ -27,7 +27,7 @@ export function LandingNav() {
         <Button
           size="sm"
           asChild
-          className="font-medium"
+          className="font-medium shimmer-btn"
           style={{ boxShadow: '0 0 20px -4px rgba(0,105,168,0.55), 0 0 40px -12px rgba(0,105,168,0.3)' }}
         >
           <Link to="/auth/register">Start writing →</Link>
