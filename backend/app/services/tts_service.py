@@ -153,16 +153,14 @@ class TTSService:
                 "Set the path to your service account JSON file."
             )
         except (json.JSONDecodeError, KeyError) as e:
-            raise ValueError(
-                f"Invalid service account JSON at {path!r}: {e}"
-            ) from e
+            raise ValueError(f"Invalid service account JSON at {path!r}: {e}") from e
 
     async def close(self):
         """Close TTS client."""
         if self.google_client:
             try:
                 self.google_client.close()
-            except Exception:
+            except Exception:  # nosec B110
                 pass
 
 

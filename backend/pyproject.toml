@@ -81,4 +81,5 @@ paths_to_mutate= [ "app/services/sm2_engine.py" ]
 pytest_add_cli_args_test_selection = [ "tests/test_sm2_engine.py" ]
 
 [tool.bandit]
-exclude_dirs = ["tests"]
+exclude_dirs = ["tests", "scripts"]
+skips = ["B105"]

@@ -53,8 +53,8 @@ repos:
 # Python — bandit SAST
 # ---------------------------------------------------------------------------
   - repo: https://github.com/PyCQA/bandit
-    rev: 1.8.3
+    rev: 1.9.4  # 1.9.x required for Python 3.14 (ast.Num removed in 3.14)
     hooks:
       - id: bandit
-        args: ["-c", "pyproject.toml"]
+        args: ["-c", "backend/pyproject.toml", "-l"]
         files: ^backend/

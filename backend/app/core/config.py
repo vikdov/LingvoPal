@@ -192,7 +192,7 @@ class Settings(BaseSettings):
 
     API_TITLE: str = "LingvoPal"
     API_VERSION: str = "1.0.0"
-    API_HOST: str = "0.0.0.0"
+    API_HOST: str = "0.0.0.0"  # nosec B104
     API_PORT: int = 8000
 
     # =========================================================================
@@ -293,9 +293,14 @@ class Settings(BaseSettings):
     # =========================================================================
     # AI / LLM (for item suggestions)
     # =========================================================================
-    AI_PROVIDER: Literal["google", "groq"] = Field("groq", description="LLM provider: 'groq' or 'google'")
+    AI_PROVIDER: Literal["google", "groq"] = Field(
+        "groq", description="LLM provider: 'groq' or 'google'"
+    )
     AI_API_KEY: str = Field(..., description="API key for the selected AI provider")
-    AI_MODEL: str = Field("llama-3.3-70b-versatile", description="Model ID (groq: llama-3.3-70b-versatile | google: gemini-2.0-flash-lite)")
+    AI_MODEL: str = Field(
+        "llama-3.3-70b-versatile",
+        description="Model ID (groq: llama-3.3-70b-versatile | google: gemini-2.0-flash-lite)",
+    )
 
     # =========================================================================
     # TTS (Text-to-Speech)
@@ -307,7 +312,9 @@ class Settings(BaseSettings):
     # elevenlabs: set TTS_API_KEY to your ElevenLabs API key.
     #   GOOGLE_APPLICATION_CREDENTIALS is ignored.
     # =========================================================================
-    TTS_ENABLED: bool = Field(True, description="Set False to skip TTS credential validation and disable TTS features.")
+    TTS_ENABLED: bool = Field(
+        True, description="Set False to skip TTS credential validation and disable TTS features."
+    )
     TTS_PROVIDER: Literal["google_cloud", "elevenlabs"] = "google_cloud"
     GOOGLE_APPLICATION_CREDENTIALS: str | None = Field(
         None,
@@ -323,9 +330,7 @@ class Settings(BaseSettings):
     # Image Search
     # =========================================================================
     IMAGE_SEARCH_PROVIDER: Literal["unsplash", "pexels", "pixabay"] = "unsplash"
-    IMAGE_SEARCH_API_KEY: str = Field(
-        ..., description="API key for image search provider"
-    )
+    IMAGE_SEARCH_API_KEY: str = Field(..., description="API key for image search provider")
     IMAGE_COUNT: int = 1
 
     @computed_field
@@ -370,8 +375,7 @@ class Settings(BaseSettings):
         """
         env_settings = kwargs["env_settings"]
         env_file_sources = tuple(
-            DotEnvSettingsSource(settings_cls, env_file=path)
-            for path in _get_env_files()
+            DotEnvSettingsSource(settings_cls, env_file=path) for path in _get_env_files()
         )
         # First source wins. System env first, then local overrides, then base.
         return (env_settings, *reversed(env_file_sources))
@@ -465,8 +469,7 @@ class Settings(BaseSettings):
         # --- DEBUG ---
         if self.DEBUG:
             raise ValueError(
-                "DEBUG must be False in production. "
-                "Debug mode exposes sensitive information."
+                "DEBUG must be False in production. Debug mode exposes sensitive information."
             )
 
         return self

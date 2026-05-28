@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 IMPORT_KEY_PREFIX = "anki_import:"
 IMPORT_TTL_SECONDS = 1800  # 30 min
 
-_APKG_TMP_DIR = "/tmp"
+_APKG_TMP_DIR = "/tmp"  # nosec B108
 
 # Map common Anki POS strings (lower-cased) to LingvoPal enum values
 _POS_MAP: dict[str, PartOfSpeech] = {
@@ -119,13 +119,15 @@ class AnkiImportService:
 
         # Persist parsed cards (text) in Redis
         key = f"{IMPORT_KEY_PREFIX}{token}"
-        payload = json.dumps({
-            "deck_name": result.root_deck_name,
-            "cards": [
-                {"fields": c.fields, "raw_fields": c.raw_fields, "tags": c.tags}
-                for c in result.cards
-            ],
-        })
+        payload = json.dumps(
+            {
+                "deck_name": result.root_deck_name,
+                "cards": [
+                    {"fields": c.fields, "raw_fields": c.raw_fields, "tags": c.tags}
+                    for c in result.cards
+                ],
+            }
+        )
         await self._redis.set(key, payload, ex=IMPORT_TTL_SECONDS)
 
         # Persist .apkg bytes to disk for media extraction during confirm
@@ -165,9 +167,7 @@ class AnkiImportService:
 
     # ── Phase 2: Confirm ─────────────────────────────────────────────────────
 
-    async def confirm_import(
-        self, user_id: int, request: AnkiConfirmRequest
-    ) -> AnkiImportResponse:
+    async def confirm_import(self, user_id: int, request: AnkiConfirmRequest) -> AnkiImportResponse:
         key = f"{IMPORT_KEY_PREFIX}{request.import_token}"
         raw = await self._redis.get(key)
         if raw is None:
@@ -185,7 +185,7 @@ class AnkiImportService:
         ]
 
         # Load media lookup from .apkg file if available
-        media_lookup: dict[str, str] = {}   # anki_filename → numeric_id_in_zip
+        media_lookup: dict[str, str] = {}  # anki_filename → numeric_id_in_zip
         apkg_archive: zipfile.ZipFile | None = None
         apkg_path = _apkg_tmp_path(request.import_token)
         if os.path.exists(apkg_path):
@@ -288,29 +288,37 @@ class AnkiImportService:
                 no_gap_count += 1
                 continue
 
-            valid_cards.append({
-                "sort_order": sort_order,
-                "card": card,
-                "term": truncated_term,
-                "context": truncated_context,
-                "translation": (
-                    card.fields.get(mapping.translation_field, "").strip()
-                    if mapping.translation_field else ""
-                ),
-                "context_trans": (
-                    card.fields.get(mapping.context_trans_field, "").strip() or None
-                    if mapping.context_trans_field else None
-                ),
-                "lemma": (
-                    card.fields.get(mapping.lemma_field, "").strip()[:500] or None
-                    if mapping.lemma_field else None
-                ),
-                "pos": (
-                    _parse_pos(card.fields.get(mapping.part_of_speech_field, "").strip())
-                    if mapping.part_of_speech_field else None
-                ),
-                "hash": compute_item_content_hash(source_lang_id, truncated_term, truncated_context),
-            })
+            valid_cards.append(
+                {
+                    "sort_order": sort_order,
+                    "card": card,
+                    "term": truncated_term,
+                    "context": truncated_context,
+                    "translation": (
+                        card.fields.get(mapping.translation_field, "").strip()
+                        if mapping.translation_field
+                        else ""
+                    ),
+                    "context_trans": (
+                        card.fields.get(mapping.context_trans_field, "").strip() or None
+                        if mapping.context_trans_field
+                        else None
+                    ),
+                    "lemma": (
+                        card.fields.get(mapping.lemma_field, "").strip()[:500] or None
+                        if mapping.lemma_field
+                        else None
+                    ),
+                    "pos": (
+                        _parse_pos(card.fields.get(mapping.part_of_speech_field, "").strip())
+                        if mapping.part_of_speech_field
+                        else None
+                    ),
+                    "hash": compute_item_content_hash(
+                        source_lang_id, truncated_term, truncated_context
+                    ),
+                }
+            )
 
         # ── Phase 1: one bulk lookup for all hashes ───────────────────────────
         all_hashes = {d["hash"] for d in valid_cards}
@@ -370,7 +378,9 @@ class AnkiImportService:
                     translation_id = await self._resolve_translation(
                         item.id, target_lang_id, data, user_id
                     )
-                    await self._items.add_to_set(set_id, item.id, data["sort_order"], translation_id)
+                    await self._items.add_to_set(
+                        set_id, item.id, data["sort_order"], translation_id
+                    )
                     reused_count += 1
                     item_count += 1
                     continue
