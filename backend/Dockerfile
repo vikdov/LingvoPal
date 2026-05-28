@@ -20,6 +20,9 @@ COPY . .
 # Activate the venv for all subsequent RUN/CMD instructions
 ENV PATH="/app/.venv/bin:$PATH"
 
+RUN addgroup --system appuser && adduser --system --ingroup appuser appuser
+USER appuser
+
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
