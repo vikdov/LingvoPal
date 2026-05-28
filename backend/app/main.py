@@ -5,17 +5,16 @@ import logging
 import logging.config
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.redis import RedisIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-
-import sentry_sdk
-from sentry_sdk.integrations.fastapi import FastApiIntegration
-from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
-from sentry_sdk.integrations.redis import RedisIntegration
 
 from app.core.config import get_settings
 from app.core.exceptions import (
@@ -33,27 +32,11 @@ settings = get_settings()
 
 
 def _configure_logging() -> None:
-    """
-    JSON logging in production/staging (Railway parses it natively).
-    Plain text in development so local logs stay readable.
-    """
-    if settings.is_production or settings.is_staging:
-        from pythonjsonlogger.jsonlogger import JsonFormatter
-
-        fmt = JsonFormatter(
-            fmt="%(asctime)s %(levelname)s %(name)s %(message)s",
-            rename_fields={"asctime": "ts", "levelname": "level", "name": "logger"},
-        )
-        handler = logging.StreamHandler()
-        handler.setFormatter(fmt)
-        logging.root.setLevel(settings.LOG_LEVEL)
-        logging.root.handlers = [handler]
-    else:
-        logging.basicConfig(
-            level=settings.LOG_LEVEL,
-            format="%(asctime)s %(levelname)-8s %(name)s  %(message)s",
-            datefmt="%H:%M:%S",
-        )
+    logging.basicConfig(
+        level=settings.LOG_LEVEL,
+        format="%(asctime)s %(levelname)-8s %(name)s  %(message)s",
+        datefmt="%H:%M:%S",
+    )
 
     logging.getLogger("botocore").setLevel(logging.WARNING)
     logging.getLogger("aiobotocore").setLevel(logging.WARNING)
@@ -265,9 +248,10 @@ def create_app() -> FastAPI:
         if auth.startswith("Bearer "):
             try:
                 from app.core.security import decode_token
+
                 payload = decode_token(auth[7:])
                 request.state.user = SimpleNamespace(id=int(payload["sub"]))
-            except Exception:
+            except Exception:  # nosec B110
                 pass
         return await call_next(request)
 
@@ -296,9 +280,7 @@ def create_app() -> FastAPI:
             "frame-ancestors 'none'"
         )
         if settings.is_production:
-            response.headers["Strict-Transport-Security"] = (
-                "max-age=31536000; includeSubDomains"
-            )
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response
 
     # ========================================================================
@@ -367,7 +349,7 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "app.main:app",
-        host="0.0.0.0",
+        host="0.0.0.0",  # nosec B104
         port=8000,
         reload=settings.DEBUG,
         log_level=settings.LOG_LEVEL.lower(),

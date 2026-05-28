@@ -49,3 +49,12 @@ repos:
         files: ^frontend/src/
         types_or: [javascript, jsx, ts, tsx]
         additional_dependencies: []
+# ---------------------------------------------------------------------------
+# Python — bandit SAST
+# ---------------------------------------------------------------------------
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.9.4  # 1.9.x required for Python 3.14 (ast.Num removed in 3.14)
+    hooks:
+      - id: bandit
+        args: ["-c", "backend/pyproject.toml", "-l"]
+        files: ^backend/

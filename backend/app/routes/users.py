@@ -245,7 +245,7 @@ async def request_email_change(
 
     try:
         await email_svc.send_email_change_verification(new_email, token)
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
 
@@ -264,7 +264,10 @@ async def confirm_email_change(
     except EmailChangeTokenInvalidError:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            detail={"error": "email_change_token_invalid", "message": "Email change token is invalid or has expired."},
+            detail={
+                "error": "email_change_token_invalid",
+                "message": "Email change token is invalid or has expired.",
+            },
         )
 
     await UserRepository(db).confirm_email_change(user_id, new_email)

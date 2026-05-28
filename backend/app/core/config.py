@@ -37,7 +37,7 @@ def _resolve_project_root() -> Path:
     """
     Resolve the project root by walking up the directory tree.
 
-    Uses a two-pass strategy with explicit priority:
+    Uses a three-pass strategy with explicit priority:
 
     Pass 1 — look for docker-compose.yml.
         This is the canonical project root anchor. It lives in LingvoPal/,
@@ -49,7 +49,12 @@ def _resolve_project_root() -> Path:
         images directly. In this case pyproject.toml in backend/ is the best
         available anchor, and the .env file is expected there too.
 
-    The two passes are intentionally separate — OR-ing the anchors in a single
+    Pass 3 — fall back to requirements.txt (bare pip / pre-uv baseline).
+        This covers the experiment/00-baseline state where neither Docker nor
+        uv tooling is present. requirements.txt lives in backend/, which is
+        the correct root for .env resolution in that context.
+
+    The passes are intentionally separate — OR-ing the anchors in a single
     pass would stop at pyproject.toml in backend/ before reaching
     docker-compose.yml in the parent, returning the wrong root.
 
@@ -57,7 +62,7 @@ def _resolve_project_root() -> Path:
         Path pointing to the project root directory.
 
     Raises:
-        RuntimeError: If neither anchor is found anywhere in the tree.
+        RuntimeError: If no anchor is found anywhere in the tree.
     """
     current = Path(__file__).resolve()
     parents = list(current.parents)
@@ -72,10 +77,15 @@ def _resolve_project_root() -> Path:
         if (parent / "pyproject.toml").exists():
             return parent
 
+    # Pass 3: fall back to requirements.txt — bare pip / pre-uv baseline
+    for parent in parents:
+        if (parent / "requirements.txt").exists():
+            return parent
+
     raise RuntimeError(
         f"Could not find project root from {current}. "
-        f"Looked for docker-compose.yml then pyproject.toml in all parent "
-        f"directories. This indicates a broken project structure."
+        f"Looked for docker-compose.yml, pyproject.toml, then requirements.txt "
+        f"in all parent directories. This indicates a broken project structure."
     )
 
 
@@ -183,7 +193,7 @@ class Settings(BaseSettings):
 
     API_TITLE: str = "LingvoPal"
     API_VERSION: str = "1.0.0"
-    API_HOST: str = "0.0.0.0"
+    API_HOST: str = "0.0.0.0"  # nosec B104
     API_PORT: int = 8000
 
     # =========================================================================
@@ -214,8 +224,8 @@ class Settings(BaseSettings):
 
     # =========================================================================
     # CORS
-    # Accepts a comma-separated string or a JSON array string from .env:
-    #   CORS_ORIGINS=http://localhost:5173,https://example.com
+    # Must be a JSON array string in .env (pydantic-settings parses list fields
+    # as JSON before validators run):
     #   CORS_ORIGINS=["http://localhost:5173","https://example.com"]
     # =========================================================================
 
@@ -293,9 +303,14 @@ class Settings(BaseSettings):
     # =========================================================================
     # AI / LLM (for item suggestions)
     # =========================================================================
-    AI_PROVIDER: Literal["google", "groq"] = Field("groq", description="LLM provider: 'groq' or 'google'")
+    AI_PROVIDER: Literal["google", "groq"] = Field(
+        "groq", description="LLM provider: 'groq' or 'google'"
+    )
     AI_API_KEY: str = Field(..., description="API key for the selected AI provider")
-    AI_MODEL: str = Field("llama-3.3-70b-versatile", description="Model ID (groq: llama-3.3-70b-versatile | google: gemini-2.0-flash-lite)")
+    AI_MODEL: str = Field(
+        "llama-3.3-70b-versatile",
+        description="Model ID (groq: llama-3.3-70b-versatile | google: gemini-2.0-flash-lite)",
+    )
 
     # =========================================================================
     # TTS (Text-to-Speech)
@@ -307,7 +322,9 @@ class Settings(BaseSettings):
     # elevenlabs: set TTS_API_KEY to your ElevenLabs API key.
     #   GOOGLE_APPLICATION_CREDENTIALS is ignored.
     # =========================================================================
-    TTS_ENABLED: bool = Field(True, description="Set False to skip TTS credential validation and disable TTS features.")
+    TTS_ENABLED: bool = Field(
+        True, description="Set False to skip TTS credential validation and disable TTS features."
+    )
     TTS_PROVIDER: Literal["google_cloud", "elevenlabs"] = "google_cloud"
     GOOGLE_APPLICATION_CREDENTIALS: str | None = Field(
         None,
@@ -323,9 +340,7 @@ class Settings(BaseSettings):
     # Image Search
     # =========================================================================
     IMAGE_SEARCH_PROVIDER: Literal["unsplash", "pexels", "pixabay"] = "unsplash"
-    IMAGE_SEARCH_API_KEY: str = Field(
-        ..., description="API key for image search provider"
-    )
+    IMAGE_SEARCH_API_KEY: str = Field(..., description="API key for image search provider")
     IMAGE_COUNT: int = 1
 
     @computed_field
@@ -377,8 +392,7 @@ class Settings(BaseSettings):
         init_settings = kwargs["init_settings"]
         env_settings = kwargs["env_settings"]
         env_file_sources = tuple(
-            DotEnvSettingsSource(settings_cls, env_file=path)
-            for path in _get_env_files()
+            DotEnvSettingsSource(settings_cls, env_file=path) for path in _get_env_files()
         )
         # First source wins. Constructor args first, then system env, then env files.
         return (init_settings, env_settings, *reversed(env_file_sources))
@@ -488,8 +502,7 @@ class Settings(BaseSettings):
         # --- DEBUG ---
         if self.DEBUG:
             raise ValueError(
-                "DEBUG must be False in production. "
-                "Debug mode exposes sensitive information."
+                "DEBUG must be False in production. Debug mode exposes sensitive information."
             )
 
         # --- S3 TLS ---
