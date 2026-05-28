@@ -35,15 +35,15 @@ class AuthErrorCode(str, Enum):
     EMAIL_ALREADY_EXISTS = "email_already_exists"
     USERNAME_ALREADY_EXISTS = "username_already_exists"
     ACCOUNT_DISABLED = "account_disabled"
-    TOKEN_EXPIRED = "token_expired"
-    TOKEN_INVALID = "token_invalid"
-    PASSWORD_SAME_AS_CURRENT = "password_same_as_current"
-    VERIFICATION_TOKEN_INVALID = "verification_token_invalid"
+    TOKEN_EXPIRED = "token_expired"  # nosec B105
+    TOKEN_INVALID = "token_invalid"  # nosec B105
+    PASSWORD_SAME_AS_CURRENT = "password_same_as_current"  # nosec B105
+    VERIFICATION_TOKEN_INVALID = "verification_token_invalid"  # nosec B105
     ALREADY_VERIFIED = "already_verified"
     VERIFICATION_RATE_LIMITED = "verification_rate_limited"
-    PASSWORD_RESET_TOKEN_INVALID = "password_reset_token_invalid"
-    REFRESH_TOKEN_INVALID = "refresh_token_invalid"
-    EMAIL_CHANGE_TOKEN_INVALID = "email_change_token_invalid"
+    PASSWORD_RESET_TOKEN_INVALID = "password_reset_token_invalid"  # nosec B105
+    REFRESH_TOKEN_INVALID = "refresh_token_invalid"  # nosec B105
+    EMAIL_CHANGE_TOKEN_INVALID = "email_change_token_invalid"  # nosec B105
 
 
 # ============================================================================
@@ -211,9 +211,7 @@ class ConcurrencyError(BusinessRuleViolationError):
 
 class InvalidStateTransitionError(BusinessRuleViolationError):
     def __init__(self, current_status: str, requested_status: str) -> None:
-        super().__init__(
-            f"Cannot transition from '{current_status}' to '{requested_status}'"
-        )
+        super().__init__(f"Cannot transition from '{current_status}' to '{requested_status}'")
         self.current_status = current_status
         self.requested_status = requested_status
 
