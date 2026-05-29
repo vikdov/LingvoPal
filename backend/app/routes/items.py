@@ -3,7 +3,7 @@
 
 from typing import NoReturn
 
-from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 
 from app.core.dependencies import (
     ComplaintServiceDep,
@@ -19,7 +19,6 @@ from app.core.exceptions import (
     NotAuthorizedError,
     ResourceNotFoundError,
 )
-from app.core.limiter import limiter
 from app.models.enums import PartOfSpeech
 from app.schemas.common import PaginatedResponse
 from app.schemas.complaint import ComplaintRequest, ComplaintResponse
@@ -83,9 +82,7 @@ def _handle(exc: LingvoPalError) -> NoReturn:
         "User can accept, reject, or modify any suggestion before saving."
     ),
 )
-@limiter.limit("20/minute")
 async def suggest_item_metadata(
-    request: Request,
     body: SuggestItemMetadataRequest,
     user: CurrentUser,
     service: ItemSuggestionServiceDep,
@@ -109,9 +106,7 @@ async def suggest_item_metadata(
     response_model=list[ImageSuggestion],
     summary="Fetch additional image suggestions for a query",
 )
-@limiter.limit("20/minute")
 async def search_images(
-    request: Request,
     body: SearchImagesRequest,
     user: CurrentUser,
     service: ItemSuggestionServiceDep,
@@ -124,9 +119,7 @@ async def search_images(
     response_model=GenerateAudioResponse,
     summary="Generate TTS audio for a term and optional context sentence",
 )
-@limiter.limit("30/minute")
 async def generate_item_audio(
-    request: Request,
     body: GenerateAudioRequest,
     user: CurrentUser,
     service: ItemSuggestionServiceDep,

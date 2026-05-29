@@ -11,7 +11,6 @@ bcrypt==4.3.0
 PyJWT>=2.9.0
 python-multipart>=0.0.22
 python-dotenv>=1.0
-slowapi>=0.1.9
 starlette>=0.52.1
 redis>=7.1.0
 aioboto3>=15.5.0
