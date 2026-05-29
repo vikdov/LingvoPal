@@ -35,6 +35,7 @@ from app.core.exceptions import (
     VerificationRateLimitedError,
     VerificationTokenInvalidError,
 )
+from app.core.limiter import auth_rate_limit
 from app.schemas.auth import (
     AuthErrorResponse,
     ForgotPasswordRequest,
@@ -74,9 +75,7 @@ def _handle_auth_error(exc: AuthError) -> NoReturn:
     """Convert a domain AuthError into the appropriate HTTPException."""
     http_status = _AUTH_ERROR_STATUS.get(type(exc), status.HTTP_400_BAD_REQUEST)
     headers = (
-        {"WWW-Authenticate": "Bearer"}
-        if http_status == status.HTTP_401_UNAUTHORIZED
-        else None
+        {"WWW-Authenticate": "Bearer"} if http_status == status.HTTP_401_UNAUTHORIZED else None
     )
     raise HTTPException(
         status_code=http_status,
@@ -137,6 +136,7 @@ async def _send_verification_background(user_id: int, email: str, redis: RedisDe
         },
     },
 )
+@auth_rate_limit("5/minute")
 async def signup(
     request: Request,
     body: SignupRequest,
@@ -145,9 +145,7 @@ async def signup(
     background_tasks: BackgroundTasks,
 ) -> TokenResponse:
     try:
-        response = await auth.signup(
-            body, accept_language=request.headers.get("Accept-Language")
-        )
+        response = await auth.signup(body, accept_language=request.headers.get("Accept-Language"))
     except (EmailAlreadyExistsError, UsernameAlreadyExistsError) as exc:
         _handle_auth_error(exc)
 
@@ -168,7 +166,9 @@ async def signup(
         401: {"model": AuthErrorResponse, "description": "Invalid credentials"},
     },
 )
+@auth_rate_limit("10/minute")
 async def login(
+    request: Request,
     body: LoginRequest,
     auth: AuthServiceDep,
 ) -> TokenResponse:
@@ -208,7 +208,9 @@ async def verify_email(
         429: {"model": AuthErrorResponse, "description": "Daily limit reached"},
     },
 )
+@auth_rate_limit("1/minute")
 async def resend_verification(
+    request: Request,
     current_user: CurrentUser,
     email_verif: EmailVerifServiceDep,
     redis: RedisDep,
@@ -241,7 +243,9 @@ async def resend_verification(
         },
     },
 )
+@auth_rate_limit("5/minute")
 async def change_password(
+    request: Request,
     body: PasswordChangeRequest,
     auth: AuthServiceDep,
     current_user: CurrentUser,
@@ -257,7 +261,9 @@ async def change_password(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Request a password reset email",
 )
+@auth_rate_limit("5/minute")
 async def forgot_password(
+    request: Request,
     body: ForgotPasswordRequest,
     auth: AuthServiceDep,
     redis: RedisDep,
@@ -310,7 +316,9 @@ async def reset_password(
         401: {"model": AuthErrorResponse, "description": "Refresh token invalid or expired"},
     },
 )
+@auth_rate_limit("20/minute")
 async def refresh_token(
+    request: Request,
     body: RefreshRequest,
     auth: AuthServiceDep,
 ) -> RefreshResponse:

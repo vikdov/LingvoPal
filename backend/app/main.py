@@ -9,6 +9,9 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
 from app.core.config import get_settings
 from app.core.exceptions import (
     AuthError,
@@ -152,6 +155,14 @@ def create_app() -> FastAPI:
         redoc_url="/redoc" if settings.DEBUG else None,
         openapi_url="/openapi.json" if settings.DEBUG else None,
     )
+
+    # ========================================================================
+    # Rate Limiting
+    # ========================================================================
+    from app.core.limiter import limiter
+
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     @app.exception_handler(LingvoPalError)
     async def _domain_error_handler(request: Request, exc: LingvoPalError) -> JSONResponse:
