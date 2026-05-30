@@ -348,7 +348,9 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: npm audit
-        run: npm audit --audit-level=high
+        # --omit=dev: audit the runtime surface that ships in the browser bundle.
+        # Dev-only tooling (e.g. the shadcn CLI) is not part of the deployed artifact.
+        run: npm audit --audit-level=high --omit=dev
 
   # --------------------------------------------------------------------------
   # Docker build + image vulnerability scan (Trivy)
