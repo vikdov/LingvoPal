@@ -1,0 +1,26 @@
+# gitleaks configuration — extends the bundled default ruleset.
+# Allowlist holds only non-secret placeholder values used by the test/CI
+# environment. Each entry is a specific dummy string, not a blanket path, so a
+# real leaked credential is never masked.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Dummy/test placeholders used in CI and example config — not real secrets"
+paths = [
+  '''backend/\.env\.example$''',
+  '''frontend/\.env\.example$''',
+]
+regexes = [
+  # CI workflow dummy values (.github/workflows/ci.yml)
+  '''ci-test-secret-key-minimum-32-chars-abc123''',
+  '''ci-migration-secret-key-minimum-32-chars-xyz''',
+  '''dummy-key-for-ci''',
+  '''minioadmin''',
+  # local/test database placeholders
+  '''test_password''',
+  '''migrate_pass''',
+  '''changeme''',
+  # build-time placeholder URL
+  '''placeholder''',
+]
