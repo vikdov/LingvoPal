@@ -18,8 +18,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column("users", sa.Column("pending_email", sa.String(), nullable=True,
-                                     comment="New email awaiting confirmation"))
+    op.add_column(
+        "users",
+        sa.Column(
+            "pending_email", sa.String(), nullable=True, comment="New email awaiting confirmation"
+        ),
+    )
 
 
 def downgrade() -> None:

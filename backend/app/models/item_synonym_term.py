@@ -19,9 +19,7 @@ class ItemSynonymTerm(Base):
     __tablename__ = "item_synonym_terms"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    item_id: Mapped[int] = mapped_column(
-        ForeignKey("items.id", ondelete="CASCADE"), nullable=False
-    )
+    item_id: Mapped[int] = mapped_column(ForeignKey("items.id", ondelete="CASCADE"), nullable=False)
     language_id: Mapped[int] = mapped_column(
         ForeignKey("languages.id", ondelete="CASCADE"),
         nullable=False,

@@ -77,9 +77,7 @@ class StatsRepository:
         )
         return list(result.scalars().all())
 
-    async def get_today_stats(
-        self, user_id: int, language_id: int
-    ) -> UserDailyStats | None:
+    async def get_today_stats(self, user_id: int, language_id: int) -> UserDailyStats | None:
         return await self._session.scalar(
             select(UserDailyStats).where(
                 UserDailyStats.user_id == user_id,
@@ -140,9 +138,7 @@ class StatsRepository:
         streaks = await self.get_streak_batch(user_id, [language_id])
         return streaks.get(language_id, 0)
 
-    async def get_streak_batch(
-        self, user_id: int, language_ids: list[int]
-    ) -> dict[int, int]:
+    async def get_streak_batch(self, user_id: int, language_ids: list[int]) -> dict[int, int]:
         """
         Current consecutive-day streaks for multiple languages in one query.
 
@@ -246,7 +242,11 @@ class StatsRepository:
         total = len(items_data)
 
         bucket_words: dict[str, list[dict]] = {
-            "new": [], "learning": [], "young": [], "mature": [], "long_term": []
+            "new": [],
+            "learning": [],
+            "young": [],
+            "mature": [],
+            "long_term": [],
         }
         for item_id, term, interval in items_data:
             word = {"item_id": item_id, "term": term, "interval": interval}
@@ -298,8 +298,12 @@ class StatsRepository:
         def make_bucket(label: str, key: str, range_: str) -> dict:
             words = bucket_words[key]
             return {
-                "label": label, "key": key, "range": range_,
-                "count": len(words), "percent": pct(len(words)), "words": words,
+                "label": label,
+                "key": key,
+                "range": range_,
+                "count": len(words),
+                "percent": pct(len(words)),
+                "words": words,
             }
 
         return {
@@ -343,8 +347,7 @@ class StatsRepository:
 
         # User progress for items in this set
         progress_result = await self._session.execute(
-            select(UserProgress.item_id, UserProgress.interval)
-            .where(
+            select(UserProgress.item_id, UserProgress.interval).where(
                 UserProgress.user_id == user_id,
                 UserProgress.item_id.in_(all_item_ids),
             )
@@ -362,12 +365,42 @@ class StatsRepository:
             bucket_counts[interval_to_bucket_key(interval)] += 1
 
         maturity_buckets = [
-            {"label": "Not started", "key": "not_started", "count": not_started, "percent": pct(not_started)},
-            {"label": "New", "key": "new", "count": bucket_counts["new"], "percent": pct(bucket_counts["new"])},
-            {"label": "Learning", "key": "learning", "count": bucket_counts["learning"], "percent": pct(bucket_counts["learning"])},
-            {"label": "Young", "key": "young", "count": bucket_counts["young"], "percent": pct(bucket_counts["young"])},
-            {"label": "Mature", "key": "mature", "count": bucket_counts["mature"], "percent": pct(bucket_counts["mature"])},
-            {"label": "Long-term", "key": "long_term", "count": bucket_counts["long_term"], "percent": pct(bucket_counts["long_term"])},
+            {
+                "label": "Not started",
+                "key": "not_started",
+                "count": not_started,
+                "percent": pct(not_started),
+            },
+            {
+                "label": "New",
+                "key": "new",
+                "count": bucket_counts["new"],
+                "percent": pct(bucket_counts["new"]),
+            },
+            {
+                "label": "Learning",
+                "key": "learning",
+                "count": bucket_counts["learning"],
+                "percent": pct(bucket_counts["learning"]),
+            },
+            {
+                "label": "Young",
+                "key": "young",
+                "count": bucket_counts["young"],
+                "percent": pct(bucket_counts["young"]),
+            },
+            {
+                "label": "Mature",
+                "key": "mature",
+                "count": bucket_counts["mature"],
+                "percent": pct(bucket_counts["mature"]),
+            },
+            {
+                "label": "Long-term",
+                "key": "long_term",
+                "count": bucket_counts["long_term"],
+                "percent": pct(bucket_counts["long_term"]),
+            },
         ]
 
         # Hardest words in this set (min 3 reviews, ≥ 25% failure rate)

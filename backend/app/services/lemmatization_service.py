@@ -29,9 +29,7 @@ class LemmatizationService:
         try:
             return spacy.load(model_name)
         except OSError:
-            logger.debug(
-                f"No spaCy model for '{language}' — LLM will handle lemmatization."
-            )
+            logger.debug(f"No spaCy model for '{language}' — LLM will handle lemmatization.")
             return None
 
     def extract_lemma(
@@ -66,8 +64,7 @@ class LemmatizationService:
 
         if self._should_verify_with_llm(term, spacy_lemma):
             logger.debug(
-                f"spaCy uncertain for '{term}': '{spacy_lemma}'. "
-                f"Requesting LLM verification."
+                f"spaCy uncertain for '{term}': '{spacy_lemma}'. Requesting LLM verification."
             )
             llm_lemma = self._get_llm_lemma(term, source_language)
             if llm_lemma and llm_lemma != term:
@@ -99,14 +96,13 @@ class LemmatizationService:
             return True
         return False
 
-    def _get_llm_lemma(
-        self, term: str, source_language: str | None = None
-    ) -> str | None:
+    def _get_llm_lemma(self, term: str, source_language: str | None = None) -> str | None:
         """Get lemma from LLM via sync HTTP (only called for ~5% of items)."""
         from app.core.config import get_settings
 
         if self._ai_service is None:
             from app.services.ai_enrichment_service import AIEnrichmentService
+
             self._ai_service = AIEnrichmentService()
 
         settings = get_settings()
@@ -120,6 +116,7 @@ class LemmatizationService:
         try:
             if settings.AI_PROVIDER == "groq":
                 import httpx
+
                 resp = httpx.post(
                     "https://api.groq.com/openai/v1/chat/completions",
                     headers={"Authorization": f"Bearer {settings.AI_API_KEY}"},
@@ -137,6 +134,7 @@ class LemmatizationService:
 
             elif settings.AI_PROVIDER == "google":
                 from google import genai
+
                 client = genai.Client(api_key=settings.AI_API_KEY)
                 resp = client.models.generate_content(
                     model=settings.AI_MODEL,

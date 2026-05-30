@@ -104,11 +104,7 @@ def _validate_cross_field(merged: dict) -> None:
     per_session = merged.get("new_items_per_session")
     per_day_limit = merged.get("new_items_per_day_limit")
 
-    if (
-        per_session is not None
-        and per_day_limit is not None
-        and per_session > per_day_limit
-    ):
+    if per_session is not None and per_day_limit is not None and per_session > per_day_limit:
         raise SettingsValidationError(
             "new_items_per_session",
             f"cannot exceed new_items_per_day_limit ({per_day_limit})",
@@ -143,9 +139,7 @@ class UserSettingsService:
 
     async def _assert_language_exists(self, lang_id: int, field: str) -> None:
         """Raise SettingsValidationError if language_id does not exist."""
-        result = await self._session.execute(
-            select(Language.id).where(Language.id == lang_id)
-        )
+        result = await self._session.execute(select(Language.id).where(Language.id == lang_id))
         if result.scalar_one_or_none() is None:
             raise SettingsValidationError(field, f"language {lang_id} does not exist")
 
@@ -253,9 +247,7 @@ class UserSettingsService:
         # 3. Fetch current settings (create if missing — defensive)
         current = await self._repo.get_by_user_id(user_id, load_languages=False)
         if current is None:
-            fallback_lang_id = (
-                patch_data.get("native_lang_id") or await self._get_any_language_id()
-            )
+            fallback_lang_id = patch_data.get("native_lang_id") or await self._get_any_language_id()
             interface_lang_id = patch_data.get("interface_lang_id", fallback_lang_id)
             await self.create_for_user(
                 user_id=user_id,
@@ -289,9 +281,7 @@ class UserSettingsService:
         — they are identity data, not changeable preferences.
         Commits the transaction.
         """
-        updated = await self._repo.update(
-            user_id, get_default_settings(), load_languages=True
-        )
+        updated = await self._repo.update(user_id, get_default_settings(), load_languages=True)
         await self._session.commit()
         return updated  # type: ignore[return-value]
 

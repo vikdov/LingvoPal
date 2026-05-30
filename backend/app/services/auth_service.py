@@ -170,14 +170,10 @@ class AuthService:
         active_lang_id = await self._user_languages.get_active_lang_id(user.id)
         return await _build_token_response(user, settings, active_lang_id, self._refresh)
 
-    async def _resolve_interface_language(
-        self, accept_language: str | None, fallback: int
-    ) -> int:
+    async def _resolve_interface_language(self, accept_language: str | None, fallback: int) -> int:
         code = _parse_accept_language(accept_language)
         if code:
-            result = await self._session.execute(
-                select(Language).where(Language.code == code)
-            )
+            result = await self._session.execute(select(Language).where(Language.code == code))
             lang = result.scalar_one_or_none()
             if lang:
                 return lang.id

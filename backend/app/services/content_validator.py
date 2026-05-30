@@ -24,9 +24,7 @@ def check_length(term: str, context: str | None) -> None:
             "term", f"must be between {_TERM_MIN} and {_TERM_MAX} characters"
         )
     if context is not None and len(context) > _CONTEXT_MAX:
-        raise ContentValidationError(
-            "context", f"must not exceed {_CONTEXT_MAX} characters"
-        )
+        raise ContentValidationError("context", f"must not exceed {_CONTEXT_MAX} characters")
 
 
 def check_profanity(
@@ -84,13 +82,9 @@ def validate_set(title: str, description: str | None) -> None:
     Sets only get length + profanity checks (no language detection).
     """
     if len(title) < 1 or len(title) > _TERM_MAX:
-        raise ContentValidationError(
-            "title", f"must be between 1 and {_TERM_MAX} characters"
-        )
+        raise ContentValidationError("title", f"must be between 1 and {_TERM_MAX} characters")
     if description is not None and len(description) > _CONTEXT_MAX:
-        raise ContentValidationError(
-            "description", f"must not exceed {_CONTEXT_MAX} characters"
-        )
+        raise ContentValidationError("description", f"must not exceed {_CONTEXT_MAX} characters")
     check_profanity(title, description, term_field="title", context_field="description")
 
 

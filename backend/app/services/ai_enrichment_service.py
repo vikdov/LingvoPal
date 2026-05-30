@@ -153,7 +153,9 @@ class AIEnrichmentService:
         else:
             context_block = ""
             context_rule = '- "context": exactly ONE sentence, natural, clear'
-        context_field = f'\n  "context": "One clear example sentence using \'{term}\' for a learner",'
+        context_field = (
+            f'\n  "context": "One clear example sentence using \'{term}\' for a learner",'
+        )
 
         return f"""You are a language teacher. Provide metadata for this vocabulary item.
 

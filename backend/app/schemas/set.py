@@ -23,7 +23,9 @@ class SetCreateRequest(BaseModel):
     description: str | None = Field(None, max_length=2000)
     difficulty: int | None = Field(None, ge=1, le=7)
     source_lang_id: int = Field(..., gt=0, description="Language to learn FROM")
-    target_lang_id: int | None = Field(None, gt=0, description="Language to learn TO — omit for monolingual sets")
+    target_lang_id: int | None = Field(
+        None, gt=0, description="Language to learn TO — omit for monolingual sets"
+    )
 
     @field_validator("target_lang_id")
     @classmethod

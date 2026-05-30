@@ -24,16 +24,16 @@ class UserListQueryParams(BaseModel):
 class RepairStatsRequest(BaseModel):
     """POST /api/v1/admin/repair-stats"""
 
-    user_id: int | None = Field(
-        None, description="Repair for specific user (or all if None)"
-    )
+    user_id: int | None = Field(None, description="Repair for specific user (or all if None)")
     language_id: int | None = Field(None, description="Repair for specific language")
 
 
 class AdminDeleteContentRequest(BaseModel):
     """DELETE (via POST body) /api/v1/admin/items/{id} or /sets/{id}"""
 
-    reason: str = Field(..., min_length=1, max_length=500, description="Reason for removal (shown to creator)")
+    reason: str = Field(
+        ..., min_length=1, max_length=500, description="Reason for removal (shown to creator)"
+    )
 
 
 class PromoteToOfficialRequest(BaseModel):

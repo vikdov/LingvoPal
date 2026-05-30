@@ -44,9 +44,7 @@ class UserRepository:
         if load_settings:
             stmt = stmt.options(
                 selectinload(User.settings).selectinload(UserSettings.native_language),
-                selectinload(User.settings).selectinload(
-                    UserSettings.interface_language
-                ),
+                selectinload(User.settings).selectinload(UserSettings.interface_language),
             )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
@@ -64,9 +62,7 @@ class UserRepository:
         if load_settings:
             stmt = stmt.options(
                 selectinload(User.settings).selectinload(UserSettings.native_language),
-                selectinload(User.settings).selectinload(
-                    UserSettings.interface_language
-                ),
+                selectinload(User.settings).selectinload(UserSettings.interface_language),
             )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
@@ -87,9 +83,7 @@ class UserRepository:
         return result.scalar_one_or_none() is not None
 
     async def username_exists(self, username: str) -> bool:
-        result = await self._session.execute(
-            select(User.id).where(User.username == username)
-        )
+        result = await self._session.execute(select(User.id).where(User.username == username))
         return result.scalar_one_or_none() is not None
 
     async def get_usernames_batch(self, user_ids: list[int]) -> dict[int, str]:
@@ -149,9 +143,7 @@ class UserRepository:
         from datetime import datetime, timezone
 
         await self._session.execute(
-            update(User)
-            .where(User.id == user_id)
-            .values(deleted_at=datetime.now(timezone.utc))
+            update(User).where(User.id == user_id).values(deleted_at=datetime.now(timezone.utc))
         )
 
 

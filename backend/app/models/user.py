@@ -28,7 +28,12 @@ class User(Base, SoftDeleteTimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_status: Mapped[UserRole] = mapped_column(
-        pgEnum(UserRole, name="user_role", create_type=False, values_callable=lambda obj: [e.value for e in obj]),
+        pgEnum(
+            UserRole,
+            name="user_role",
+            create_type=False,
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         nullable=False,
         default=UserRole.USER,
     )
@@ -98,12 +103,22 @@ class UserSettings(Base, TimestampMixin):
     # ── Learning behaviour ───────────────────────────────────────────────────
 
     learning_intensity: Mapped[LearningIntensity] = mapped_column(
-        pgEnum(LearningIntensity, name="learning_intensity", create_type=False, values_callable=lambda obj: [e.value for e in obj]),
+        pgEnum(
+            LearningIntensity,
+            name="learning_intensity",
+            create_type=False,
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         nullable=False,
         comment="Pace at which new material is introduced",
     )
     evaluation_mode: Mapped[EvaluationMode] = mapped_column(
-        pgEnum(EvaluationMode, name="evaluation_mode", create_type=False, values_callable=lambda obj: [e.value for e in obj]),
+        pgEnum(
+            EvaluationMode,
+            name="evaluation_mode",
+            create_type=False,
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         nullable=False,
         comment="How strictly typed answers are graded",
     )
@@ -147,7 +162,12 @@ class UserSettings(Base, TimestampMixin):
         comment="Max new items introduced in a single practice session",
     )
     retention_priority: Mapped[RetentionPriority] = mapped_column(
-        pgEnum(RetentionPriority, name="retention_priority", create_type=False, values_callable=lambda obj: [e.value for e in obj]),
+        pgEnum(
+            RetentionPriority,
+            name="retention_priority",
+            create_type=False,
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         nullable=False,
         comment="Speed vs. long-term mastery trade-off",
     )

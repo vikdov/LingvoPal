@@ -94,9 +94,7 @@ class UserSettingsRepository:
             return await self.get_by_user_id(user_id, load_languages=load_languages)
 
         await self._session.execute(
-            update(UserSettings)
-            .where(UserSettings.user_id == user_id)
-            .values(**fields)
+            update(UserSettings).where(UserSettings.user_id == user_id).values(**fields)
         )
         await self._session.flush()
         return await self.get_by_user_id(user_id, load_languages=load_languages)

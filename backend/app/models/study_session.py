@@ -23,21 +23,22 @@ class StudySession(Base):
     __tablename__ = "study_sessions"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     set_id: Mapped[int | None] = mapped_column(
         ForeignKey("sets.id", ondelete="CASCADE"), nullable=True
     )
     source_lang_id: Mapped[int | None] = mapped_column(
         ForeignKey("languages.id", ondelete="SET NULL"), nullable=True
     )
-    started_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), nullable=False
-    )
+    started_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
     ended_at: Mapped[datetime | None] = mapped_column(nullable=True)
     status: Mapped[SessionStatus] = mapped_column(
-        pgEnum(SessionStatus, name="session_status_type", create_type=False, values_callable=lambda obj: [e.value for e in obj]),
+        pgEnum(
+            SessionStatus,
+            name="session_status_type",
+            create_type=False,
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         default=SessionStatus.IN_PROGRESS,
         nullable=False,
     )

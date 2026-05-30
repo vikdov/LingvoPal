@@ -7,8 +7,8 @@ import unicodedata
 
 def _normalize(s: str) -> str:
     s = unicodedata.normalize("NFKC", s)  # ﬁ→fi, full-width chars→ASCII, etc.
-    s = s.casefold()                       # Unicode-aware lowercasing (ß→ss)
-    s = re.sub(r"\s+", " ", s).strip()    # collapse whitespace
+    s = s.casefold()  # Unicode-aware lowercasing (ß→ss)
+    s = re.sub(r"\s+", " ", s).strip()  # collapse whitespace
     return s
 
 

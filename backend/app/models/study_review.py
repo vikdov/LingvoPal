@@ -28,9 +28,7 @@ class StudyReview(Base):
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
-    item_id: Mapped[int] = mapped_column(
-        ForeignKey("items.id", ondelete="CASCADE"), nullable=False
-    )
+    item_id: Mapped[int] = mapped_column(ForeignKey("items.id", ondelete="CASCADE"), nullable=False)
     language_id: Mapped[int] = mapped_column(
         ForeignKey("languages.id", ondelete="RESTRICT"),
         nullable=False,
@@ -52,9 +50,7 @@ class StudyReview(Base):
     interval_before: Mapped[int] = mapped_column(nullable=False, comment="Days")
     ease_after: Mapped[float | None] = mapped_column(nullable=True)
     interval_after: Mapped[int | None] = mapped_column(nullable=True, comment="Days")
-    reviewed_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), nullable=False
-    )
+    reviewed_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
 
     user: Mapped["User"] = relationship()
     item: Mapped["Item"] = relationship()
@@ -82,9 +78,7 @@ class StudyReview(Base):
     )
 
     def __repr__(self) -> str:
-        return (
-            f"<StudyReview {self.id}: item={self.item_id} correct={self.was_correct}>"
-        )
+        return f"<StudyReview {self.id}: item={self.item_id} correct={self.was_correct}>"
 
 
 __all__ = ["StudyReview"]

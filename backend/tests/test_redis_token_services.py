@@ -62,8 +62,8 @@ class TestEmailChangeService:
 
         r.eval.assert_called_once()
         args = r.eval.call_args[0]
-        assert args[2] == "email_change_user:7"       # KEYS[1]
-        assert args[3] == f"email_change:{token}"     # KEYS[2]
+        assert args[2] == "email_change_user:7"  # KEYS[1]
+        assert args[3] == f"email_change:{token}"  # KEYS[2]
 
     @pytest.mark.anyio
     async def test_generate_token_each_call_produces_unique_token(self) -> None:
@@ -211,6 +211,7 @@ class TestEmailVerificationService:
     @pytest.mark.anyio
     async def test_daily_key_includes_today(self) -> None:
         from datetime import datetime, timezone
+
         r = _redis()
         r.incr.return_value = 1
         svc = EmailVerificationService(r)

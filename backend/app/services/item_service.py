@@ -28,14 +28,22 @@ from app.schemas.item import (
 from app.services.storage import StorageService
 
 _PUBLIC_STATUSES = (ContentStatus.COMMUNITY, ContentStatus.APPROVED, ContentStatus.OFFICIAL)
-_ALLOWED_IMAGE_TYPES = frozenset({
-    "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"
-})
+_ALLOWED_IMAGE_TYPES = frozenset(
+    {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"}
+)
 _MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
-_ALLOWED_AUDIO_TYPES = frozenset({
-    "audio/mpeg", "audio/mp3", "audio/ogg", "audio/wav",
-    "audio/mp4", "audio/aac", "audio/x-m4a", "audio/webm",
-})
+_ALLOWED_AUDIO_TYPES = frozenset(
+    {
+        "audio/mpeg",
+        "audio/mp3",
+        "audio/ogg",
+        "audio/wav",
+        "audio/mp4",
+        "audio/aac",
+        "audio/x-m4a",
+        "audio/webm",
+    }
+)
 _MAX_AUDIO_BYTES = 10 * 1024 * 1024  # 10 MB
 
 
@@ -118,9 +126,7 @@ class ItemService:
         total = await self._items.count_set_items(set_id)
         return items, total
 
-    async def update_item(
-        self, user_id: int, item_id: int, data: ItemUpdateRequest
-    ) -> Item:
+    async def update_item(self, user_id: int, item_id: int, data: ItemUpdateRequest) -> Item:
         await self._require_owned_item(user_id, item_id)
         values = data.model_dump(exclude_unset=True)
         for field in ("context", "lemma", "audio_url", "context_audio_url"):
@@ -143,7 +149,9 @@ class ItemService:
     async def get_my_items(
         self, user_id: int, *, query: str | None = None, skip: int = 0, limit: int = 20
     ) -> tuple[list[Item], int]:
-        items = list(await self._items.get_created_by_user(user_id, query=query, skip=skip, limit=limit))
+        items = list(
+            await self._items.get_created_by_user(user_id, query=query, skip=skip, limit=limit)
+        )
         total = await self._items.count_created_by_user(user_id, query=query)
         return items, total
 
@@ -151,9 +159,7 @@ class ItemService:
         """Transition item from DRAFT → COMMUNITY (publicly visible)."""
         item = await self._require_owned_item(user_id, item_id)
         if item.status != ContentStatus.DRAFT:
-            raise LingvoPalError(
-                f"Item is already {item.status.value} and cannot be submitted."
-            )
+            raise LingvoPalError(f"Item is already {item.status.value} and cannot be submitted.")
         await self._items.update_status(item_id, ContentStatus.COMMUNITY)
         await self._session.commit()
         return await self._items.get_by_id_with_translations(item_id)
@@ -288,9 +294,7 @@ class ItemService:
         await self._session.commit()
         return set_item
 
-    async def remove_item_from_set(
-        self, user_id: int, set_id: int, item_id: int
-    ) -> None:
+    async def remove_item_from_set(self, user_id: int, set_id: int, item_id: int) -> None:
         await self._require_owned_set(user_id, set_id)
         if not await self._items.set_item_exists(set_id, item_id):
             raise ResourceNotFoundError("Item in set", item_id)
@@ -337,13 +341,9 @@ class ItemService:
         self, user_id: int, item_id: int, data: TranslationCreateRequest
     ) -> Translation:
         await self._require_owned_item(user_id, item_id)
-        existing = await self._items.get_item_translation_by_language(
-            item_id, data.language_id
-        )
+        existing = await self._items.get_item_translation_by_language(item_id, data.language_id)
         if existing:
-            raise DuplicateResourceError(
-                "Translation", "language_id", str(data.language_id)
-            )
+            raise DuplicateResourceError("Translation", "language_id", str(data.language_id))
         t = await self._items.create_translation(
             item_id=item_id,
             language_id=data.language_id,
@@ -371,9 +371,7 @@ class ItemService:
         await self._session.commit()
         return await self._items.get_translation(translation_id)
 
-    async def delete_translation(
-        self, user_id: int, item_id: int, translation_id: int
-    ) -> None:
+    async def delete_translation(self, user_id: int, item_id: int, translation_id: int) -> None:
         await self._require_owned_translation(user_id, item_id, translation_id)
         await self._items.soft_delete_translation(translation_id)
         await self._session.commit()
@@ -386,9 +384,7 @@ class ItemService:
             raise LingvoPalError(
                 f"Translation is already {t.status.value} and cannot be submitted."
             )
-        await self._items.update_translation_status(
-            translation_id, ContentStatus.COMMUNITY
-        )
+        await self._items.update_translation_status(translation_id, ContentStatus.COMMUNITY)
         await self._session.commit()
         return await self._items.get_translation(translation_id)
 

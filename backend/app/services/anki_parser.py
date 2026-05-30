@@ -32,18 +32,14 @@ _CONTEXT_FIELDS = frozenset(
 _LEMMA_FIELDS = frozenset(
     ["transcription", "pronunciation", "reading", "lemma", "base form", "phonetics"]
 )
-_POS_FIELDS = frozenset(
-    ["part of speech", "pos", "word type", "grammatical category", "type"]
-)
+_POS_FIELDS = frozenset(["part of speech", "pos", "word type", "grammatical category", "type"])
 _IMAGE_FIELDS = frozenset(["image", "picture", "photo", "img"])
-_AUDIO_FIELDS = frozenset(
-    ["word audio", "audio", "sound", "pronunciation audio", "recording"]
-)
+_AUDIO_FIELDS = frozenset(["word audio", "audio", "sound", "pronunciation audio", "recording"])
 
 _CLOZE_RE = re.compile(r"\{\{c\d+::")
 _CLOZE_TAG_RE = re.compile(r"\{\{c(\d+)::([^:}]+)(?:::[^}]*)?\}\}")
 _IMG_RE = re.compile(r'<img[^>]+src=["\']([^"\']+)["\']', re.IGNORECASE)
-_SOUND_RE = re.compile(r'\[sound:([^\]]+)\]')
+_SOUND_RE = re.compile(r"\[sound:([^\]]+)\]")
 
 # Synthetic field name injected for cloze notes so the user can map the gap sentence
 CLOZE_CONTEXT_FIELD = "Cloze Sentence (auto)"
@@ -87,14 +83,14 @@ def extract_audio_filename(raw_value: str) -> str | None:
 @dataclass
 class DetectedField:
     name: str
-    sample: str        # HTML-stripped sample value
-    has_image: bool    # field contains <img ...> syntax
-    has_audio: bool    # field contains [sound:...] syntax
+    sample: str  # HTML-stripped sample value
+    has_image: bool  # field contains <img ...> syntax
+    has_audio: bool  # field contains [sound:...] syntax
 
 
 @dataclass
 class ParsedCard:
-    fields: dict[str, str]      # HTML-stripped text values
+    fields: dict[str, str]  # HTML-stripped text values
     raw_fields: dict[str, str]  # raw values (for media extraction)
     tags: list[str]
 
@@ -134,20 +130,17 @@ def _suggest_mapping(
                     return original
         return None
 
-    term = (
-        pick(_TERM_FIELDS)
-        or (field_names[0] if field_names else None)
-    )
+    term = pick(_TERM_FIELDS) or (field_names[0] if field_names else None)
     used = {term} if term else set()
 
     # For image/audio, prefer fields that actually contain media syntax
-    image = next(
-        (n for n in field_names if field_meta[n].has_image), None
-    ) or pick(_IMAGE_FIELDS, exclude=used)
+    image = next((n for n in field_names if field_meta[n].has_image), None) or pick(
+        _IMAGE_FIELDS, exclude=used
+    )
 
-    audio = next(
-        (n for n in field_names if field_meta[n].has_audio and n != image), None
-    ) or pick(_AUDIO_FIELDS, exclude=used | ({image} if image else set()))
+    audio = next((n for n in field_names if field_meta[n].has_audio and n != image), None) or pick(
+        _AUDIO_FIELDS, exclude=used | ({image} if image else set())
+    )
 
     if image:
         used.add(image)
@@ -268,7 +261,9 @@ def _parse_sqlite(db_path: str, media_size_bytes: int) -> AnkiParseResult:
 
     cards, field_samples, field_meta = _extract_cards(rows, models)
 
-    field_names = list(canonical_field_names) if canonical_field_names else list(field_samples.keys())
+    field_names = (
+        list(canonical_field_names) if canonical_field_names else list(field_samples.keys())
+    )
     # Append synthetic cloze context field when present (cloze decks)
     if CLOZE_CONTEXT_FIELD in field_samples and CLOZE_CONTEXT_FIELD not in field_names:
         field_names.append(CLOZE_CONTEXT_FIELD)
@@ -379,7 +374,9 @@ def _extract_cloze_cards(
         fields = {cloze_field_name: term, **base_stripped}
         if clean_context and clean_context != term:
             fields[CLOZE_CONTEXT_FIELD] = clean_context
-        result.append(ParsedCard(fields=fields, raw_fields={cloze_field_name: term, **base_raw}, tags=tags))
+        result.append(
+            ParsedCard(fields=fields, raw_fields={cloze_field_name: term, **base_raw}, tags=tags)
+        )
     return result
 
 
@@ -436,13 +433,14 @@ def _extract_cards(
                 meta = field_meta[name]
                 if not meta.has_image and _IMG_RE.search(raw_val):
                     field_meta[name] = DetectedField(
-                        name=name, sample=meta.sample,
-                        has_image=True, has_audio=meta.has_audio
+                        name=name, sample=meta.sample, has_image=True, has_audio=meta.has_audio
                     )
                 if not meta.has_audio and _SOUND_RE.search(raw_val):
                     field_meta[name] = DetectedField(
-                        name=name, sample=meta.sample,
-                        has_image=field_meta[name].has_image, has_audio=True
+                        name=name,
+                        sample=meta.sample,
+                        has_image=field_meta[name].has_image,
+                        has_audio=True,
                     )
 
             if text_val and name not in field_samples:

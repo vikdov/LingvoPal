@@ -38,9 +38,9 @@ from app.services.session_manager import (
 
 logger = logging.getLogger(__name__)
 
-SWEEP_INTERVAL_SECONDS = 300        # run every 5 minutes
-FLUSH_THRESHOLD_SECONDS = 3600      # flush if < 1 hour of TTL remains (~23 h old)
-INACTIVITY_TIMEOUT_SECONDS = 1800   # flush after 30 minutes of no answers
+SWEEP_INTERVAL_SECONDS = 300  # run every 5 minutes
+FLUSH_THRESHOLD_SECONDS = 3600  # flush if < 1 hour of TTL remains (~23 h old)
+INACTIVITY_TIMEOUT_SECONDS = 1800  # flush after 30 minutes of no answers
 
 
 def _build_sweeper_config(settings, target_lang_id: int) -> BatchConfig:
@@ -165,9 +165,7 @@ class SessionSweeper:
         mgr = SessionManager(self._redis)
 
         if not await mgr.acquire_flush_lock(session_id):
-            logger.debug(
-                "sweeper_lock_contention", extra={"session_id": session_id}
-            )
+            logger.debug("sweeper_lock_contention", extra={"session_id": session_id})
             return
 
         try:
@@ -176,7 +174,9 @@ class SessionSweeper:
         finally:
             await mgr.release_flush_lock(session_id)
 
-    async def _flush_one_with_db(self, db, mgr: SessionManager, session_id: int, user_id: int) -> None:
+    async def _flush_one_with_db(
+        self, db, mgr: SessionManager, session_id: int, user_id: int
+    ) -> None:
         repo = PracticeRepository(db)
         db_session = await repo.get_session(session_id)
         if db_session is None or db_session.ended_at is not None:
@@ -206,10 +206,7 @@ class SessionSweeper:
             if pending is not None:
                 try:
                     state = SessionState.from_dict(pending.session_state_json)
-                    raw_events = [
-                        RawAnswerEvent.from_dict(e)
-                        for e in pending.raw_events_json
-                    ]
+                    raw_events = [RawAnswerEvent.from_dict(e) for e in pending.raw_events_json]
                 except Exception:
                     logger.warning(
                         "sweeper_pending_corrupt",
@@ -257,4 +254,9 @@ class SessionSweeper:
         logger.info("sweeper_flushed", extra={"session_id": session_id})
 
 
-__all__ = ["SessionSweeper", "SWEEP_INTERVAL_SECONDS", "FLUSH_THRESHOLD_SECONDS", "INACTIVITY_TIMEOUT_SECONDS"]
+__all__ = [
+    "SessionSweeper",
+    "SWEEP_INTERVAL_SECONDS",
+    "FLUSH_THRESHOLD_SECONDS",
+    "INACTIVITY_TIMEOUT_SECONDS",
+]

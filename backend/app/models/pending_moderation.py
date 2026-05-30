@@ -23,7 +23,12 @@ class PendingModeration(Base, CreatedAtMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     target_type: Mapped[ModerationTargetType] = mapped_column(
-        pgEnum(ModerationTargetType, name="moderation_target_type", create_type=False, values_callable=lambda obj: [e.value for e in obj]),
+        pgEnum(
+            ModerationTargetType,
+            name="moderation_target_type",
+            create_type=False,
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         nullable=False,
     )
     target_id: Mapped[int] = mapped_column(nullable=False)
@@ -31,7 +36,12 @@ class PendingModeration(Base, CreatedAtMixin):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     status: Mapped[ModerationStatus] = mapped_column(
-        pgEnum(ModerationStatus, name="moderation_status", create_type=False, values_callable=lambda obj: [e.value for e in obj]),
+        pgEnum(
+            ModerationStatus,
+            name="moderation_status",
+            create_type=False,
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         default=ModerationStatus.PENDING,
         nullable=False,
     )

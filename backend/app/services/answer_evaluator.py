@@ -54,8 +54,8 @@ T_MAX_MS: Final[int] = 10_000  # 10 seconds
 DEFAULT_EXPECTED_MS: Final[int] = 3_000  # 3 seconds
 
 # Speed ratio thresholds for quality mapping
-FAST_THRESHOLD: Final[float] = 0.80   # ratio < this → q=5 (fast)
-VERY_SLOW_THRESHOLD: Final[float] = 1.50   # ratio > this → q=3 (slow)
+FAST_THRESHOLD: Final[float] = 0.80  # ratio < this → q=5 (fast)
+VERY_SLOW_THRESHOLD: Final[float] = 1.50  # ratio > this → q=3 (slow)
 
 # Words at or below this length require exact (post-normalise) match.
 # Levenshtein on short words is too permissive: 1 edit on a 3-char word = 0.67 sim.

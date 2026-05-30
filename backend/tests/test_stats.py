@@ -28,19 +28,22 @@ from app.services.stats_service import _compute_learning_balance, _daily_to_dict
 
 
 class TestIntervalToBucketKey:
-    @pytest.mark.parametrize("interval,expected", [
-        (0,   "new"),
-        (1,   "new"),
-        (2,   "learning"),
-        (7,   "learning"),
-        (8,   "young"),
-        (21,  "young"),
-        (22,  "mature"),
-        (120, "mature"),
-        (121, "long_term"),
-        (365, "long_term"),
-        (999, "long_term"),
-    ])
+    @pytest.mark.parametrize(
+        "interval,expected",
+        [
+            (0, "new"),
+            (1, "new"),
+            (2, "learning"),
+            (7, "learning"),
+            (8, "young"),
+            (21, "young"),
+            (22, "mature"),
+            (120, "mature"),
+            (121, "long_term"),
+            (365, "long_term"),
+            (999, "long_term"),
+        ],
+    )
     def test_boundaries(self, interval: int, expected: str) -> None:
         assert interval_to_bucket_key(interval) == expected
 
@@ -72,10 +75,10 @@ def _make_buckets(
 ) -> list[dict]:
     """Build a bucket list matching the shape returned by get_vocab_maturity."""
     return [
-        {"key": "new",       "percent": new},
-        {"key": "learning",  "percent": learning},
-        {"key": "young",     "percent": young},
-        {"key": "mature",    "percent": mature},
+        {"key": "new", "percent": new},
+        {"key": "learning", "percent": learning},
+        {"key": "young", "percent": young},
+        {"key": "mature", "percent": mature},
         {"key": "long_term", "percent": long_term},
     ]
 

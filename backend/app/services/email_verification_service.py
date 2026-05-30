@@ -49,10 +49,10 @@ class EmailVerificationService:
             _LUA_GENERATE_TOKEN,
             2,
             f"email_verify_user:{user_id}",  # KEYS[1]
-            f"email_verify:{token}",          # KEYS[2]
-            TOKEN_TTL,                        # ARGV[1]
-            str(user_id),                     # ARGV[2]
-            token,                            # ARGV[3]
+            f"email_verify:{token}",  # KEYS[2]
+            TOKEN_TTL,  # ARGV[1]
+            str(user_id),  # ARGV[2]
+            token,  # ARGV[3]
         )
         return token
 
@@ -80,9 +80,7 @@ class EmailVerificationService:
 
         count = await self._redis.incr(key)
         if count == 1:
-            tomorrow = (now + timedelta(days=1)).replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
+            tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
             ttl = int((tomorrow - now).total_seconds())
             await self._redis.expire(key, ttl)
 

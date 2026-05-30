@@ -21,9 +21,7 @@ class ContentAuditLog(Base, CreatedAtMixin):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     table_name: Mapped[str] = mapped_column(nullable=False)
     record_id: Mapped[int] = mapped_column(nullable=False)
-    action: Mapped[str] = mapped_column(
-        nullable=False, comment="INSERT | UPDATE | DELETE"
-    )
+    action: Mapped[str] = mapped_column(nullable=False, comment="INSERT | UPDATE | DELETE")
     old_values: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     new_values: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     user_id: Mapped[int | None] = mapped_column(

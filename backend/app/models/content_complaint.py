@@ -26,7 +26,12 @@ class ContentComplaint(Base, CreatedAtMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     target_type: Mapped[ModerationTargetType] = mapped_column(
-        pgEnum(ModerationTargetType, name="moderation_target_type", create_type=False, values_callable=lambda obj: [e.value for e in obj]),
+        pgEnum(
+            ModerationTargetType,
+            name="moderation_target_type",
+            create_type=False,
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         nullable=False,
     )
     target_id: Mapped[int] = mapped_column(nullable=False)

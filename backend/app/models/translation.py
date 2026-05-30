@@ -22,9 +22,7 @@ class Translation(Base, SoftDeleteTimestampMixin):
     __tablename__ = "translations"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    item_id: Mapped[int] = mapped_column(
-        ForeignKey("items.id", ondelete="CASCADE"), nullable=False
-    )
+    item_id: Mapped[int] = mapped_column(ForeignKey("items.id", ondelete="CASCADE"), nullable=False)
     language_id: Mapped[int] = mapped_column(
         ForeignKey("languages.id", ondelete="RESTRICT"), nullable=False
     )
@@ -37,7 +35,12 @@ class Translation(Base, SoftDeleteTimestampMixin):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     status: Mapped[ContentStatus] = mapped_column(
-        pgEnum(ContentStatus, name="content_status", create_type=False, values_callable=lambda obj: [e.value for e in obj]),
+        pgEnum(
+            ContentStatus,
+            name="content_status",
+            create_type=False,
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         default=ContentStatus.DRAFT,
         nullable=False,
     )
@@ -87,8 +90,7 @@ class Translation(Base, SoftDeleteTimestampMixin):
             "idx_translations_unverified",
             "created_at",
             postgresql_where=text(
-                "deleted_at IS NULL AND verified_by IS NULL"
-                " AND status = 'community'"
+                "deleted_at IS NULL AND verified_by IS NULL AND status = 'community'"
             ),
         ),
     )

@@ -16,9 +16,7 @@ class UserLanguageService:
         self._repo = UserLanguageRepository(session)
 
     async def _assert_language_exists(self, language_id: int) -> None:
-        result = await self._session.execute(
-            select(Language.id).where(Language.id == language_id)
-        )
+        result = await self._session.execute(select(Language.id).where(Language.id == language_id))
         if result.scalar_one_or_none() is None:
             raise ResourceNotFoundError("Language", language_id)
 

@@ -43,10 +43,10 @@ class PasswordResetService:
             _LUA_GENERATE_TOKEN,
             2,
             f"password_reset_user:{user_id}",  # KEYS[1]
-            f"password_reset:{token}",          # KEYS[2]
-            TOKEN_TTL,                          # ARGV[1]
-            str(user_id),                       # ARGV[2]
-            token,                              # ARGV[3]
+            f"password_reset:{token}",  # KEYS[2]
+            TOKEN_TTL,  # ARGV[1]
+            str(user_id),  # ARGV[2]
+            token,  # ARGV[3]
         )
         return token
 

@@ -48,9 +48,7 @@ class UserLanguage(Base):
     user: Mapped["User"] = relationship(back_populates="languages", foreign_keys=[user_id])
     language: Mapped["Language"] = relationship(foreign_keys=[language_id])
 
-    __table_args__ = (
-        UniqueConstraint("user_id", "language_id", name="uq_user_languages"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "language_id", name="uq_user_languages"),)
 
     def __repr__(self) -> str:
         return f"<UserLanguage user={self.user_id} lang={self.language_id} active={self.is_active}>"

@@ -210,9 +210,7 @@ class ProgressUpdater:
             expected_ms = expected_times.get(event.item_id, DEFAULT_EXPECTED_MS)
             capped_ms = min(event.response_time_ms, T_MAX_MS)
             time_ratio = capped_ms / expected_ms if expected_ms > 0 else 1.0
-            quality = map_quality(
-                event.is_correct, time_ratio, event.confidence_override
-            )
+            quality = map_quality(event.is_correct, time_ratio, event.confidence_override)
 
             sm2_state = SM2State(
                 interval_days=progress.interval,
@@ -227,9 +225,7 @@ class ProgressUpdater:
                 if days_since > 60:
                     sm2_state = SM2State(
                         interval_days=sm2_state.interval_days,
-                        ease_factor=apply_absence_decay_for_days(
-                            sm2_state.ease_factor, days_since
-                        ),
+                        ease_factor=apply_absence_decay_for_days(sm2_state.ease_factor, days_since),
                         repetitions=sm2_state.repetitions,
                         lapsed_attempts=sm2_state.lapsed_attempts,
                     )
@@ -268,9 +264,7 @@ class ProgressUpdater:
 
         return processed, new_words_count
 
-    async def _bulk_expected_times(
-        self, user_id: int, item_ids: list[int]
-    ) -> dict[int, int]:
+    async def _bulk_expected_times(self, user_id: int, item_ids: list[int]) -> dict[int, int]:
         """
         Pre-compute expected response times for all items in at most 4 queries.
 
@@ -302,9 +296,7 @@ class ProgressUpdater:
 
         # Level 2: user × POS averages
         pos_rows = (
-            await self._db.execute(
-                select(Item.id, Item.part_of_speech).where(Item.id.in_(missing))
-            )
+            await self._db.execute(select(Item.id, Item.part_of_speech).where(Item.id.in_(missing)))
         ).fetchall()
         item_to_pos: dict[int, Any] = {r[0]: r[1] for r in pos_rows}
         pos_set = {p for p in item_to_pos.values() if p is not None}
@@ -502,17 +494,13 @@ class ProgressUpdater:
             )
         )
 
-    async def _close_session(
-        self, db_session: StudySession, *, status: SessionStatus
-    ) -> None:
+    async def _close_session(self, db_session: StudySession, *, status: SessionStatus) -> None:
         if db_session.ended_at is None:
             db_session.ended_at = datetime.now(timezone.utc)
         db_session.status = status
         await self._db.flush()
 
-    async def _detect_leeches(
-        self, user_id: int, raw_events: list[RawAnswerEvent]
-    ) -> list[int]:
+    async def _detect_leeches(self, user_id: int, raw_events: list[RawAnswerEvent]) -> list[int]:
         failed_ids = list({e.item_id for e in raw_events if not e.is_correct})
         if not failed_ids:
             return []
@@ -558,14 +546,10 @@ class ProgressUpdater:
 
         leech_ids = list((await self._db.execute(stmt)).scalars().all())
         for item_id in leech_ids:
-            logger.warning(
-                "leech_detected", extra={"user_id": user_id, "item_id": item_id}
-            )
+            logger.warning("leech_detected", extra={"user_id": user_id, "item_id": item_id})
         return leech_ids
 
-    async def _resolve_language_id(
-        self, raw_events: list[RawAnswerEvent]
-    ) -> int | None:
+    async def _resolve_language_id(self, raw_events: list[RawAnswerEvent]) -> int | None:
         if not raw_events:
             return None
         item = await self._db.get(Item, raw_events[0].item_id)

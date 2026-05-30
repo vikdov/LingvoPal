@@ -22,7 +22,7 @@ from app.schemas.common import BaseResponse
 
 class SubmitForReviewRequest(BaseModel):
     """POST /api/v1/moderation/sets/{set_id}/submit
-       POST /api/v1/moderation/items/{item_id}/submit"""
+    POST /api/v1/moderation/items/{item_id}/submit"""
 
     feedback: str | None = Field(
         None,
