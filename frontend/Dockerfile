@@ -18,6 +18,11 @@ RUN npm run build
 # ── Stage 2: serve ─────────────────────────────────────────────────────────────
 FROM nginx:1.27-alpine AS runner
 
+# Patch base-image OS CVEs (libcrypto3/openssl, libxml2, libpng, libexpat, zlib,
+# musl, nghttp2) that Trivy flags as fixable HIGH/CRITICAL. Mirrors the backend's
+# apt-get upgrade.
+RUN apk upgrade --no-cache
+
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
