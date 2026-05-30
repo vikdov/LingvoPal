@@ -197,6 +197,9 @@ jobs:
           format: sarif
           output: trivy-backend.sarif
           severity: CRITICAL,HIGH
+          # Required: without this, format=sarif scans ALL severities and the
+          # severity filter above is ignored, so exit-code fires on any finding.
+          limit-severities-for-sarif: true
           exit-code: "1" # fail the job on CRITICAL/HIGH findings
           ignore-unfixed: true
 
@@ -407,6 +410,9 @@ jobs:
           format: sarif
           output: trivy-frontend.sarif
           severity: CRITICAL,HIGH
+          # Required: without this, format=sarif scans ALL severities and the
+          # severity filter above is ignored, so exit-code fires on any finding.
+          limit-severities-for-sarif: true
           exit-code: "1" # fail the job on CRITICAL/HIGH findings
           ignore-unfixed: true
 

@@ -12,6 +12,10 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
   curl \
   && rm -rf /var/lib/apt/lists/*
 
+# Upgrade the base image's system pip to clear fixable CVEs Trivy flags
+# (CVE-2026-3219, CVE-2026-6357 — fixed in pip 26.1).
+RUN pip install --no-cache-dir --upgrade 'pip>=26.1'
+
 # Install Python deps first (layer cached until lockfile changes).
 # uv is only needed to build the venv; remove it afterwards so Trivy does
 # not flag the rustls-webpki HIGH (GHSA-82j2-j2ch-gfr8) bundled in the binary.
