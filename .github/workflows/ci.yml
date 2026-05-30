@@ -251,6 +251,25 @@ jobs:
       - name: Audit dependencies
         run: uv audit --no-dev
 
+  # --------------------------------------------------------------------------
+  # Secret scan: gitleaks (full history; server-side parity with the
+  # detect-private-key / gitleaks pre-commit hooks — closes the --no-verify gap)
+  # --------------------------------------------------------------------------
+  secret-scan:
+    name: Security · Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0 # full history so gitleaks scans every commit, not just the tip
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 # ============================================================================
 # Frontend jobs
 # ============================================================================
@@ -414,6 +433,7 @@ jobs:
       - backend-docker
       - backend-security
       - backend-audit
+      - secret-scan
       - frontend-lint-build
       - frontend-test
       - frontend-audit
