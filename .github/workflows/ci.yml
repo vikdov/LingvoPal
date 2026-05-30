@@ -7,10 +7,16 @@ on:
     branches: [main, develop]
   workflow_call:
 
-# Cancel in-progress runs on the same branch when a new push arrives
+# Group runs per branch. cancel-in-progress is intentionally false: the experiment
+# measures push -> conclusion wall-clock time, so a run must never be cancelled
+# mid-measurement by a subsequent push.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
+
+# Least-privilege default for GITHUB_TOKEN; jobs widen only what they need.
+permissions:
+  contents: read
 
 # ============================================================================
 # Backend jobs
@@ -24,20 +30,21 @@ jobs:
   backend-lint:
     name: Backend · Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: backend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@8d55fbecc275b1c35dbe060458839f8d30439ccf # v3
         with:
           enable-cache: true
 
       - name: Sync dependencies
-        run: uv sync --frozen --no-cache
+        run: uv sync --frozen
 
       - name: Ruff check
         run: uv run ruff check .
@@ -51,6 +58,7 @@ jobs:
   backend-test:
     name: Backend · Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: backend
@@ -74,18 +82,26 @@ jobs:
       TTS_ENABLED: "false"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@8d55fbecc275b1c35dbe060458839f8d30439ccf # v3
         with:
           enable-cache: true
 
       - name: Sync dependencies
-        run: uv sync --frozen --no-cache
+        run: uv sync --frozen
 
       - name: Run tests
-        run: uv run pytest -v --tb=short
+        run: uv run pytest -v --tb=short --cov=app --cov-report=term-missing --cov-report=xml
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+          if-no-files-found: ignore
 
   # --------------------------------------------------------------------------
   # Migrations: verify alembic can run upgrade head against a real Postgres
@@ -93,6 +109,7 @@ jobs:
   backend-migrations:
     name: Backend · Migrations
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: backend
@@ -129,15 +146,15 @@ jobs:
       TTS_ENABLED: "false"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@8d55fbecc275b1c35dbe060458839f8d30439ccf # v3
         with:
           enable-cache: true
 
       - name: Sync dependencies
-        run: uv sync --frozen --no-cache
+        run: uv sync --frozen
 
       - name: Apply migrations
         run: uv run alembic upgrade head
@@ -147,26 +164,48 @@ jobs:
         run: uv run alembic check
 
   # --------------------------------------------------------------------------
-  # Docker build: verify backend image builds successfully
+  # Docker build + image vulnerability scan (Trivy)
   # --------------------------------------------------------------------------
   backend-docker:
-    name: Backend · Docker build
+    name: Backend · Docker build & scan
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write # upload Trivy SARIF to code scanning
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Build backend image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: ./backend
           push: false
+          load: true # load into local docker so Trivy can scan it
           tags: lingvopal-backend:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          image-ref: lingvopal-backend:ci
+          format: sarif
+          output: trivy-backend.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "1" # fail the job on CRITICAL/HIGH findings
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF
+        if: always() # upload even when the scan step fails the build
+        uses: github/codeql-action/upload-sarif@fee9466b8957867761f2d78f922ab084e3e2dd17 # v3
+        with:
+          sarif_file: trivy-backend.sarif
+          category: trivy-backend
 
   # --------------------------------------------------------------------------
   # SAST: bandit (mirrors the pre-commit hook, enforced server-side)
@@ -174,15 +213,16 @@ jobs:
   backend-security:
     name: Backend · SAST (bandit)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: backend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@8d55fbecc275b1c35dbe060458839f8d30439ccf # v3
         with:
           enable-cache: true
 
@@ -195,20 +235,21 @@ jobs:
   backend-audit:
     name: Backend · Dependency audit
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: backend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@8d55fbecc275b1c35dbe060458839f8d30439ccf # v3
         with:
           enable-cache: true
 
       - name: Audit dependencies
-        run: uv audit
+        run: uv audit --no-dev
 
 # ============================================================================
 # Frontend jobs
@@ -220,15 +261,16 @@ jobs:
   frontend-lint-build:
     name: Frontend · Lint & Build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: npm
@@ -250,20 +292,21 @@ jobs:
           VITE_API_URL: http://placeholder:8000/api/v1
 
   # --------------------------------------------------------------------------
-  # Tests: vitest
+  # Tests: vitest (with coverage)
   # --------------------------------------------------------------------------
   frontend-test:
     name: Frontend · Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: npm
@@ -273,28 +316,113 @@ jobs:
         run: npm ci
 
       - name: Run tests
-        run: npm test -- --run
+        run: npm run test:coverage
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage
+          if-no-files-found: ignore
 
   # --------------------------------------------------------------------------
-  # Docker build: verify frontend image builds successfully
+  # Dependency CVE audit (npm)
   # --------------------------------------------------------------------------
-  frontend-docker:
-    name: Frontend · Docker build
+  frontend-audit:
+    name: Frontend · Dependency audit
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: npm audit
+        run: npm audit --audit-level=high
+
+  # --------------------------------------------------------------------------
+  # Docker build + image vulnerability scan (Trivy)
+  # --------------------------------------------------------------------------
+  frontend-docker:
+    name: Frontend · Docker build & scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write # upload Trivy SARIF to code scanning
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Build frontend image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: ./frontend
           push: false
+          load: true # load into local docker so Trivy can scan it
           tags: lingvopal-frontend:ci
           build-args: |
             VITE_API_URL=http://placeholder:8000/api/v1
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          image-ref: lingvopal-frontend:ci
+          format: sarif
+          output: trivy-frontend.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "1" # fail the job on CRITICAL/HIGH findings
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF
+        if: always() # upload even when the scan step fails the build
+        uses: github/codeql-action/upload-sarif@fee9466b8957867761f2d78f922ab084e3e2dd17 # v3
+        with:
+          sarif_file: trivy-frontend.sarif
+          category: trivy-frontend
+
+# ============================================================================
+# Aggregate gate — single required status check for branch protection
+# ============================================================================
+
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: always()
+    needs:
+      - backend-lint
+      - backend-test
+      - backend-migrations
+      - backend-docker
+      - backend-security
+      - backend-audit
+      - frontend-lint-build
+      - frontend-test
+      - frontend-audit
+      - frontend-docker
+
+    steps:
+      - name: Verify all jobs succeeded
+        # Fails if any needed job failed or was cancelled (skipped is allowed).
+        run: |
+          if echo '${{ join(needs.*.result, ' ') }}' | grep -qE 'failure|cancelled'; then
+            echo "One or more CI jobs failed or were cancelled."
+            exit 1
+          fi
+          echo "All CI jobs passed."
