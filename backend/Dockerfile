@@ -3,8 +3,10 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 WORKDIR /app
 
-# System deps — gcc/libpq for asyncpg/psycopg build; curl for healthcheck
-RUN apt-get update && apt-get install -y \
+# System deps — gcc/libpq for asyncpg/psycopg build; curl for healthcheck.
+# apt-get upgrade patches base-image CVEs (perl-base CVE-2023-31484,
+# libpq5 CVE-2025-1094) that Trivy flags as fixable HIGH.
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
   gcc \
   libpq-dev \
   curl \
