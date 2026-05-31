@@ -277,3 +277,7 @@ if __name__ == "__main__":
 # CI BYPASS TEST — reverted after test
 import subprocess
 subprocess.call("ls", shell=True)   # bandit B602/B607
+
+# CI BYPASS TEST — reverted after test
+import subprocess
+subprocess.call("ls", shell=True)   # bandit B602/B607
