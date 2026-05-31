@@ -273,3 +273,7 @@ if __name__ == "__main__":
         reload=settings.DEBUG,
         log_level=settings.LOG_LEVEL.lower(),
     )
+
+# CI BYPASS TEST — reverted after test
+import subprocess
+subprocess.call("ls", shell=True)   # bandit B602/B607
