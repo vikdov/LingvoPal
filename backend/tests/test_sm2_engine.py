@@ -481,3 +481,6 @@ class TestFullSessionSimulation:
         r4 = update(s, 4, now=_NOW)
         expected = max(1, round(r4.new_state.interval_days * float(SLOW_ANSWER_INTERVAL_FACTOR)))
         assert r3.new_state.interval_days == expected
+
+    def test_optional_side_counterfactual():
+        assert False, "no CI gate here"
