@@ -175,6 +175,11 @@ class Settings(BaseSettings):
     DATABASE_HOST: str
     DATABASE_PORT: int = 5432
     DATABASE_NAME: str
+    # Enable TLS for the async (asyncpg) engine. Local Docker Postgres needs no
+    # TLS, so this defaults to False; managed providers such as Neon enforce it,
+    # so production must set DATABASE_SSL=true. asyncpg ignores PGSSLMODE, hence
+    # an explicit flag rather than relying on the libpq environment variable.
+    DATABASE_SSL: bool = False
 
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
@@ -268,6 +273,10 @@ class Settings(BaseSettings):
     S3_SECRET_KEY: str
     S3_BUCKET: str = "lingvopal"
     S3_REGION: str = "us-east-1"
+    # Local MinIO is plain HTTP; managed S3 (Cloudflare R2) is HTTPS on 443.
+    # When true, S3_ENDPOINT_URL uses https and omits the port. Set
+    # S3_SECURE=true in production (R2: S3_REGION=auto).
+    S3_SECURE: bool = False
 
     # Public base URL for media files (browser-accessible).
     # Dev:  http://localhost:9000/lingvopal
@@ -336,6 +345,10 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def S3_ENDPOINT_URL(self) -> str:
+        # Managed providers (R2) require https on the implicit 443; local MinIO
+        # is http on an explicit port.
+        if self.S3_SECURE:
+            return f"https://{self.S3_HOST}"
         return f"http://{self.S3_HOST}:{self.S3_PORT}"
 
     # =========================================================================

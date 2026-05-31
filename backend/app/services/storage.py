@@ -5,9 +5,17 @@ import json
 import uuid
 
 import aioboto3
+from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from app.core.config import get_settings
+
+# Cloudflare R2 requires SigV4 and path-style addressing; MinIO accepts both,
+# so this configuration is safe for local and production alike.
+_S3_CONFIG = Config(
+    signature_version="s3v4",
+    s3={"addressing_style": "path"},
+)
 
 _session: aioboto3.Session | None = None
 
@@ -33,6 +41,7 @@ class StorageService:
             aws_access_key_id=self._settings.S3_ACCESS_KEY,
             aws_secret_access_key=self._settings.S3_SECRET_KEY,
             region_name=self._settings.S3_REGION,
+            config=_S3_CONFIG,
         )
 
     async def upload_image(self, data: bytes, content_type: str, ext: str) -> str:

@@ -70,6 +70,7 @@ def create_async_db_engine(
     echo: bool = False,
     pool_size: int = 10,
     max_overflow: int = 20,
+    ssl: bool = False,
 ) -> AsyncEngine:
     """
     Create an async SQLAlchemy engine for PostgreSQL with asyncpg.
@@ -109,6 +110,21 @@ def create_async_db_engine(
         await engine.dispose()
     """
 
+    connect_args: dict = {
+        "server_settings": {
+            "application_name": "lingvopal",
+            # Removed: "jit": "off"
+            # Reason: JIT helps some queries, hurts others
+            # Let PostgreSQL decide based on query patterns
+            # Monitor performance; enable/disable at DB level if needed
+        }
+    }
+    # Managed providers (Neon) enforce TLS. asyncpg takes ssl in connect_args;
+    # True uses the default verifying context, which is correct for a provider
+    # with a publicly trusted certificate.
+    if ssl:
+        connect_args["ssl"] = True
+
     engine = create_async_engine(
         database_url,
         echo=echo,
@@ -119,15 +135,7 @@ def create_async_db_engine(
         pool_pre_ping=True,  # Verify connection before use
         pool_timeout=30,
         # PostgreSQL configuration
-        connect_args={
-            "server_settings": {
-                "application_name": "lingvopal",
-                # Removed: "jit": "off"
-                # Reason: JIT helps some queries, hurts others
-                # Let PostgreSQL decide based on query patterns
-                # Monitor performance; enable/disable at DB level if needed
-            }
-        },
+        connect_args=connect_args,
     )
 
     return engine
