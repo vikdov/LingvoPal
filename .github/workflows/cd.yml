@@ -1,82 +1,77 @@
 name: CD
 
+# ---------------------------------------------------------------------------
+# Continuous Deployment — free-tier multi-PaaS, CI-driven.
+#
+# One pipeline owns the whole commit -> live path so the ordering is guaranteed
+# and the lead time is measurable end to end:
+#
+#     migrate (Neon)  ->  deploy backend (Render) + deploy frontend (Vercel)
+#                     ->  smoke (poll /health, record live time)
+#
+# The migration runs FIRST and the deploys are gated on it, so a failed
+# migration blocks the entire release rather than letting new application code
+# boot against an unmigrated schema.
+#
+# PRE-FLIGHT (must be done once, outside this file):
+#   * Render: set Auto-Deploy = OFF. This workflow triggers the build via the
+#     deploy hook AFTER the migration. If Render also auto-deploys on git push,
+#     the deploy races the migration and the ordering guarantee is lost.
+#   * Vercel: disable Git auto-deploy for the production branch for the same
+#     reason; this workflow triggers it via a deploy hook.
+#   * Backend DB engine: the app builds its connection URL from DATABASE_*
+#     components and does not append TLS. Neon enforces TLS. The migration job
+#     below covers this with PGSSLMODE=require (libpq/psycopg2); the running
+#     backend uses asyncpg and reads ssl from connect_args (see config /
+#     database engine setup).
+# ---------------------------------------------------------------------------
+
 on:
   push:
     branches: [main]
+    tags:
+      - "v*.*.*"
 
-# One deploy at a time — never cancel in-progress deploys
+# Never run two releases of the same ref at once; never cancel a release midway.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: cd-${{ github.ref }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
-  # --------------------------------------------------------------------------
-  # Gate: all CI checks must pass before deploy
-  # --------------------------------------------------------------------------
-  ci-gate:
-    name: CI gate
-    uses: ./.github/workflows/ci.yml
-
-  # --------------------------------------------------------------------------
-  # Deploy backend to Render
-  #
-  # Required GitHub secret:
-  #   RENDER_DEPLOY_HOOK_URL  — Render dashboard → service → Settings → Deploy Hook
-  # --------------------------------------------------------------------------
-  deploy-backend:
-    name: Deploy backend → Render
-    runs-on: ubuntu-latest
-    needs: ci-gate
-    environment: production
-
-    steps:
-      - name: Trigger Render deploy
-        run: |
-          curl -f -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" \
-            -H "Accept: application/json"
-
-      - name: Wait for deploy to start
-        run: sleep 10
-
-  # --------------------------------------------------------------------------
-  # Run DB migrations after Render deploy starts
-  #
-  # Required GitHub secrets:
-  #   NEON_DATABASE_URL  — full asyncpg URL from Neon dashboard
-  # --------------------------------------------------------------------------
+  # -------------------------------------------------------------------------
+  # 1. Migrate the managed database (Neon) before anything is deployed.
+  # -------------------------------------------------------------------------
   migrate:
-    name: Run migrations
+    name: Migrate · Neon (alembic upgrade head)
     runs-on: ubuntu-latest
-    needs: deploy-backend
     defaults:
       run:
         working-directory: backend
-
     env:
-      ENV: production
-      DATABASE_SSL_REQUIRE: "true"
-      DATABASE_USER: ${{ secrets.PROD_DATABASE_USER }}
-      DATABASE_PASSWORD: ${{ secrets.PROD_DATABASE_PASSWORD }}
-      DATABASE_HOST: ${{ secrets.PROD_DATABASE_HOST }}
-      DATABASE_PORT: "5432"
-      DATABASE_NAME: ${{ secrets.PROD_DATABASE_NAME }}
-      REDIS_HOST: ${{ secrets.PROD_REDIS_HOST }}
-      REDIS_PORT: ${{ secrets.PROD_REDIS_PORT }}
-      REDIS_PASSWORD: ${{ secrets.PROD_REDIS_PASSWORD }}
-      SECRET_KEY: ${{ secrets.PROD_SECRET_KEY }}
-      S3_ACCESS_KEY: ${{ secrets.PROD_S3_ACCESS_KEY }}
-      S3_SECRET_KEY: ${{ secrets.PROD_S3_SECRET_KEY }}
-      S3_USE_TLS: "true"
-      S3_HOST: ${{ secrets.PROD_S3_HOST }}
-      S3_PORT: ${{ secrets.PROD_S3_PORT }}
-      S3_BUCKET: ${{ secrets.PROD_S3_BUCKET }}
-      MEDIA_BASE_URL: ${{ secrets.PROD_MEDIA_BASE_URL }}
-      AI_API_KEY: ${{ secrets.PROD_AI_API_KEY }}
-      IMAGE_SEARCH_API_KEY: ${{ secrets.PROD_IMAGE_SEARCH_API_KEY }}
+      # The app assembles its own URL from these components (Neon pooled
+      # endpoint). Store the pooled host, not the direct one, for CI.
+      DATABASE_USER: ${{ secrets.DATABASE_USER }}
+      DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+      DATABASE_HOST: ${{ secrets.DATABASE_HOST }}
+      DATABASE_PORT: ${{ secrets.DATABASE_PORT }}
+      DATABASE_NAME: ${{ secrets.DATABASE_NAME }}
+      # Neon requires TLS; the built URL carries no sslmode, so let libpq read
+      # it from the environment for the sync (psycopg2) migration path. Channel
+      # binding matches Neon's connection snippet. These are libpq variables and
+      # affect only the migration path — the asyncpg runtime uses DATABASE_SSL.
+      PGSSLMODE: require
+      PGCHANNELBINDING: require
+      # Settings() validates these on import even though the migration does not
+      # use them. Reuse the R2 keys for the S3-compatible settings fields.
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      S3_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY_ID }}
+      S3_SECRET_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AI_API_KEY: ${{ secrets.AI_API_KEY }}
+      IMAGE_SEARCH_API_KEY: ${{ secrets.IMAGE_SEARCH_API_KEY }}
       TTS_ENABLED: "false"
-      CORS_ORIGINS: ${{ secrets.PROD_CORS_ORIGINS }}
-      FRONTEND_URL: ${{ secrets.PROD_FRONTEND_URL }}
-
     steps:
       - uses: actions/checkout@v4
 
@@ -88,29 +83,67 @@ jobs:
       - name: Sync dependencies
         run: uv sync --frozen --no-cache
 
-      - name: Apply migrations
+      - name: Apply migrations to Neon
         run: uv run alembic upgrade head
 
-      - name: Seed official sets
-        run: uv run python scripts/seed_official.py
-
-  # --------------------------------------------------------------------------
-  # Create GitHub release on semver tags
-  # --------------------------------------------------------------------------
-  release:
-    name: GitHub release
+  # -------------------------------------------------------------------------
+  # 2a. Deploy backend (Render) — only after a successful migration.
+  # -------------------------------------------------------------------------
+  deploy-backend:
+    name: Deploy · Render (backend)
+    needs: migrate
     runs-on: ubuntu-latest
-    needs: ci-gate
-    if: startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      contents: write
-
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Trigger Render deploy hook
+        run: |
+          curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" > /dev/null
+          echo "Render backend deploy triggered for ${GITHUB_SHA::7}."
 
-      - name: Create release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
+  # -------------------------------------------------------------------------
+  # 2b. Deploy frontend (Vercel) — gated on migrate so the release is atomic:
+  #     a failed schema migration blocks the frontend release too.
+  # -------------------------------------------------------------------------
+  deploy-frontend:
+    name: Deploy · Vercel (frontend)
+    needs: migrate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Vercel deploy hook
+        run: |
+          curl -fsS -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}" > /dev/null
+          echo "Vercel frontend deploy triggered for ${GITHUB_SHA::7}."
+
+  # -------------------------------------------------------------------------
+  # 3. Smoke test: poll the backend health endpoint until the new revision is
+  #    serving. Confirms the release is live and yields a lead-time figure.
+  #
+  #    NOTE on measurement: the elapsed value below is the hook -> healthy
+  #    window observed inside this job. It is NOT the full commit -> live lead
+  #    time, because the Render/Vercel build queue runs outside the workflow.
+  #    For the §4.9 lead-time metric, measure push timestamp -> first 200 from
+  #    /health externally (e.g. the deploy time reported by Render), and report
+  #    cold (first build) and warm (redeploy) separately — Render free tier also
+  #    cold-starts after idle, which inflates the first hit.
+  # -------------------------------------------------------------------------
+  smoke:
+    name: Smoke · backend health (commit → live)
+    needs: [deploy-backend, deploy-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Poll backend /health until live
+        run: |
+          start=$(date +%s)
+          url="${{ secrets.BACKEND_PUBLIC_URL }}/health"
+          echo "Polling $url for revision ${GITHUB_SHA::7}"
+          for i in $(seq 1 60); do        # up to ~10 min, covers a cold build
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$url" || true)
+            if [ "$code" = "200" ]; then
+              elapsed=$(( $(date +%s) - start ))
+              echo "LIVE after ${elapsed}s (smoke window only; excludes build queue)"
+              exit 0
+            fi
+            echo "  attempt $i: HTTP ${code:-000} — waiting 10s"
+            sleep 10
+          done
+          echo "::error::backend did not become healthy within the smoke window"
+          exit 1

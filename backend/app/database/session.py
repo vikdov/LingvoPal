@@ -23,6 +23,7 @@ async def init_async_session_factory(
     database_url: str,
     pool_size: int = 10,
     max_overflow: int = 20,
+    ssl: bool = False,
 ) -> async_sessionmaker:
     """
     Initialize the async session factory.
@@ -62,6 +63,7 @@ async def init_async_session_factory(
         database_url,
         pool_size=pool_size,
         max_overflow=max_overflow,
+        ssl=ssl,
     )
 
     async_session_factory = async_sessionmaker(

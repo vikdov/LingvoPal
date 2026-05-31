@@ -1,6 +1,7 @@
 # backend/app/main.py
 """FastAPI application factory with async database lifecycle management"""
 
+import json
 import logging
 import logging.config
 from contextlib import asynccontextmanager
@@ -31,12 +32,40 @@ from app.database import init_async_session_factory, shutdown_db_engine
 settings = get_settings()
 
 
+class _JsonLogFormatter(logging.Formatter):
+    """Render each record as a single-line JSON object on stdout.
+
+    Render and Vercel capture stdout line by line, so one JSON object per line
+    keeps log aggregation queryable in production. Development keeps the plain
+    human-readable format instead.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S%z"),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        if record.exc_info:
+            payload["exc"] = self.formatException(record.exc_info)
+        return json.dumps(payload, ensure_ascii=False)
+
+
 def _configure_logging() -> None:
-    logging.basicConfig(
-        level=settings.LOG_LEVEL,
-        format="%(asctime)s %(levelname)-8s %(name)s  %(message)s",
-        datefmt="%H:%M:%S",
-    )
+    handler = logging.StreamHandler()
+    if settings.is_production:
+        handler.setFormatter(_JsonLogFormatter())
+    else:
+        handler.setFormatter(
+            logging.Formatter(
+                fmt="%(asctime)s %(levelname)-8s %(name)s  %(message)s",
+                datefmt="%H:%M:%S",
+            )
+        )
+    root = logging.getLogger()
+    root.handlers = [handler]
+    root.setLevel(settings.LOG_LEVEL)
 
     logging.getLogger("botocore").setLevel(logging.WARNING)
     logging.getLogger("aiobotocore").setLevel(logging.WARNING)
@@ -100,6 +129,7 @@ async def lifespan(app: FastAPI):
             settings.DATABASE_URL,
             pool_size=settings.DB_POOL_SIZE,
             max_overflow=settings.DB_MAX_OVERFLOW,
+            ssl=settings.DATABASE_SSL,
         )
         logger.info("Async session factory initialized")
         if settings.DEBUG:

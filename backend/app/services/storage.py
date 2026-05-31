@@ -5,9 +5,17 @@ import json
 import uuid
 
 import aioboto3
+from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from app.core.config import get_settings
+
+# Cloudflare R2 requires SigV4 and path-style addressing; MinIO accepts both,
+# so this configuration is safe for local and production alike.
+_S3_CONFIG = Config(
+    signature_version="s3v4",
+    s3={"addressing_style": "path"},
+)
 
 _session: aioboto3.Session | None = None
 
@@ -33,19 +41,16 @@ class StorageService:
             aws_access_key_id=self._settings.S3_ACCESS_KEY,
             aws_secret_access_key=self._settings.S3_SECRET_KEY,
             region_name=self._settings.S3_REGION,
+            config=_S3_CONFIG,
         )
 
     async def upload_image(self, data: bytes, content_type: str, ext: str) -> str:
         """Upload image bytes to a random key, return public URL."""
-        return await self.upload_at_key(
-            data, f"items/{uuid.uuid4().hex}.{ext}", content_type
-        )
+        return await self.upload_at_key(data, f"items/{uuid.uuid4().hex}.{ext}", content_type)
 
     async def upload_audio(self, data: bytes, content_type: str, ext: str) -> str:
         """Upload audio bytes to a random key, return public URL."""
-        return await self.upload_at_key(
-            data, f"audio/{uuid.uuid4().hex}.{ext}", content_type
-        )
+        return await self.upload_at_key(data, f"audio/{uuid.uuid4().hex}.{ext}", content_type)
 
     async def get_url_if_exists(self, key: str) -> str | None:
         """Return public URL if key exists in bucket, else None. Used for cache checks."""
@@ -77,7 +82,7 @@ class StorageService:
         prefix = self._base_url + "/"
         if not url.startswith(prefix):
             return None
-        key = url[len(prefix):]
+        key = url[len(prefix) :]
         async with self._client() as s3:
             try:
                 resp = await s3.get_object(Bucket=self._settings.S3_BUCKET, Key=key)
@@ -92,7 +97,7 @@ class StorageService:
         prefix = self._base_url + "/"
         if not url.startswith(prefix):
             return
-        key = url[len(prefix):]
+        key = url[len(prefix) :]
         async with self._client() as s3:
             await s3.delete_object(Bucket=self._settings.S3_BUCKET, Key=key)
 
@@ -104,15 +109,19 @@ class StorageService:
             except ClientError:
                 await s3.create_bucket(Bucket=self._settings.S3_BUCKET)
 
-            policy = json.dumps({
-                "Version": "2012-10-17",
-                "Statement": [{
-                    "Effect": "Allow",
-                    "Principal": {"AWS": ["*"]},
-                    "Action": ["s3:GetObject"],
-                    "Resource": [f"arn:aws:s3:::{self._settings.S3_BUCKET}/*"],
-                }],
-            })
+            policy = json.dumps(
+                {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {"AWS": ["*"]},
+                            "Action": ["s3:GetObject"],
+                            "Resource": [f"arn:aws:s3:::{self._settings.S3_BUCKET}/*"],
+                        }
+                    ],
+                }
+            )
             await s3.put_bucket_policy(
                 Bucket=self._settings.S3_BUCKET,
                 Policy=policy,

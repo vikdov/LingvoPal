@@ -10,6 +10,10 @@ description = "Dummy/test placeholders used in CI and example config — not rea
 paths = [
   '''backend/\.env\.example$''',
   '''frontend/\.env\.example$''',
+  # Production templates: documented placeholders only; real values live in the
+  # platform dashboards and GitHub Secrets, never in these files.
+  '''\.env\.prod\.example$''',
+  '''frontend/\.env\.prod\.example$''',
 ]
 regexes = [
   # CI workflow dummy values (.github/workflows/ci.yml)
