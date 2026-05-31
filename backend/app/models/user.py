@@ -65,7 +65,6 @@ class User(Base, SoftDeleteTimestampMixin):
         back_populates="user",
         cascade="all, delete-orphan",
     )
-    test_column: Mapped[str | None] = mapped_column(nullable=True)  # drift test
 
     @property
     def is_admin(self) -> bool:
