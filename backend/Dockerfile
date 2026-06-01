@@ -34,7 +34,9 @@ USER appuser
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-  CMD curl -f http://localhost:8000/health || exit 1
+  CMD curl -f "http://localhost:${PORT:-8000}/health" || exit 1
 
-# Production: no --reload, single worker (scale via replicas)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+# Production: no --reload, single worker (scale via replicas). Bind the port the
+# platform assigns ($PORT, e.g. Render) and fall back to 8000 for local runs.
+# Shell form so ${PORT} is expanded at container start.
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1
