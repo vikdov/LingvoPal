@@ -64,13 +64,17 @@ jobs:
       # affect only the migration path — the asyncpg runtime uses DATABASE_SSL.
       PGSSLMODE: require
       PGCHANNELBINDING: require
-      # Settings() validates these on import even though the migration does not
-      # use them. Reuse the R2 keys for the S3-compatible settings fields.
-      SECRET_KEY: ${{ secrets.SECRET_KEY }}
-      S3_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY_ID }}
-      S3_SECRET_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-      AI_API_KEY: ${{ secrets.AI_API_KEY }}
-      IMAGE_SEARCH_API_KEY: ${{ secrets.IMAGE_SEARCH_API_KEY }}
+      # Settings() validates every required field at import, and alembic/env.py
+      # imports the app — so these must be present or the migration crashes
+      # before touching the DB. But the migration connects to Neon ONLY; it never
+      # calls these services. They are therefore import-time placeholders, NOT
+      # secrets. The real values live in the Render runtime env. ENV is not set
+      # to production here, so the entropy/TLS production validators do not run.
+      SECRET_KEY: ci-migration-secret-key-minimum-32-chars-xyz
+      S3_ACCESS_KEY: migrate-noop
+      S3_SECRET_KEY: migrate-noop
+      AI_API_KEY: migrate-noop
+      IMAGE_SEARCH_API_KEY: migrate-noop
       TTS_ENABLED: "false"
     steps:
       - uses: actions/checkout@v4
@@ -87,7 +91,7 @@ jobs:
         run: uv run alembic upgrade head
 
   # -------------------------------------------------------------------------
-  # 2a. Deploy backend (Render) — only after a successful migration.
+  # 2. Deploy backend (Render) — only after a successful migration.
   # -------------------------------------------------------------------------
   deploy-backend:
     name: Deploy · Render (backend)
@@ -100,12 +104,57 @@ jobs:
           echo "Render backend deploy triggered for ${GITHUB_SHA::7}."
 
   # -------------------------------------------------------------------------
-  # 2b. Deploy frontend (Vercel) — gated on migrate so the release is atomic:
-  #     a failed schema migration blocks the frontend release too.
+  # 3. Smoke backend: poll /health until the endpoint reports THIS commit.
+  #
+  #    This is the true release gate. It does two things at once:
+  #      * waits for the async Render build to finish and the new revision to
+  #        boot (the deploy hook only TRIGGERS the build; it returns instantly);
+  #      * verifies the live revision is the new commit, not the previous one
+  #        still answering during the rolling deploy — by matching the `commit`
+  #        field (RENDER_GIT_COMMIT) against GITHUB_SHA.
+  #
+  #    The frontend deploy is gated on this job, so the frontend never ships
+  #    against a backend that failed to migrate, build, or boot.
+  #
+  #    MEASUREMENT (§4.9): `elapsed` here is the hook -> healthy window inside
+  #    the job. It is NOT the full push -> live lead time, because the Render
+  #    build queue runs outside the workflow. For the lead-time metric, measure
+  #    push timestamp -> first matching /health externally, and report cold
+  #    (first build) vs warm (redeploy) separately — Render free tier also
+  #    cold-starts after idle, which inflates the first hit.
+  # -------------------------------------------------------------------------
+  smoke-backend:
+    name: Smoke · backend health (new commit live)
+    needs: deploy-backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Poll backend /health until it reports this commit
+        run: |
+          start=$(date +%s)
+          url="${{ secrets.BACKEND_PUBLIC_URL }}/health"
+          echo "Polling $url until commit == ${GITHUB_SHA}"
+          for i in $(seq 1 90); do        # up to ~15 min, covers a cold build
+            body=$(curl -s --max-time 10 "$url" || true)
+            live=$(printf '%s' "$body" | jq -r '.commit // empty' 2>/dev/null || true)
+            if [ "$live" = "${GITHUB_SHA}" ]; then
+              elapsed=$(( $(date +%s) - start ))
+              echo "LIVE: new revision ${GITHUB_SHA::7} healthy after ${elapsed}s (smoke window; excludes build queue)"
+              exit 0
+            fi
+            echo "  attempt $i: live commit='${live:-none}' — waiting 10s"
+            sleep 10
+          done
+          echo "::error::backend did not report commit ${GITHUB_SHA::7} within the smoke window"
+          exit 1
+
+  # -------------------------------------------------------------------------
+  # 4. Deploy frontend (Vercel) — only after the backend is migrated, built,
+  #    booted, and confirmed healthy on the new commit. This is the strong
+  #    ordering: a static frontend never reaches users ahead of a working API.
   # -------------------------------------------------------------------------
   deploy-frontend:
     name: Deploy · Vercel (frontend)
-    needs: migrate
+    needs: smoke-backend
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Vercel deploy hook
@@ -114,36 +163,28 @@ jobs:
           echo "Vercel frontend deploy triggered for ${GITHUB_SHA::7}."
 
   # -------------------------------------------------------------------------
-  # 3. Smoke test: poll the backend health endpoint until the new revision is
-  #    serving. Confirms the release is live and yields a lead-time figure.
-  #
-  #    NOTE on measurement: the elapsed value below is the hook -> healthy
-  #    window observed inside this job. It is NOT the full commit -> live lead
-  #    time, because the Render/Vercel build queue runs outside the workflow.
-  #    For the §4.9 lead-time metric, measure push timestamp -> first 200 from
-  #    /health externally (e.g. the deploy time reported by Render), and report
-  #    cold (first build) and warm (redeploy) separately — Render free tier also
-  #    cold-starts after idle, which inflates the first hit.
+  # 5. Smoke frontend: confirm the Vercel deployment serves 200. Closes the
+  #    release: backend healthy on new commit, frontend reachable.
   # -------------------------------------------------------------------------
-  smoke:
-    name: Smoke · backend health (commit → live)
-    needs: [deploy-backend, deploy-frontend]
+  smoke-frontend:
+    name: Smoke · frontend reachable
+    needs: deploy-frontend
     runs-on: ubuntu-latest
     steps:
-      - name: Poll backend /health until live
+      - name: Poll frontend until live
         run: |
           start=$(date +%s)
-          url="${{ secrets.BACKEND_PUBLIC_URL }}/health"
-          echo "Polling $url for revision ${GITHUB_SHA::7}"
+          url="${{ secrets.FRONTEND_PUBLIC_URL }}"
+          echo "Polling $url"
           for i in $(seq 1 60); do        # up to ~10 min, covers a cold build
-            code=$(curl -s -o /dev/null -w '%{http_code}' "$url" || true)
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$url" || true)
             if [ "$code" = "200" ]; then
               elapsed=$(( $(date +%s) - start ))
-              echo "LIVE after ${elapsed}s (smoke window only; excludes build queue)"
+              echo "Frontend LIVE after ${elapsed}s (smoke window; excludes build queue)"
               exit 0
             fi
             echo "  attempt $i: HTTP ${code:-000} — waiting 10s"
             sleep 10
           done
-          echo "::error::backend did not become healthy within the smoke window"
+          echo "::error::frontend did not become reachable within the smoke window"
           exit 1

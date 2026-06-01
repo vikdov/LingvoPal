@@ -4,6 +4,7 @@
 import json
 import logging
 import logging.config
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -252,8 +253,19 @@ def create_app() -> FastAPI:
     # ========================================================================
     @app.get("/health", tags=["system"])
     async def health_check():
-        """Health check endpoint"""
-        return {"status": "ok", "app": settings.API_TITLE, "version": settings.API_VERSION}
+        """Health check endpoint.
+
+        `commit` exposes the deployed revision so the CD smoke test can confirm
+        that the NEW build is serving (and is not the previous revision still
+        answering during a rolling deploy). Render injects RENDER_GIT_COMMIT
+        automatically; it is "unknown" outside Render (local/dev/CI).
+        """
+        return {
+            "status": "ok",
+            "app": settings.API_TITLE,
+            "version": settings.API_VERSION,
+            "commit": os.getenv("RENDER_GIT_COMMIT", "unknown"),
+        }
 
     # ========================================================================
     # Include Routers
