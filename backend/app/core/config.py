@@ -247,7 +247,10 @@ class Settings(BaseSettings):
 
     REDIS_HOST: str = "redis"
     REDIS_PORT: int = 6379
+    # Managed Redis (e.g. Upstash) requires TLS and a token. Local Docker Redis
+    # needs neither. Set REDIS_SSL=true and REDIS_PASSWORD=<token> in production.
     REDIS_PASSWORD: str = ""
+    REDIS_SSL: bool = False
 
     # =========================================================================
     # Email / SMTP
@@ -559,10 +562,15 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def REDIS_URL(self) -> str:
-        """Redis connection string. Database index 0."""
-        if self.REDIS_PASSWORD:
-            return f"redis://default:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/0"
-        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/0"
+        """Redis connection string. Database index 0.
+
+        Uses the rediss:// scheme when REDIS_SSL is set (managed providers such
+        as Upstash enforce TLS) and embeds the URL-encoded password when one is
+        configured. Local Docker Redis runs plaintext and unauthenticated.
+        """
+        scheme = "rediss" if self.REDIS_SSL else "redis"
+        auth = f":{urllib.parse.quote_plus(self.REDIS_PASSWORD)}@" if self.REDIS_PASSWORD else ""
+        return f"{scheme}://{auth}{self.REDIS_HOST}:{self.REDIS_PORT}/0"
 
     # =========================================================================
     # Convenience properties — plain @property, not @computed_field.

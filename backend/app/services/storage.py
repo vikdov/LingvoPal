@@ -2,6 +2,7 @@
 """S3-compatible object storage service (MinIO locally, R2/S3 in prod)."""
 
 import json
+import logging
 import uuid
 
 import aioboto3
@@ -9,6 +10,8 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 # Cloudflare R2 requires SigV4 and path-style addressing; MinIO accepts both,
 # so this configuration is safe for local and production alike.
@@ -102,7 +105,13 @@ class StorageService:
             await s3.delete_object(Bucket=self._settings.S3_BUCKET, Key=key)
 
     async def ensure_bucket(self) -> None:
-        """Create bucket if missing and apply public-read policy."""
+        """Create the bucket if missing and apply a public-read policy.
+
+        The bucket-policy step is best-effort. MinIO supports PutBucketPolicy,
+        but Cloudflare R2 does not — there, public access is configured out of
+        band (an r2.dev domain or a custom domain), so a failure here must not
+        crash application startup. The policy error is logged and swallowed.
+        """
         async with self._client() as s3:
             try:
                 await s3.head_bucket(Bucket=self._settings.S3_BUCKET)
@@ -122,10 +131,18 @@ class StorageService:
                     ],
                 }
             )
-            await s3.put_bucket_policy(
-                Bucket=self._settings.S3_BUCKET,
-                Policy=policy,
-            )
+            try:
+                await s3.put_bucket_policy(
+                    Bucket=self._settings.S3_BUCKET,
+                    Policy=policy,
+                )
+            except ClientError as e:
+                logger.warning(
+                    "PutBucketPolicy not applied for bucket %s (%s). "
+                    "If this is R2, configure public access via the dashboard.",
+                    self._settings.S3_BUCKET,
+                    e.response["Error"].get("Code", "unknown"),
+                )
 
 
 __all__ = ["StorageService"]
