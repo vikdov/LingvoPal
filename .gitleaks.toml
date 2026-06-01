@@ -20,6 +20,7 @@ regexes = [
   '''ci-test-secret-key-minimum-32-chars-abc123''',
   '''ci-migration-secret-key-minimum-32-chars-xyz''',
   '''dummy-key-for-ci''',
+  '''migrate-noop''',
   '''minioadmin''',
   # local/test database placeholders
   '''test_password''',
