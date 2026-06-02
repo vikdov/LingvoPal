@@ -41,3 +41,11 @@ export interface AnkiImportResponse {
   reused_count: number;
   no_gap_count: number;
 }
+
+export interface LpsetImportResponse {
+  set_id: number;
+  title: string;
+  item_count: number;
+  skipped_count: number;
+  reused_count: number;
+}

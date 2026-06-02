@@ -25,6 +25,7 @@ import { useMyLibrary, useCreatedSets, useRemoveFromLibrary, usePinSet, useTouch
 import { langAccentColor } from '../components/SetCover';
 import { SetEditor } from '../components/SetEditor';
 import { AnkiImportModal } from '../components/AnkiImportModal';
+import { LpsetImportModal } from '../components/LpsetImportModal';
 import type { SetLibraryEntry, CreatedSetSummaryResponse } from '../types/sets.types';
 import { langName, difficultyLabel } from '../utils/formatters';
 import { cn } from '@/lib/utils';
@@ -545,6 +546,7 @@ function CreatedTab({ onCreateClick, filterLangId, onFilterChange }: CreatedTabP
 export function SetsListView() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [lpsetImportOpen, setLpsetImportOpen] = useState(false);
   const navigate = useNavigate();
   const activeLanguageId = useLanguageStore((s) => s.activeLanguageId);
   const [filterLangId, setFilterLangId] = useState<number | null>(activeLanguageId);
@@ -587,6 +589,10 @@ export function SetsListView() {
               My Expressions
             </Link>
           </Button>
+          <Button variant="outline" onClick={() => setLpsetImportOpen(true)}>
+            <DownloadIcon />
+            Import .lpset
+          </Button>
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <DownloadIcon />
             Import from Anki
@@ -619,6 +625,7 @@ export function SetsListView() {
 
       <SetEditor open={editorOpen} onOpenChange={setEditorOpen} onSuccess={handleSetCreated} />
       <AnkiImportModal open={importOpen} onOpenChange={setImportOpen} />
+      <LpsetImportModal open={lpsetImportOpen} onOpenChange={setLpsetImportOpen} />
     </div>
   );
 }
