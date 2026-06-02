@@ -17,12 +17,14 @@ import pytest
 
 from app.core.exceptions import (
     EmailChangeTokenInvalidError,
+    PasswordResetTokenInvalidError,
     RefreshTokenInvalidError,
     VerificationRateLimitedError,
     VerificationTokenInvalidError,
 )
 from app.services.email_change_service import EmailChangeService
 from app.services.email_verification_service import DAILY_CAP, EmailVerificationService
+from app.services.password_reset_service import PasswordResetService
 from app.services.refresh_token_service import RefreshTokenService
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -296,3 +298,94 @@ class TestRefreshTokenService:
         svc = RefreshTokenService(r, ttl_seconds=3600)
         await svc.revoke(3)
         r.delete.assert_called_once_with("rtoken:strtoken")
+
+
+# ── PasswordResetService ──────────────────────────────────────────────────────
+
+
+class TestPasswordResetService:
+    @pytest.mark.anyio
+    async def test_generate_token_returns_urlsafe_string(self) -> None:
+        svc = PasswordResetService(_redis())
+        token = await svc.generate_token(1)
+        assert isinstance(token, str)
+        assert len(token) > 10
+        allowed = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
+        assert all(c in allowed for c in token)
+
+    @pytest.mark.anyio
+    async def test_generate_token_calls_eval_with_correct_keys(self) -> None:
+        r = _redis()
+        svc = PasswordResetService(r)
+        token = await svc.generate_token(42)
+        r.eval.assert_called_once()
+        args = r.eval.call_args[0]
+        assert args[2] == "password_reset_user:42"
+        assert args[3] == f"password_reset:{token}"
+
+    @pytest.mark.anyio
+    async def test_generate_token_passes_ttl_and_user_id(self) -> None:
+        r = _redis()
+        svc = PasswordResetService(r)
+        token = await svc.generate_token(7)
+        args = r.eval.call_args[0]
+        assert args[4] == 3600          # TOKEN_TTL
+        assert args[5] == "7"           # user_id as string
+        assert args[6] == token         # token stored under user key
+
+    @pytest.mark.anyio
+    async def test_generate_token_each_call_produces_unique_token(self) -> None:
+        svc = PasswordResetService(_redis())
+        t1 = await svc.generate_token(1)
+        t2 = await svc.generate_token(1)
+        assert t1 != t2
+
+    @pytest.mark.anyio
+    async def test_consume_token_returns_user_id(self) -> None:
+        r = _redis()
+        r.getdel.return_value = b"99"
+        svc = PasswordResetService(r)
+        user_id = await svc.consume_token("valid-token")
+        assert user_id == 99
+
+    @pytest.mark.anyio
+    async def test_consume_token_accepts_str_value(self) -> None:
+        r = _redis()
+        r.getdel.return_value = "5"
+        svc = PasswordResetService(r)
+        user_id = await svc.consume_token("tok")
+        assert user_id == 5
+
+    @pytest.mark.anyio
+    async def test_consume_token_raises_on_missing(self) -> None:
+        r = _redis()
+        r.getdel.return_value = None
+        svc = PasswordResetService(r)
+        with pytest.raises(PasswordResetTokenInvalidError):
+            await svc.consume_token("nonexistent")
+
+    @pytest.mark.anyio
+    async def test_consume_token_deletes_user_key(self) -> None:
+        r = _redis()
+        r.getdel.return_value = b"10"
+        svc = PasswordResetService(r)
+        await svc.consume_token("tok")
+        r.delete.assert_called_once_with("password_reset_user:10")
+
+    @pytest.mark.anyio
+    async def test_consume_token_uses_correct_redis_key(self) -> None:
+        r = _redis()
+        r.getdel.return_value = b"1"
+        svc = PasswordResetService(r)
+        await svc.consume_token("my-reset-token")
+        r.getdel.assert_called_once_with("password_reset:my-reset-token")
+
+    @pytest.mark.anyio
+    async def test_consume_token_single_use(self) -> None:
+        """Second consume on same token must raise (getdel returns None after first)."""
+        r = _redis()
+        r.getdel.side_effect = [b"3", None]
+        svc = PasswordResetService(r)
+        await svc.consume_token("tok")
+        with pytest.raises(PasswordResetTokenInvalidError):
+            await svc.consume_token("tok")
