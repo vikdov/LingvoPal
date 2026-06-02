@@ -3,6 +3,7 @@ import { ApiError } from '@/services/api';
 import { practiceApi } from '../api/practice.api';
 import { evaluateAnswer } from '../utils/answerMatcher';
 import type {
+  ActiveSession,
   ItemHint,
   ComparisonConfig,
   AnswerRecord,
@@ -82,9 +83,12 @@ interface PracticeState {
   nextReviewAt:    string | null;
   itemStartedAt:   number | null;
   pendingPayload:  PendingPayload | null;
+  pendingResume:   ActiveSession | null;
 
   startSession:          (setId: number, force?: boolean) => Promise<void>;
   startSessionAll:       (sourceLangId: number, force?: boolean) => Promise<void>;
+  checkActiveSession:    () => Promise<void>;
+  dismissResume:         () => void;
   submitAnswer:          (userAnswer: string) => void;
   setConfidenceOverride: (itemId: number, override: number | null) => void;
   resolveRetype:         (itemId: number) => void;
@@ -99,7 +103,7 @@ const RESET_STATE = {
   sessionId: null, setId: null, practiceAllMode: false, sourceLangId: null,
   items: [], config: DEFAULT_CONFIG, currentIndex: 0, answers: {},
   phase: 'idle' as SessionPhase, summary: null, error: null, nextReviewAt: null,
-  itemStartedAt: null, pendingPayload: null,
+  itemStartedAt: null, pendingPayload: null, pendingResume: null,
 };
 
 const _initialState = (() => {
@@ -161,6 +165,20 @@ export const usePracticeStore = create<PracticeState>()((set, get) => ({
       set({ phase: 'error', error: err instanceof Error ? err.message : 'Failed to start session.' });
     }
   },
+
+  checkActiveSession: async () => {
+    if (get().phase !== 'idle') return;
+    try {
+      const active = await practiceApi.getActiveSession();
+      if (active.has_active_session) {
+        set({ pendingResume: active });
+      }
+    } catch {
+      // Non-fatal — swallow silently
+    }
+  },
+
+  dismissResume: () => set({ pendingResume: null }),
 
   submitAnswer: (userAnswer) => {
     const { sessionId, items, currentIndex, itemStartedAt, config, phase } = get();

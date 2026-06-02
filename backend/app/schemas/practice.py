@@ -142,6 +142,7 @@ class ActiveSessionResponse(BaseModel):
     has_active_session: bool
     session_id: int | None = None
     set_id: int | None = None
+    source_lang_id: int | None = None
     remaining_count: int | None = None
 
 

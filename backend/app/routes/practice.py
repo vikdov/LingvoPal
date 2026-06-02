@@ -95,6 +95,7 @@ async def get_active_session(svc: PracticeServiceDep) -> ActiveSessionResponse:
         has_active_session=True,
         session_id=state.session_id,
         set_id=state.set_id,
+        source_lang_id=state.source_lang_id,
         remaining_count=state.remaining_count,
     )
 

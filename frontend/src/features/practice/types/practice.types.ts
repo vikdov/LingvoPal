@@ -71,7 +71,8 @@ export interface SessionSummary {
 export interface ActiveSession {
   has_active_session: boolean;
   session_id?: number;
-  set_id?: number;
+  set_id?: number | null;
+  source_lang_id?: number | null;
   remaining_count?: number;
 }
 

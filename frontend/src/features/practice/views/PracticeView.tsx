@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Loader2, LayersIcon, BookOpenIcon, PlayIcon, PlusCircleIcon } from 'lucide-react';
+import { Loader2, LayersIcon, BookOpenIcon, PlayIcon, PlusCircleIcon, HistoryIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -142,7 +142,7 @@ function PracticeSetPicker() {
 
 export function PracticeView() {
   const { t } = useTranslation();
-  const { phase, error, nextReviewAt, startSession, startSessionAll, reset } = usePracticeStore();
+  const { phase, error, nextReviewAt, startSession, startSessionAll, reset, checkActiveSession, dismissResume, pendingResume } = usePracticeStore();
   const store = usePracticeStore();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -164,6 +164,8 @@ export function PracticeView() {
     } else if (setId > 0) {
       startSession(setId);
       touchSet.mutate(setId);
+    } else {
+      checkActiveSession();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, setId, practiceAll, sourceLangId, startSession, startSessionAll, reset]);
@@ -245,7 +247,39 @@ export function PracticeView() {
   }
 
   if (!setId && !practiceAll) {
-    return <PracticeSetPicker />;
+    return (
+      <div className="flex-1 flex flex-col">
+        {pendingResume?.has_active_session && (
+          <div className="mx-6 mt-4 flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
+            <HistoryIcon className="size-4 text-primary shrink-0" />
+            <p className="text-sm text-foreground flex-1">
+              Unfinished session —{' '}
+              <span className="font-medium">{pendingResume.remaining_count ?? '?'} items</span> remaining.
+            </p>
+            <button
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              onClick={dismissResume}
+            >
+              Dismiss
+            </button>
+            <button
+              className="text-xs font-medium text-primary hover:underline"
+              onClick={() => {
+                dismissResume();
+                if (pendingResume.set_id) {
+                  navigate(`/practice?setId=${pendingResume.set_id}`);
+                } else if (pendingResume.source_lang_id) {
+                  navigate(`/practice?all=true&lang=${pendingResume.source_lang_id}`);
+                }
+              }}
+            >
+              Resume
+            </button>
+          </div>
+        )}
+        <PracticeSetPicker />
+      </div>
+    );
   }
 
   return null;

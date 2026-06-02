@@ -1,5 +1,6 @@
 import { api } from '@/services/api';
 import type {
+  ActiveSession,
   SessionStarted,
   SubmitAnswerRequest,
   AnswerBufferedResponse,
@@ -7,6 +8,9 @@ import type {
 } from '../types/practice.types';
 
 export const practiceApi = {
+  getActiveSession: () =>
+    api.get<ActiveSession>('/practice/sessions/active'),
+
   startSession: (params: { set_id: number; force?: boolean } | { practice_all: true; source_lang_id: number; force?: boolean }) =>
     api.post<SessionStarted>('/practice/sessions', params),
 
