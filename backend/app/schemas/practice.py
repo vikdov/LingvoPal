@@ -92,7 +92,7 @@ class SessionStartedResponse(BaseModel):
     """
 
     session_id: int
-    set_id: int | None       # None for "practice all" sessions
+    set_id: int | None  # None for "practice all" sessions
     items: list[ItemHintSchema]
     comparison_config: ComparisonConfig
     current_index: int = 0
@@ -103,9 +103,7 @@ class SessionStartedResponse(BaseModel):
 
 
 class SubmitAnswerRequest(BaseModel):
-    answer_id: str = Field(
-        ..., min_length=1, max_length=64, description="UUID4 idempotency key"
-    )
+    answer_id: str = Field(..., min_length=1, max_length=64, description="UUID4 idempotency key")
     item_id: int = Field(..., gt=0)
     user_answer: str = Field(..., max_length=500)
     response_time_ms: int = Field(..., ge=100, le=120_000)

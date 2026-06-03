@@ -42,11 +42,11 @@ class EmailChangeService:
         await self._redis.eval(
             _LUA_GENERATE_TOKEN,
             2,
-            f"email_change_user:{user_id}",   # KEYS[1]
-            f"email_change:{token}",           # KEYS[2]
-            TOKEN_TTL,                         # ARGV[1]
-            f"{user_id}|{new_email}",          # ARGV[2]
-            token,                             # ARGV[3]
+            f"email_change_user:{user_id}",  # KEYS[1]
+            f"email_change:{token}",  # KEYS[2]
+            TOKEN_TTL,  # ARGV[1]
+            f"{user_id}|{new_email}",  # ARGV[2]
+            token,  # ARGV[3]
         )
         return token
 

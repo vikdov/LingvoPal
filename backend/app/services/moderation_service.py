@@ -145,7 +145,8 @@ class ModerationService:
         if lang_mismatch:
             logger.warning(
                 "Language mismatch on submission: item=%d expected_lang=%s",
-                item_id, lang_code,
+                item_id,
+                lang_code,
             )
 
         existing = await self._mod.get_active_for_target(ModerationTargetType.ITEM, item_id)
@@ -204,9 +205,7 @@ class ModerationService:
         limit: int = 20,
     ) -> tuple[list[PendingModeration], int]:
         entries = list(
-            await self._mod.list_all(
-                target_type=target_type, status=status, skip=skip, limit=limit
-            )
+            await self._mod.list_all(target_type=target_type, status=status, skip=skip, limit=limit)
         )
         total = await self._mod.count_all(target_type=target_type, status=status)
         return entries, total
@@ -263,7 +262,10 @@ class ModerationService:
                 _assert_status(s.status, ContentStatus.COMMUNITY)
             await self._sets.update(entry.target_id, status=ContentStatus.APPROVED)
             await self._audit.log(
-                "sets", entry.target_id, "UPDATE", user_id=moderator_id,
+                "sets",
+                entry.target_id,
+                "UPDATE",
+                user_id=moderator_id,
                 old_values={"status": ContentStatus.COMMUNITY.value},
                 new_values={"status": ContentStatus.APPROVED.value},
             )
@@ -273,7 +275,10 @@ class ModerationService:
                 _assert_status(item.status, ContentStatus.COMMUNITY)
             await self._items.update_status(entry.target_id, ContentStatus.APPROVED)
             await self._audit.log(
-                "items", entry.target_id, "UPDATE", user_id=moderator_id,
+                "items",
+                entry.target_id,
+                "UPDATE",
+                user_id=moderator_id,
                 old_values={"status": ContentStatus.COMMUNITY.value},
                 new_values={"status": ContentStatus.APPROVED.value},
             )
@@ -348,9 +353,7 @@ class ModerationService:
         if not override:
             settings = get_settings()
             result = await self._session.execute(
-                select(ItemQualityMetrics).where(
-                    ItemQualityMetrics.item_id == item_id
-                )
+                select(ItemQualityMetrics).where(ItemQualityMetrics.item_id == item_id)
             )
             metrics = result.scalar_one_or_none()
             if metrics:
@@ -368,7 +371,10 @@ class ModerationService:
 
         await self._items.update_status(item_id, ContentStatus.OFFICIAL)
         await self._audit.log(
-            "items", item_id, "UPDATE", user_id=admin_id,
+            "items",
+            item_id,
+            "UPDATE",
+            user_id=admin_id,
             old_values={"status": ContentStatus.APPROVED.value},
             new_values={"status": ContentStatus.OFFICIAL.value},
         )
@@ -380,9 +386,7 @@ class ModerationService:
     # ADMIN: Promotion candidates
     # ------------------------------------------------------------------
 
-    async def list_promotion_candidates(
-        self, skip: int = 0, limit: int = 20
-    ) -> list:
+    async def list_promotion_candidates(self, skip: int = 0, limit: int = 20) -> list:
         """Return APPROVED items whose quality metrics meet OFFICIAL thresholds."""
         from sqlalchemy import select
 
@@ -419,12 +423,14 @@ class ModerationService:
 
         from app.models.item import Item
 
-        community_count = (await self._session.execute(
-            select(sql_func.count()).where(
-                Item.status == ContentStatus.COMMUNITY,
-                Item.deleted_at.is_(None),
+        community_count = (
+            await self._session.execute(
+                select(sql_func.count()).where(
+                    Item.status == ContentStatus.COMMUNITY,
+                    Item.deleted_at.is_(None),
+                )
             )
-        )).scalar_one()
+        ).scalar_one()
 
         pending_queue_count = await self._mod.count_all(status=ModerationStatus.PENDING)
         total_complaints = await self._complaints.count_all()
@@ -456,9 +462,9 @@ class ModerationService:
             QualityMetricsSummary,
         )
 
-        entries = list(await self._mod.list_all(
-            target_type=target_type, status=status, skip=skip, limit=limit
-        ))
+        entries = list(
+            await self._mod.list_all(target_type=target_type, status=status, skip=skip, limit=limit)
+        )
         total = await self._mod.count_all(target_type=target_type, status=status)
 
         if not entries:
@@ -467,8 +473,12 @@ class ModerationService:
         item_ids = [e.target_id for e in entries if e.target_type == ModerationTargetType.ITEM]
         set_ids = [e.target_id for e in entries if e.target_type == ModerationTargetType.SET]
 
-        item_counts = await self._complaints.count_for_targets_batch(ModerationTargetType.ITEM, item_ids)
-        set_counts = await self._complaints.count_for_targets_batch(ModerationTargetType.SET, set_ids)
+        item_counts = await self._complaints.count_for_targets_batch(
+            ModerationTargetType.ITEM, item_ids
+        )
+        set_counts = await self._complaints.count_for_targets_batch(
+            ModerationTargetType.SET, set_ids
+        )
 
         quality_map: dict[int, ItemQualityMetrics] = {}
         if item_ids:
@@ -484,21 +494,27 @@ class ModerationService:
             if e.target_type == ModerationTargetType.ITEM:
                 complaint_count = item_counts.get(e.target_id, 0)
                 qm = quality_map.get(e.target_id)
-                quality_metrics = QualityMetricsSummary(
-                    learner_count=qm.learner_count,
-                    sample_size=qm.sample_size,
-                    global_success_rate=qm.global_success_rate,
-                    avg_interval=qm.avg_interval,
-                ) if qm else None
+                quality_metrics = (
+                    QualityMetricsSummary(
+                        learner_count=qm.learner_count,
+                        sample_size=qm.sample_size,
+                        global_success_rate=qm.global_success_rate,
+                        avg_interval=qm.avg_interval,
+                    )
+                    if qm
+                    else None
+                )
             else:
                 complaint_count = set_counts.get(e.target_id, 0)
                 quality_metrics = None
 
-            enriched.append(AdminModerationResponse(
-                **base,
-                quality_metrics=quality_metrics,
-                complaint_count=complaint_count,
-            ))
+            enriched.append(
+                AdminModerationResponse(
+                    **base,
+                    quality_metrics=quality_metrics,
+                    complaint_count=complaint_count,
+                )
+            )
 
         return enriched, total
 
@@ -513,9 +529,9 @@ class ModerationService:
         skip: int = 0,
         limit: int = 20,
     ) -> tuple[list, int]:
-        entries = list(await self._complaints.list_all(
-            target_type=target_type, skip=skip, limit=limit
-        ))
+        entries = list(
+            await self._complaints.list_all(target_type=target_type, skip=skip, limit=limit)
+        )
         total = await self._complaints.count_all(target_type=target_type)
         return entries, total
 
@@ -541,7 +557,10 @@ class ModerationService:
             )
         await self._items.soft_delete(item_id)
         await self._audit.log(
-            "items", item_id, "DELETE", user_id=admin_id,
+            "items",
+            item_id,
+            "DELETE",
+            user_id=admin_id,
             old_values={"status": item.status.value, "reason": reason},
         )
         await self._session.commit()
@@ -564,7 +583,10 @@ class ModerationService:
             )
         await self._sets.soft_delete(set_id)
         await self._audit.log(
-            "sets", set_id, "DELETE", user_id=admin_id,
+            "sets",
+            set_id,
+            "DELETE",
+            user_id=admin_id,
             old_values={"status": s.status.value, "reason": reason},
         )
         await self._session.commit()
@@ -577,8 +599,14 @@ class ModerationService:
         if not deleted:
             raise ResourceNotFoundError("Complaint", complaint_id)
         await self._audit.log(
-            "content_complaints", complaint_id, "DELETE", user_id=admin_id,
-            old_values={"target_type": complaint.target_type.value, "target_id": complaint.target_id},
+            "content_complaints",
+            complaint_id,
+            "DELETE",
+            user_id=admin_id,
+            old_values={
+                "target_type": complaint.target_type.value,
+                "target_id": complaint.target_id,
+            },
         )
         await self._session.commit()
 
@@ -594,9 +622,9 @@ class ModerationService:
         skip: int = 0,
         limit: int = 20,
     ) -> tuple[list, int]:
-        entries = list(await self._audit.list_all(
-            table_name=table_name, action=action, skip=skip, limit=limit
-        ))
+        entries = list(
+            await self._audit.list_all(table_name=table_name, action=action, skip=skip, limit=limit)
+        )
         total = await self._audit.count_all(table_name=table_name, action=action)
         return entries, total
 
@@ -607,7 +635,10 @@ class ModerationService:
                 _assert_status(s.status, ContentStatus.COMMUNITY)
             await self._sets.update(entry.target_id, status=ContentStatus.DRAFT)
             await self._audit.log(
-                "sets", entry.target_id, "UPDATE", user_id=moderator_id,
+                "sets",
+                entry.target_id,
+                "UPDATE",
+                user_id=moderator_id,
                 old_values={"status": ContentStatus.COMMUNITY.value},
                 new_values={"status": ContentStatus.DRAFT.value},
             )
@@ -617,7 +648,10 @@ class ModerationService:
                 _assert_status(item.status, ContentStatus.COMMUNITY)
             await self._items.update_status(entry.target_id, ContentStatus.DRAFT)
             await self._audit.log(
-                "items", entry.target_id, "UPDATE", user_id=moderator_id,
+                "items",
+                entry.target_id,
+                "UPDATE",
+                user_id=moderator_id,
                 old_values={"status": ContentStatus.COMMUNITY.value},
                 new_values={"status": ContentStatus.DRAFT.value},
             )

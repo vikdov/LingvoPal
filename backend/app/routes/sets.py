@@ -13,8 +13,13 @@ from typing import NoReturn
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 
-from app.core.dependencies import AdminUser, ComplaintServiceDep, CurrentUser, SetServiceDep, WriteDBSession
-from app.services.lpset_export_service import LpsetExportError, LpsetExportService
+from app.core.dependencies import (
+    AdminUser,
+    ComplaintServiceDep,
+    CurrentUser,
+    SetServiceDep,
+    WriteDBSession,
+)
 from app.core.exceptions import LingvoPalError
 from app.core.http_errors import domain_error_to_http
 from app.schemas.common import PaginatedResponse
@@ -29,6 +34,7 @@ from app.schemas.set import (
     SetSummaryResponse,
     SetUpdateRequest,
 )
+from app.services.lpset_export_service import LpsetExportError, LpsetExportService
 
 router = APIRouter(prefix="/sets", tags=["sets"])
 
@@ -43,11 +49,17 @@ def _handle(exc: LingvoPalError) -> NoReturn:
 
 
 def _build_set_response(s, item_count: int, creator_username: str | None = None) -> SetResponse:
-    return SetResponse.model_validate(s).model_copy(update={"item_count": item_count, "creator_username": creator_username})
+    return SetResponse.model_validate(s).model_copy(
+        update={"item_count": item_count, "creator_username": creator_username}
+    )
 
 
-def _build_set_summary(s, item_count: int, creator_username: str | None = None) -> SetSummaryResponse:
-    return SetSummaryResponse.model_validate(s).model_copy(update={"item_count": item_count, "creator_username": creator_username})
+def _build_set_summary(
+    s, item_count: int, creator_username: str | None = None
+) -> SetSummaryResponse:
+    return SetSummaryResponse.model_validate(s).model_copy(
+        update={"item_count": item_count, "creator_username": creator_username}
+    )
 
 
 def _build_created_set_summary(s, item_count: int, is_pinned: bool) -> CreatedSetSummaryResponse:

@@ -33,7 +33,7 @@ _CONTENT_TYPE_TO_EXT = {
 class ImageSuggestion(TypedDict):
     """Image search result metadata."""
 
-    url: str           # S3 URL after persist_images; external URL on fetch failure
+    url: str  # S3 URL after persist_images; external URL on fetch failure
     thumbnail_url: str | None  # External thumbnail (picker display only, not stored)
     source: str
 
@@ -96,7 +96,9 @@ class ImageSearchService:
                 response = await self.client.get(source_url)
                 response.raise_for_status()
 
-                content_type = response.headers.get("content-type", "image/jpeg").split(";")[0].strip()
+                content_type = (
+                    response.headers.get("content-type", "image/jpeg").split(";")[0].strip()
+                )
                 raw_ext = content_type.split("/")[-1].lower()
                 ext = _CONTENT_TYPE_TO_EXT.get(raw_ext, "jpg")
 

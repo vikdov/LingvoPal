@@ -61,9 +61,7 @@ class UserLanguageRepository:
 
     async def deactivate_all(self, user_id: int) -> None:
         await self._session.execute(
-            update(UserLanguage)
-            .where(UserLanguage.user_id == user_id)
-            .values(is_active=False)
+            update(UserLanguage).where(UserLanguage.user_id == user_id).values(is_active=False)
         )
 
     async def set_active(self, user_id: int, language_id: int) -> UserLanguage | None:

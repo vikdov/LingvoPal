@@ -73,7 +73,10 @@ async def seed_official_sets() -> None:
                 data = lpset_file.read_bytes()
 
                 # Peek at manifest to check for duplicates before importing
-                import io, json, zipfile
+                import io
+                import json
+                import zipfile
+
                 try:
                     with zipfile.ZipFile(io.BytesIO(data)) as zf:
                         manifest_raw = json.loads(zf.read("manifest.json"))

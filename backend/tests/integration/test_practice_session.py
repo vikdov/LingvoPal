@@ -11,7 +11,6 @@ and will pass fully when run against a real Redis (TEST_REDIS_URL set).
 
 import pytest
 
-
 SIGNUP_PAYLOAD = {
     "email": "practice@example.com",
     "password": "Str0ng!Password#1",

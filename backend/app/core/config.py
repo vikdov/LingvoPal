@@ -281,17 +281,18 @@ class Settings(BaseSettings):
 
     S3_HOST: str = "localhost"
     S3_PORT: int = 9000
+    # Single source of truth for S3 transport security. Local MinIO is plain
+    # HTTP; managed S3 (Cloudflare R2) is HTTPS on the implicit 443. When true,
+    # S3_ENDPOINT_URL uses https and omits the port (R2: S3_REGION=auto). The
+    # production validator below also requires this to be true, so the endpoint
+    # scheme and the security check can never disagree.
     S3_USE_TLS: bool = Field(
-        False, description="Use HTTPS for S3 endpoint (required in production)"
+        False, description="Use HTTPS for the S3 endpoint (required in production)"
     )
     S3_ACCESS_KEY: str
     S3_SECRET_KEY: str
     S3_BUCKET: str = "lingvopal"
     S3_REGION: str = "us-east-1"
-    # Local MinIO is plain HTTP; managed S3 (Cloudflare R2) is HTTPS on 443.
-    # When true, S3_ENDPOINT_URL uses https and omits the port. Set
-    # S3_SECURE=true in production (R2: S3_REGION=auto).
-    S3_SECURE: bool = False
 
     # Public base URL for media files (browser-accessible).
     # Dev:  http://localhost:9000/lingvopal
@@ -362,7 +363,7 @@ class Settings(BaseSettings):
     def S3_ENDPOINT_URL(self) -> str:
         # Managed providers (R2) require https on the implicit 443; local MinIO
         # is http on an explicit port.
-        if self.S3_SECURE:
+        if self.S3_USE_TLS:
             return f"https://{self.S3_HOST}"
         return f"http://{self.S3_HOST}:{self.S3_PORT}"
 

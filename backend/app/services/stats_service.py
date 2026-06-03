@@ -68,9 +68,7 @@ class StatsService:
                     "today_correct": today.correct_count if today else 0,
                     "today_incorrect": today.incorrect_count if today else 0,
                     "today_new_words": today.new_words_count if today else 0,
-                    "today_minutes": (
-                        round(float(today.seconds_spent) / 60, 1) if today else 0.0
-                    ),
+                    "today_minutes": (round(float(today.seconds_spent) / 60, 1) if today else 0.0),
                 }
             )
 
@@ -145,9 +143,7 @@ class StatsService:
                 round(total_correct / total_reviews * 100, 2) if total_reviews else 0.0
             ),
             "total_hours": round(total_seconds / 3600, 2),
-            "avg_reviews_per_day": (
-                round(total_reviews / days_active, 2) if days_active else 0.0
-            ),
+            "avg_reviews_per_day": (round(total_reviews / days_active, 2) if days_active else 0.0),
             "daily": daily,
         }
 
@@ -201,9 +197,7 @@ class StatsService:
         limit: int = 20,
     ) -> list[dict]:
         await self._assert_language_exists(language_id)
-        return await self._repo.get_hardest_items(
-            self._user_id, language_id, limit=limit
-        )
+        return await self._repo.get_hardest_items(self._user_id, language_id, limit=limit)
 
     # ── Vocabulary maturity ───────────────────────────────────────────────────
 
@@ -228,9 +222,7 @@ class StatsService:
     # ── Private helpers ───────────────────────────────────────────────────────
 
     async def _assert_language_exists(self, language_id: int) -> None:
-        result = await self._session.execute(
-            select(Language.id).where(Language.id == language_id)
-        )
+        result = await self._session.execute(select(Language.id).where(Language.id == language_id))
         if result.scalar_one_or_none() is None:
             raise ResourceNotFoundError("Language", language_id)
 
@@ -253,11 +245,20 @@ def _compute_learning_balance(buckets: list[dict], total: int) -> dict | None:
     retention = mature_pct + long_term_pct
 
     if new_pct > 35:
-        return {"status": "heavy", "message": "Too many new cards at once. Review existing words before adding more."}
+        return {
+            "status": "heavy",
+            "message": "Too many new cards at once. Review existing words before adding more.",
+        }
     if active_load > 55:
-        return {"status": "heavy", "message": "Learning load is heavy. Consistent reviews help words mature faster."}
+        return {
+            "status": "heavy",
+            "message": "Learning load is heavy. Consistent reviews help words mature faster.",
+        }
     if total > 30 and retention < 15:
-        return {"status": "slow", "message": "Words are maturing slowly. Keep reviewing daily for better retention."}
+        return {
+            "status": "slow",
+            "message": "Words are maturing slowly. Keep reviewing daily for better retention.",
+        }
     return None
 
 

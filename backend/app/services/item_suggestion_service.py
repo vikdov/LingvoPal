@@ -226,7 +226,9 @@ class ItemSuggestionService:
             return {"audio_url": None, "context_audio_url": None}
 
         audio_url = results[0] if not isinstance(results[0], Exception) else None
-        context_audio_url = results[1] if len(results) > 1 and not isinstance(results[1], Exception) else None
+        context_audio_url = (
+            results[1] if len(results) > 1 and not isinstance(results[1], Exception) else None
+        )
         return {"audio_url": audio_url, "context_audio_url": context_audio_url}
 
     async def close(self):

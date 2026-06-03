@@ -2,14 +2,14 @@ from pydantic import BaseModel, Field
 
 
 class FieldMappingSchema(BaseModel):
-    term_field: str                        # required — what the user learns
+    term_field: str  # required — what the user learns
     translation_field: str | None = None  # term_trans (may not exist in monolingual decks)
-    context_field: str | None = None      # example sentence in source language
+    context_field: str | None = None  # example sentence in source language
     context_trans_field: str | None = None  # example sentence in target language
-    lemma_field: str | None = None        # base form / transcription / pronunciation
+    lemma_field: str | None = None  # base form / transcription / pronunciation
     part_of_speech_field: str | None = None  # parsed to PartOfSpeech enum
-    image_field: str | None = None        # must contain <img src="...">
-    audio_field: str | None = None        # must contain [sound:...]
+    image_field: str | None = None  # must contain <img src="...">
+    audio_field: str | None = None  # must contain [sound:...]
 
 
 class DetectedFieldInfo(BaseModel):

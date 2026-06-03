@@ -11,7 +11,6 @@ Test groups:
     only first occurrence wrapped
 """
 
-
 from app.services.morphology import find_surface_form, wrap_surface_form
 
 # ── find_surface_form ─────────────────────────────────────────────────────────

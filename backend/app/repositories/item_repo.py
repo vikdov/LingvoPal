@@ -71,9 +71,7 @@ class ItemRepository:
     # Set membership
     # ------------------------------------------------------------------
 
-    async def get_set_items(
-        self, set_id: int, skip: int = 0, limit: int = 20
-    ) -> Sequence[SetItem]:
+    async def get_set_items(self, set_id: int, skip: int = 0, limit: int = 20) -> Sequence[SetItem]:
         """Return a page of active SetItem rows for a set with items and translations."""
         result = await self._session.execute(
             select(SetItem)
@@ -163,17 +161,12 @@ class ItemRepository:
             (Item.status == ContentStatus.APPROVED, 0.7),
             else_=0.3,
         )
-        quality_score = (
-            status_weight
-            * (
-                0.4 * func.coalesce(ItemQualityMetrics.global_success_rate, 0.0)
-                + 0.3 * func.log(func.coalesce(ItemQualityMetrics.learner_count, 0) + 1)
-                + 0.3 * func.least(func.coalesce(ItemQualityMetrics.avg_interval, 0.0) / 120.0, 1.0)
-            )
+        quality_score = status_weight * (
+            0.4 * func.coalesce(ItemQualityMetrics.global_success_rate, 0.0)
+            + 0.3 * func.log(func.coalesce(ItemQualityMetrics.learner_count, 0) + 1)
+            + 0.3 * func.least(func.coalesce(ItemQualityMetrics.avg_interval, 0.0) / 120.0, 1.0)
         )
-        stmt = stmt.outerjoin(
-            ItemQualityMetrics, ItemQualityMetrics.item_id == Item.id
-        )
+        stmt = stmt.outerjoin(ItemQualityMetrics, ItemQualityMetrics.item_id == Item.id)
         result = await self._session.execute(
             stmt.order_by(quality_score.desc(), Item.term).offset(skip).limit(limit)
         )
@@ -234,6 +227,7 @@ class ItemRepository:
     async def count_external_set_memberships(self, item_id: int, owner_id: int) -> int:
         """Count SetItem rows for this item in sets NOT owned by owner_id."""
         from app.models.set import Set  # local import avoids circular
+
         result = await self._session.execute(
             select(func.count())
             .select_from(SetItem)
@@ -248,9 +242,7 @@ class ItemRepository:
 
     async def release_to_community(self, item_id: int) -> None:
         """Remove creator ownership — item remains public but is no longer 'mine'."""
-        await self._session.execute(
-            update(Item).where(Item.id == item_id).values(creator_id=None)
-        )
+        await self._session.execute(update(Item).where(Item.id == item_id).values(creator_id=None))
 
     # ------------------------------------------------------------------
     # Item writes
@@ -292,27 +284,29 @@ class ItemRepository:
 
     async def update(self, item_id: int, **kwargs) -> None:
         """Update item fields. Pass None to clear a nullable field."""
-        allowed = frozenset({
-            "term", "context", "difficulty", "part_of_speech",
-            "lemma", "image_url", "audio_url", "context_audio_url",
-        })
+        allowed = frozenset(
+            {
+                "term",
+                "context",
+                "difficulty",
+                "part_of_speech",
+                "lemma",
+                "image_url",
+                "audio_url",
+                "context_audio_url",
+            }
+        )
         values = {k: v for k, v in kwargs.items() if k in allowed}
         if not values:
             return
-        await self._session.execute(
-            update(Item).where(Item.id == item_id).values(**values)
-        )
+        await self._session.execute(update(Item).where(Item.id == item_id).values(**values))
 
     async def update_status(self, item_id: int, status: ContentStatus) -> None:
-        await self._session.execute(
-            update(Item).where(Item.id == item_id).values(status=status)
-        )
+        await self._session.execute(update(Item).where(Item.id == item_id).values(status=status))
 
     async def soft_delete(self, item_id: int) -> None:
         await self._session.execute(
-            update(Item)
-            .where(Item.id == item_id)
-            .values(deleted_at=datetime.now(timezone.utc))
+            update(Item).where(Item.id == item_id).values(deleted_at=datetime.now(timezone.utc))
         )
 
     # ------------------------------------------------------------------
@@ -353,11 +347,7 @@ class ItemRepository:
 
     async def get_orphaned_item_ids(self, set_id: int, owner_id: int) -> list[int]:
         """Return IDs of items owned by owner_id that are ONLY in set_id (no other SetItem rows)."""
-        other_sets = (
-            select(SetItem.item_id)
-            .where(SetItem.set_id != set_id)
-            .scalar_subquery()
-        )
+        other_sets = select(SetItem.item_id).where(SetItem.set_id != set_id).scalar_subquery()
         result = await self._session.execute(
             select(Item.id)
             .join(SetItem, SetItem.item_id == Item.id)
@@ -374,9 +364,7 @@ class ItemRepository:
         if not item_ids:
             return
         await self._session.execute(
-            update(Item)
-            .where(Item.id.in_(item_ids))
-            .values(deleted_at=datetime.now(timezone.utc))
+            update(Item).where(Item.id.in_(item_ids)).values(deleted_at=datetime.now(timezone.utc))
         )
 
     # ------------------------------------------------------------------
@@ -431,27 +419,19 @@ class ItemRepository:
         await self._session.flush()
         return t
 
-    async def update_translation_fields(
-        self, translation_id: int, **kwargs
-    ) -> None:
+    async def update_translation_fields(self, translation_id: int, **kwargs) -> None:
         """Update translation fields; pass None to clear a nullable field."""
         allowed = frozenset({"term_trans", "context_trans"})
         values = {k: v for k, v in kwargs.items() if k in allowed}
         if not values:
             return
         await self._session.execute(
-            update(Translation)
-            .where(Translation.id == translation_id)
-            .values(**values)
+            update(Translation).where(Translation.id == translation_id).values(**values)
         )
 
-    async def update_translation_status(
-        self, translation_id: int, status: ContentStatus
-    ) -> None:
+    async def update_translation_status(self, translation_id: int, status: ContentStatus) -> None:
         await self._session.execute(
-            update(Translation)
-            .where(Translation.id == translation_id)
-            .values(status=status)
+            update(Translation).where(Translation.id == translation_id).values(status=status)
         )
 
     async def soft_delete_translation(self, translation_id: int) -> None:
@@ -482,7 +462,9 @@ class ItemRepository:
             self._session.add(ItemSynonymTerm(item_id=item_id, language_id=language_id, term=term))
         await self._session.flush()
 
-    async def search_synonym_suggestions(self, q: str, language_id: int, limit: int = 10) -> list[str]:
+    async def search_synonym_suggestions(
+        self, q: str, language_id: int, limit: int = 10
+    ) -> list[str]:
         """Return distinct synonym terms matching q for autocomplete."""
         result = await self._session.execute(
             select(ItemSynonymTerm.term)

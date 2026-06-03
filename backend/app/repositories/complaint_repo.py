@@ -36,9 +36,7 @@ class ComplaintRepository:
         )
         return result.scalar_one()
 
-    async def count_for_target(
-        self, target_type: ModerationTargetType, target_id: int
-    ) -> int:
+    async def count_for_target(self, target_type: ModerationTargetType, target_id: int) -> int:
         result = await self._session.execute(
             select(func.count()).where(
                 ContentComplaint.target_type == target_type,

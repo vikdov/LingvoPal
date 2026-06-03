@@ -16,7 +16,6 @@ Test groups:
   - evaluate(): structured logging data (tested via result fields)
 """
 
-
 from app.models.enums import EvaluationMode
 from app.services.answer_evaluator import (
     DEFAULT_EXPECTED_MS,
@@ -57,9 +56,7 @@ def _ctx(
     mode: EvaluationMode = EvaluationMode.NORMAL,
     override: str | int | None = None,
 ) -> EvaluationContext:
-    conf: int | None = (
-        _OVERRIDE_MAP[override] if isinstance(override, str) else override
-    )
+    conf: int | None = _OVERRIDE_MAP[override] if isinstance(override, str) else override
     return EvaluationContext(
         user_answer=user,
         correct_answer=correct,
@@ -360,12 +357,8 @@ class TestConfidenceOverride:
         assert result.quality == 1
 
     def test_none_override_uses_speed(self):
-        result_slow = evaluate(
-            _ctx("hello", "hello", response_ms=9000, expected_ms=3000)
-        )
-        result_fast = evaluate(
-            _ctx("hello", "hello", response_ms=500, expected_ms=3000)
-        )
+        result_slow = evaluate(_ctx("hello", "hello", response_ms=9000, expected_ms=3000))
+        result_fast = evaluate(_ctx("hello", "hello", response_ms=500, expected_ms=3000))
         assert result_slow.quality < result_fast.quality
 
 

@@ -19,9 +19,7 @@ class SetItem(Base):
 
     __tablename__ = "set_items"
 
-    set_id: Mapped[int] = mapped_column(
-        ForeignKey("sets.id", ondelete="CASCADE"), primary_key=True
-    )
+    set_id: Mapped[int] = mapped_column(ForeignKey("sets.id", ondelete="CASCADE"), primary_key=True)
     item_id: Mapped[int] = mapped_column(
         ForeignKey("items.id", ondelete="CASCADE"), primary_key=True
     )
@@ -34,9 +32,7 @@ class SetItem(Base):
 
     set: Mapped["Set"] = relationship(back_populates="set_items")
     item: Mapped["Item"] = relationship()
-    translation: Mapped["Translation | None"] = relationship(
-        foreign_keys=[translation_id]
-    )
+    translation: Mapped["Translation | None"] = relationship(foreign_keys=[translation_id])
 
     __table_args__ = (
         Index("idx_set_items_by_set", "set_id", "sort_order"),

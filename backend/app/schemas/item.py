@@ -239,7 +239,9 @@ class ItemMetadataSuggestion(BaseModel):
     tts_audio_url: str | None = None
     context_tts_audio_url: str | None = None
     image_suggestions: list[ImageSuggestion] = Field(default_factory=list)
-    image_query: str | None = None  # Query used for image search; pass back to /search_images for more
+    image_query: str | None = (
+        None  # Query used for image search; pass back to /search_images for more
+    )
 
     # Diagnostics
     warnings: list[str] = Field(default_factory=list)

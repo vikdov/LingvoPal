@@ -240,6 +240,7 @@ async def get_auth_service(
 ) -> AuthService:
     """FastAPI dependency: Auth service, injected with current session + refresh svc."""
     from app.services.refresh_token_service import RefreshTokenService
+
     settings = get_settings()
     refresh_svc = RefreshTokenService(redis, ttl_seconds=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400)
     return AuthService(db, refresh_svc, redis)
@@ -289,6 +290,7 @@ async def get_email_change_service(
     redis: Annotated[aioredis.Redis, Depends(get_redis_client)],
 ) -> "EmailChangeService":
     from app.services.email_change_service import EmailChangeService
+
     return EmailChangeService(redis)
 
 
@@ -309,25 +311,17 @@ AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 StatsServiceDep = Annotated[StatsService, Depends(get_stats_service)]
 SetServiceDep = Annotated[SetService, Depends(get_set_service)]
 ItemServiceDep = Annotated[ItemService, Depends(get_item_service)]
-UserSettingsServiceDep = Annotated[
-    UserSettingsService, Depends(get_user_settings_service)
-]
+UserSettingsServiceDep = Annotated[UserSettingsService, Depends(get_user_settings_service)]
 PracticeServiceDep = Annotated[PracticeService, Depends(get_practice_service)]
 ModerationServiceDep = Annotated[ModerationService, Depends(get_moderation_service)]
 ComplaintServiceDep = Annotated[ComplaintService, Depends(get_complaint_service)]
 StorageDep = Annotated[StorageService, Depends(get_storage_service)]
-EmailVerifServiceDep = Annotated[
-    EmailVerificationService, Depends(get_email_verif_service)
-]
-PasswordResetServiceDep = Annotated[
-    PasswordResetService, Depends(get_password_reset_service)
-]
+EmailVerifServiceDep = Annotated[EmailVerificationService, Depends(get_email_verif_service)]
+PasswordResetServiceDep = Annotated[PasswordResetService, Depends(get_password_reset_service)]
 EmailChangeServiceDep = Annotated["EmailChangeService", Depends(get_email_change_service)]
 EmailServiceDep = Annotated[EmailService, Depends(get_email_service)]
 RedisDep = Annotated[aioredis.Redis, Depends(get_redis_client)]
-ItemSuggestionServiceDep = Annotated[
-    ItemSuggestionService, Depends(get_item_suggestion_service)
-]
+ItemSuggestionServiceDep = Annotated[ItemSuggestionService, Depends(get_item_suggestion_service)]
 
 __all__ = [
     "oauth2_scheme",

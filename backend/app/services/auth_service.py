@@ -14,11 +14,10 @@ from datetime import datetime, timedelta, timezone
 
 import redis.asyncio as aioredis
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from sqlalchemy.exc import IntegrityError
-
 from app.core.exceptions import (
     AccountDisabledError,
     AlreadyVerifiedError,
@@ -143,7 +142,9 @@ class AuthService:
     Instantiated with a session; repositories are constructed internally.
     """
 
-    def __init__(self, session: AsyncSession, refresh_svc: RefreshTokenService, redis: aioredis.Redis) -> None:
+    def __init__(
+        self, session: AsyncSession, refresh_svc: RefreshTokenService, redis: aioredis.Redis
+    ) -> None:
         self._session = session
         self._users = UserRepository(session)
         self._user_settings = UserSettingsService(session)
@@ -196,14 +197,10 @@ class AuthService:
         active_lang_id = await self._user_languages.get_active_lang_id(user.id)
         return await _build_token_response(user, settings, active_lang_id, self._refresh)
 
-    async def _resolve_interface_language(
-        self, accept_language: str | None, fallback: int
-    ) -> int:
+    async def _resolve_interface_language(self, accept_language: str | None, fallback: int) -> int:
         code = _parse_accept_language(accept_language)
         if code:
-            result = await self._session.execute(
-                select(Language).where(Language.code == code)
-            )
+            result = await self._session.execute(select(Language).where(Language.code == code))
             lang = result.scalar_one_or_none()
             if lang:
                 return lang.id

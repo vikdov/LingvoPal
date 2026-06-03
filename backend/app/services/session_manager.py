@@ -49,8 +49,8 @@ FLUSHING_KEY_PREFIX: Final[str] = "practice:flushing:"
 STARTING_KEY_PREFIX: Final[str] = "practice:starting:"
 SEEN_KEY_PREFIX: Final[str] = "practice:seen:"
 TTL_SECONDS: Final[int] = 24 * 3600  # 24-hour sliding window
-FLUSH_LOCK_TTL: Final[int] = 120      # flushing lock expires after 2 min
-START_LOCK_TTL: Final[int] = 30       # start lock: covers check-and-create window
+FLUSH_LOCK_TTL: Final[int] = 120  # flushing lock expires after 2 min
+START_LOCK_TTL: Final[int] = 30  # start lock: covers check-and-create window
 
 INTENSITY_MAP: Final[dict[str, float]] = {
     "light": 1.3,
@@ -141,11 +141,11 @@ class RawAnswerEvent:
     user_answer: str
     response_time_ms: int
     confidence_override: int | None  # 1=blackout … 5=easy; None = speed-based
-    answered_at: str                 # ISO-8601 UTC
+    answered_at: str  # ISO-8601 UTC
     is_correct: bool
     similarity: float
-    correct_answer: str              # item.term
-    answer_id: str                   # UUID4 idempotency key
+    correct_answer: str  # item.term
+    answer_id: str  # UUID4 idempotency key
 
     def to_dict(self) -> dict:
         return {
@@ -192,12 +192,12 @@ class SessionState:
 
     session_id: int
     user_id: int
-    set_id: int | None       # None for "practice all" sessions
+    set_id: int | None  # None for "practice all" sessions
     source_lang_id: int | None  # set when set_id is None, for reconstruction
     item_order: list[int]
     current_index: int
     config: BatchConfig
-    started_at: str            # ISO-8601 UTC
+    started_at: str  # ISO-8601 UTC
     item_hints: dict[str, dict] = field(default_factory=dict)
     last_answered_at: str | None = None  # updated by Lua on each answer
 
@@ -419,9 +419,7 @@ class SessionManager:
         except aioredis.ResponseError as exc:
             err = str(exc)
             if "SESSION_NOT_FOUND" in err:
-                logger.warning(
-                    "session_append_cache_miss", extra={"session_id": session_id}
-                )
+                logger.warning("session_append_cache_miss", extra={"session_id": session_id})
                 return None
             if "SESSION_COMPLETE" in err:
                 logger.warning(
@@ -532,9 +530,7 @@ class SessionManager:
 
     async def acquire_start_lock(self, user_id: int) -> bool:
         """Claim the per-user start lock (SET NX EX). Returns True if acquired."""
-        result = await self._redis.set(
-            self._starting_key(user_id), "1", nx=True, ex=START_LOCK_TTL
-        )
+        result = await self._redis.set(self._starting_key(user_id), "1", nx=True, ex=START_LOCK_TTL)
         return result is not None
 
     async def release_start_lock(self, user_id: int) -> None:

@@ -212,21 +212,15 @@ class SetRepository:
             values["target_lang_id"] = target_lang_id  # allows explicit None (clear)
         if not values:
             return
-        await self._session.execute(
-            update(Set).where(Set.id == set_id).values(**values)
-        )
+        await self._session.execute(update(Set).where(Set.id == set_id).values(**values))
 
     async def soft_delete(self, set_id: int) -> None:
         await self._session.execute(
-            update(Set)
-            .where(Set.id == set_id)
-            .values(deleted_at=datetime.now(timezone.utc))
+            update(Set).where(Set.id == set_id).values(deleted_at=datetime.now(timezone.utc))
         )
 
     async def restore(self, set_id: int) -> None:
-        await self._session.execute(
-            update(Set).where(Set.id == set_id).values(deleted_at=None)
-        )
+        await self._session.execute(update(Set).where(Set.id == set_id).values(deleted_at=None))
 
     async def find_by_title_and_langs(
         self,
@@ -257,9 +251,7 @@ class SetRepository:
     # User set library
     # ------------------------------------------------------------------
 
-    async def get_library_entry(
-        self, user_id: int, set_id: int
-    ) -> UserSetLibrary | None:
+    async def get_library_entry(self, user_id: int, set_id: int) -> UserSetLibrary | None:
         result = await self._session.execute(
             select(UserSetLibrary).where(
                 UserSetLibrary.user_id == user_id,
@@ -327,9 +319,7 @@ class SetRepository:
             .values(last_opened_at=datetime.now(timezone.utc))
         )
 
-    async def get_library_pins_batch(
-        self, user_id: int, set_ids: list[int]
-    ) -> dict[int, bool]:
+    async def get_library_pins_batch(self, user_id: int, set_ids: list[int]) -> dict[int, bool]:
         """Return {set_id: is_pinned} for each set_id that has a library entry."""
         if not set_ids:
             return {}

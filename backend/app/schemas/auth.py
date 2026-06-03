@@ -149,9 +149,7 @@ class TokenResponse(BaseModel):
     model_config = ConfigDict(frozen=True)  # responses are immutable value objects
 
     access_token: str = Field(..., description="JWT bearer token")
-    token_type: str = Field(
-        default="bearer", description="Token type (always 'bearer')"
-    )
+    token_type: str = Field(default="bearer", description="Token type (always 'bearer')")
     expires_in: int = Field(..., gt=0, description="Access token lifetime in seconds")
     user: UserPrivateResponse = Field(..., description="Authenticated user data")
     # Not serialized in JSON — the route reads this and sets it as an HttpOnly cookie.

@@ -7,8 +7,8 @@ and that concurrent attempts don't allow unbounded bypass.
 """
 
 import asyncio
-import pytest
 
+import pytest
 
 SIGNUP_PAYLOAD = {
     "email": "locktest@example.com",

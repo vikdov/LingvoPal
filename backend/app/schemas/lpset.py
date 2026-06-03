@@ -47,5 +47,7 @@ class LpsetManifest(BaseModel):
     @model_validator(mode="after")
     def check_version(self) -> "LpsetManifest":
         if self.version != LPSET_VERSION:
-            raise ValueError(f"Unsupported .lpset version {self.version!r}. Expected {LPSET_VERSION}.")
+            raise ValueError(
+                f"Unsupported .lpset version {self.version!r}. Expected {LPSET_VERSION}."
+            )
         return self

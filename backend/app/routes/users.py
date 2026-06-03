@@ -27,13 +27,13 @@ from app.models.user import User
 from app.repositories.user_language_repo import UserLanguageRepository
 from app.repositories.user_repo import UserRepository
 from app.schemas.user import UserPrivateResponse, UserUpdateRequest
-from app.services.user_profile_service import UserProfileService
 from app.schemas.user_language import (
     AddUserLanguageRequest,
     UserLanguageResponse,
     UserLanguagesResponse,
 )
 from app.services.user_language_service import UserLanguageService
+from app.services.user_profile_service import UserProfileService
 from app.services.user_settings_service import UserSettingsService
 
 router = APIRouter(prefix="/users", tags=["users"])

@@ -249,11 +249,7 @@ class PracticeService:
         items = [
             ItemHintSchema(
                 item_id=item_id,
-                **{
-                    k: v
-                    for k, v in (item_hints.get(str(item_id)) or {}).items()
-                    if k != "item_id"
-                },
+                **{k: v for k, v in (item_hints.get(str(item_id)) or {}).items() if k != "item_id"},
             )
             for item_id in item_ids
         ]
@@ -289,8 +285,7 @@ class PracticeService:
 
         if req.item_id != state.next_item_id:
             raise BusinessRuleViolationError(
-                f"Expected item {state.next_item_id}, got {req.item_id}. "
-                "Submit answers in order."
+                f"Expected item {state.next_item_id}, got {req.item_id}. Submit answers in order."
             )
 
         hint = state.get_hint(req.item_id)
@@ -389,9 +384,7 @@ class PracticeService:
 
         # Acquire flush lock — prevents double-processing
         if not await self._session_mgr.acquire_flush_lock(session_id):
-            raise BusinessRuleViolationError(
-                f"Session {session_id} is already being finalised."
-            )
+            raise BusinessRuleViolationError(f"Session {session_id} is already being finalised.")
 
         try:
             state = await self._load_state_or_raise(session_id)
@@ -541,9 +534,7 @@ class PracticeService:
         if db_session is None:
             raise ResourceNotFoundError("StudySession", session_id)
         if db_session.user_id != self._user_id:
-            raise NotAuthorizedError(
-                f"access session {session_id}", f"(user {self._user_id})"
-            )
+            raise NotAuthorizedError(f"access session {session_id}", f"(user {self._user_id})")
 
         db_set = await self._repo.get_set(db_session.set_id) if db_session.set_id else None
         if db_session.set_id and db_set is None:
@@ -582,7 +573,8 @@ class PracticeService:
 
         await self._session_mgr.save_session(state)
         await self._session_mgr.set_active(
-            self._user_id, session_id,
+            self._user_id,
+            session_id,
             set_id=state.set_id,
             source_lang_id=state.source_lang_id,
         )
@@ -612,7 +604,9 @@ class PracticeService:
             return True
         return await self._repo.check_library_access(self._user_id, db_set.id)
 
-    async def _build_batch_config(self, db_set: Set | None, settings: UserSettings | None = None) -> BatchConfig:
+    async def _build_batch_config(
+        self, db_set: Set | None, settings: UserSettings | None = None
+    ) -> BatchConfig:
         if settings is None:
             settings = await self._repo.get_user_settings(self._user_id)
 
@@ -652,7 +646,10 @@ class PracticeService:
         force: bool = False,
     ) -> list[int]:
         due_ids = await self._repo.select_due_item_ids(
-            self._user_id, set_id, config.batch_size, exclude_ids,
+            self._user_id,
+            set_id,
+            config.batch_size,
+            exclude_ids,
             source_lang_id=source_lang_id,
             force=force,
         )
@@ -666,7 +663,10 @@ class PracticeService:
         if slots_for_new > 0:
             combined_exclude = (exclude_ids or set()) | set(due_ids)
             new_ids = await self._repo.select_new_item_ids(
-                self._user_id, set_id, slots_for_new, combined_exclude,
+                self._user_id,
+                set_id,
+                slots_for_new,
+                combined_exclude,
                 source_lang_id=source_lang_id,
             )
             if new_ids and seed_new:

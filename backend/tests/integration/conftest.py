@@ -14,14 +14,15 @@ Each test gets:
 """
 
 import os
+
+import fakeredis.aioredis
 import pytest
 import pytest_asyncio
-import fakeredis.aioredis
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.database.session import get_db
 from app.core.redis import get_redis_client
+from app.database.session import get_db
 
 # ── Skip all integration tests if no DB configured ───────────────────────────
 
@@ -37,6 +38,7 @@ def _skip_without_db():
 
 # ── Shared engine (one per session) ──────────────────────────────────────────
 
+
 @pytest.fixture(scope="session")
 def anyio_backend():
     return "asyncio"
@@ -47,9 +49,10 @@ async def test_engine():
     """Create async engine and initialise schema once per test session."""
     _skip_without_db()
     engine = create_async_engine(TEST_DB_URL, echo=False)
-    from app.database.base import Base
     # Import all models so Base.metadata is populated
     import app.models  # noqa: F401
+    from app.database.base import Base
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield engine

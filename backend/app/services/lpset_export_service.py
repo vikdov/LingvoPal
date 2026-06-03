@@ -22,9 +22,7 @@ from app.services.storage import StorageService
 
 logger = logging.getLogger(__name__)
 
-_SAFE_CHARS = frozenset(
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
-)
+_SAFE_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
 
 
 def _safe_filename(name: str) -> str:
@@ -62,9 +60,7 @@ class LpsetExportService:
 
         source_lang_code = lang_id_to_code.get(db_set.source_lang_id, "xx")
         target_lang_code = (
-            lang_id_to_code.get(db_set.target_lang_id)
-            if db_set.target_lang_id
-            else None
+            lang_id_to_code.get(db_set.target_lang_id) if db_set.target_lang_id else None
         )
 
         # Load all items (up to 500, matching manifest limit)

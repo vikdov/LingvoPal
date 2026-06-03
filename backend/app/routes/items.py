@@ -3,7 +3,7 @@
 
 from typing import NoReturn
 
-from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, File, Query, Request, UploadFile, status
 
 from app.core.dependencies import (
     ComplaintServiceDep,
@@ -39,7 +39,6 @@ from app.schemas.item import (
 
 items_router = APIRouter(prefix="/items", tags=["items"])
 set_items_router = APIRouter(prefix="/sets/{set_id}/items", tags=["items"])
-
 
 
 # ============================================================================
@@ -447,9 +446,7 @@ async def report_item(
     svc: ComplaintServiceDep,
 ) -> ComplaintResponse:
     try:
-        complaint = await svc.file_item_complaint(
-            user.id, item_id, body.reason, body.details
-        )
+        complaint = await svc.file_item_complaint(user.id, item_id, body.reason, body.details)
         return ComplaintResponse.model_validate(complaint)
     except LingvoPalError as exc:
         _handle(exc)
@@ -473,9 +470,7 @@ async def get_set_items(
     limit: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse[SetItemResponse]:
     try:
-        set_items, total = await service.get_set_items(
-            user.id, set_id, skip=skip, limit=limit
-        )
+        set_items, total = await service.get_set_items(user.id, set_id, skip=skip, limit=limit)
         return PaginatedResponse[SetItemResponse](
             data=[SetItemResponse.model_validate(si) for si in set_items],
             total=total,

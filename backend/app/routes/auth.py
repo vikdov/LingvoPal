@@ -96,9 +96,7 @@ def _handle_auth_error(exc: AuthError) -> NoReturn:
     """Convert a domain AuthError into the appropriate HTTPException."""
     http_status = _AUTH_ERROR_STATUS.get(type(exc), status.HTTP_400_BAD_REQUEST)
     headers = (
-        {"WWW-Authenticate": "Bearer"}
-        if http_status == status.HTTP_401_UNAUTHORIZED
-        else None
+        {"WWW-Authenticate": "Bearer"} if http_status == status.HTTP_401_UNAUTHORIZED else None
     )
     raise HTTPException(
         status_code=http_status,
@@ -171,9 +169,7 @@ async def signup(
     background_tasks: BackgroundTasks,
 ) -> TokenResponse:
     try:
-        result = await auth.signup(
-            body, accept_language=request.headers.get("Accept-Language")
-        )
+        result = await auth.signup(body, accept_language=request.headers.get("Accept-Language"))
         _set_refresh_cookie(response, result.refresh_token)
         background_tasks.add_task(
             _send_verification_background,

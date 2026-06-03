@@ -207,7 +207,9 @@ class SetService:
         counts = await self._sets.count_items_batch([s.id for s in sets])
         creator_ids = [s.creator_id for s in sets if s.creator_id is not None]
         usernames = await self._users.get_usernames_batch(creator_ids)
-        results = [(s, counts[s.id], usernames.get(s.creator_id) if s.creator_id else None) for s in sets]
+        results = [
+            (s, counts[s.id], usernames.get(s.creator_id) if s.creator_id else None) for s in sets
+        ]
         return results, total
 
     # ------------------------------------------------------------------
@@ -233,9 +235,7 @@ class SetService:
         entry = await self._sets.get_library_entry(user_id, set_id)
         return entry is not None
 
-    async def save_set_to_library(
-        self, user_id: int, set_id: int
-    ) -> UserSetLibrary:
+    async def save_set_to_library(self, user_id: int, set_id: int) -> UserSetLibrary:
         """
         Bookmark a set in the user's library.
         The set must be visible to the user (own or public).

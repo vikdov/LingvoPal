@@ -155,7 +155,9 @@ async def admin_delete_item(
     item_id: int,
     admin: AdminUser,
     svc: ModerationServiceDep,
-    reason: str = Query(..., min_length=1, max_length=500, description="Removal reason shown to creator"),
+    reason: str = Query(
+        ..., min_length=1, max_length=500, description="Removal reason shown to creator"
+    ),
 ) -> None:
     try:
         await svc.admin_delete_item(admin.id, item_id, reason)
@@ -176,7 +178,9 @@ async def admin_delete_set(
     set_id: int,
     admin: AdminUser,
     svc: ModerationServiceDep,
-    reason: str = Query(..., min_length=1, max_length=500, description="Removal reason shown to creator"),
+    reason: str = Query(
+        ..., min_length=1, max_length=500, description="Removal reason shown to creator"
+    ),
 ) -> None:
     try:
         await svc.admin_delete_set(admin.id, set_id, reason)

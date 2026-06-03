@@ -25,9 +25,7 @@ from app.models.user_set_library import UserSetLibrary
 logger = logging.getLogger(__name__)
 
 
-def _split_cloze(
-    context: str | None, term: str
-) -> tuple[str | None, str | None, str | None]:
+def _split_cloze(context: str | None, term: str) -> tuple[str | None, str | None, str | None]:
     """
     Split context into (prefix, surface_word, suffix) for cloze display.
 
@@ -61,9 +59,7 @@ class PracticeRepository:
     # ── Set access ────────────────────────────────────────────────────────────
 
     async def get_set(self, set_id: int) -> Set | None:
-        return await self._db.scalar(
-            select(Set).where(Set.id == set_id, Set.deleted_at.is_(None))
-        )
+        return await self._db.scalar(select(Set).where(Set.id == set_id, Set.deleted_at.is_(None)))
 
     async def check_library_access(self, user_id: int, set_id: int) -> bool:
         return (
@@ -76,9 +72,7 @@ class PracticeRepository:
         ) is not None
 
     async def get_user_settings(self, user_id: int) -> UserSettings | None:
-        return await self._db.scalar(
-            select(UserSettings).where(UserSettings.user_id == user_id)
-        )
+        return await self._db.scalar(select(UserSettings).where(UserSettings.user_id == user_id))
 
     # ── Item selection ────────────────────────────────────────────────────────
 
@@ -114,10 +108,13 @@ class PracticeRepository:
             eligible = (
                 select(SetItem.item_id)
                 .join(Set, Set.id == SetItem.set_id)
-                .join(UserSetLibrary, and_(
-                    UserSetLibrary.set_id == Set.id,
-                    UserSetLibrary.user_id == user_id,
-                ))
+                .join(
+                    UserSetLibrary,
+                    and_(
+                        UserSetLibrary.set_id == Set.id,
+                        UserSetLibrary.user_id == user_id,
+                    ),
+                )
                 .where(Set.source_lang_id == source_lang_id)
                 .distinct()
                 .scalar_subquery()
@@ -141,9 +138,7 @@ class PracticeRepository:
             stmt = stmt.where(UserProgress.item_id.notin_(exclude_ids))
         return [row[0] for row in (await self._db.execute(stmt)).fetchall()]
 
-    async def count_due_items_by_set(
-        self, user_id: int, set_ids: list[int]
-    ) -> dict[int, int]:
+    async def count_due_items_by_set(self, user_id: int, set_ids: list[int]) -> dict[int, int]:
         """Return {set_id: due_count} for items currently due for review."""
         if not set_ids:
             return {}
@@ -209,10 +204,13 @@ class PracticeRepository:
             eligible = (
                 select(SetItem.item_id)
                 .join(Set, Set.id == SetItem.set_id)
-                .join(UserSetLibrary, and_(
-                    UserSetLibrary.set_id == Set.id,
-                    UserSetLibrary.user_id == user_id,
-                ))
+                .join(
+                    UserSetLibrary,
+                    and_(
+                        UserSetLibrary.set_id == Set.id,
+                        UserSetLibrary.user_id == user_id,
+                    ),
+                )
                 .where(Set.source_lang_id == source_lang_id)
                 .distinct()
                 .scalar_subquery()
@@ -252,19 +250,21 @@ class PracticeRepository:
         now = datetime.now(timezone.utc)
         stmt = (
             pg_insert(UserProgress)
-            .values([
-                {
-                    "user_id": user_id,
-                    "item_id": item_id,
-                    "ease_factor": ease_factor,
-                    "interval": interval,
-                    "repetitions": repetitions,
-                    "lapsed_attempts": lapsed_attempts,
-                    "last_reviewed": None,
-                    "next_review": now,
-                }
-                for item_id in item_ids
-            ])
+            .values(
+                [
+                    {
+                        "user_id": user_id,
+                        "item_id": item_id,
+                        "ease_factor": ease_factor,
+                        "interval": interval,
+                        "repetitions": repetitions,
+                        "lapsed_attempts": lapsed_attempts,
+                        "last_reviewed": None,
+                        "next_review": now,
+                    }
+                    for item_id in item_ids
+                ]
+            )
             .on_conflict_do_nothing(index_elements=["user_id", "item_id"])
         )
         await self._db.execute(stmt)
@@ -308,9 +308,9 @@ class PracticeRepository:
                     Item.status.label("item_status"),
                     func.coalesce(PinnedT.id, LangT.id).label("resolved_trans_id"),
                     func.coalesce(PinnedT.term_trans, LangT.term_trans).label("prompt"),
-                    func.coalesce(
-                        PinnedT.context_trans, LangT.context_trans
-                    ).label("context_trans"),
+                    func.coalesce(PinnedT.context_trans, LangT.context_trans).label(
+                        "context_trans"
+                    ),
                     UserProgress.last_reviewed.label("last_reviewed"),
                 )
                 .select_from(Item)
@@ -383,9 +383,7 @@ class PracticeRepository:
         hints: dict[str, dict] = {}
         for row in rows:
             pos = row.part_of_speech.value if row.part_of_speech is not None else None
-            cloze_prefix, cloze_word, cloze_suffix = _split_cloze(
-                row.context, row.answer
-            )
+            cloze_prefix, cloze_word, cloze_suffix = _split_cloze(row.context, row.answer)
             hints[str(row.item_id)] = {
                 "prompt": row.prompt,  # None when no translation found; caller applies fallback
                 "answer": row.answer,
@@ -398,9 +396,7 @@ class PracticeRepository:
                 "creator_id": row.creator_id,
                 "item_status": row.item_status.value if row.item_status is not None else "DRAFT",
                 "translation_id": row.resolved_trans_id,
-                "last_reviewed": (
-                    row.last_reviewed.isoformat() if row.last_reviewed else None
-                ),
+                "last_reviewed": (row.last_reviewed.isoformat() if row.last_reviewed else None),
                 "synonyms": synonyms.get(row.item_id, []),
                 "cloze_prefix": cloze_prefix,
                 "cloze_word": cloze_word,
@@ -492,9 +488,7 @@ class PracticeRepository:
 
     async def get_all_in_progress_sessions(self) -> list[StudySession]:
         result = await self._db.execute(
-            select(StudySession).where(
-                StudySession.status == SessionStatus.IN_PROGRESS
-            )
+            select(StudySession).where(StudySession.status == SessionStatus.IN_PROGRESS)
         )
         return list(result.scalars().all())
 
@@ -571,14 +565,15 @@ class PracticeRepository:
         )
 
     async def get_session_reviews_summary(self, session_id: int) -> dict:
-        row = (await self._db.execute(
-            select(
-                func.count().label("total"),
-                func.count().filter(StudyReview.was_correct.is_(True)).label("correct"),
-                func.avg(StudyReview.response_time).label("avg_ms"),
+        row = (
+            await self._db.execute(
+                select(
+                    func.count().label("total"),
+                    func.count().filter(StudyReview.was_correct.is_(True)).label("correct"),
+                    func.avg(StudyReview.response_time).label("avg_ms"),
+                ).where(StudyReview.session_id == session_id)
             )
-            .where(StudyReview.session_id == session_id)
-        )).one()
+        ).one()
         total = row.total or 0
         correct = row.correct or 0
         avg_ms = int(row.avg_ms) if row.avg_ms else 0

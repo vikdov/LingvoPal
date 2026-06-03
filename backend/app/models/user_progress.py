@@ -36,15 +36,12 @@ class UserProgress(Base):
         default=0, nullable=False, comment="Successful repetitions"
     )
     lapsed_attempts: Mapped[int] = mapped_column(
-        default=0, nullable=False,
+        default=0,
+        nullable=False,
         comment="Consecutive SM-2 failures since last success (lapse recovery counter)",
     )
-    last_reviewed: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    next_review: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    last_reviewed: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_review: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     user: Mapped["User"] = relationship()
     item: Mapped["Item"] = relationship()

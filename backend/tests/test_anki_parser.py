@@ -14,7 +14,6 @@ Test groups:
   - _extract_cloze_cards(): single, multi-index, with-hint, no-cloze, context field
 """
 
-
 from app.services.anki_parser import (
     CLOZE_CONTEXT_FIELD,
     DetectedField,
@@ -176,7 +175,9 @@ class TestFindRootDeckName:
 # ── _suggest_mapping ──────────────────────────────────────────────────────────
 
 
-def _meta(names: list[str], has_image: str | None = None, has_audio: str | None = None) -> dict[str, DetectedField]:
+def _meta(
+    names: list[str], has_image: str | None = None, has_audio: str | None = None
+) -> dict[str, DetectedField]:
     """Build a minimal field_meta dict for _suggest_mapping tests."""
     return {
         n: DetectedField(
@@ -219,11 +220,10 @@ class TestSuggestMapping:
 
     def test_no_field_used_twice(self) -> None:
         names = ["Front", "Back", "Sentence", "Reading", "Picture", "Audio"]
-        result = _suggest_mapping(
-            names, _meta(names, has_image="Picture", has_audio="Audio")
-        )
+        result = _suggest_mapping(names, _meta(names, has_image="Picture", has_audio="Audio"))
         assigned = [
-            f for f in [
+            f
+            for f in [
                 result.term_field,
                 result.translation_field,
                 result.context_field,

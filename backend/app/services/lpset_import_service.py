@@ -76,7 +76,9 @@ class LpsetImportService:
             manifest = self._parse_manifest(zf)
             lang_map = await self._resolve_languages(manifest)
             source_lang_id = lang_map[manifest.set.source_lang]
-            target_lang_id = lang_map.get(manifest.set.target_lang) if manifest.set.target_lang else None
+            target_lang_id = (
+                lang_map.get(manifest.set.target_lang) if manifest.set.target_lang else None
+            )
 
             # Dedup: compute hashes for all items, bulk-lookup existing
             hashes = [
@@ -118,19 +120,13 @@ class LpsetImportService:
             skipped_count = 0
             media_uploaded = 0
 
-            for sort_order, (lpset_item, content_hash) in enumerate(
-                zip(manifest.items, hashes)
-            ):
+            for sort_order, (lpset_item, content_hash) in enumerate(zip(manifest.items, hashes)):
                 if content_hash in existing:
                     db_item = existing[content_hash]
                     skipped_count += 1
                 else:
-                    image_url, n_img = await self._upload_media(
-                        zf, lpset_item.image, _IMAGE_EXTS
-                    )
-                    audio_url, n_audio = await self._upload_media(
-                        zf, lpset_item.audio, _AUDIO_EXTS
-                    )
+                    image_url, n_img = await self._upload_media(zf, lpset_item.image, _IMAGE_EXTS)
+                    audio_url, n_audio = await self._upload_media(zf, lpset_item.audio, _AUDIO_EXTS)
                     ctx_audio_url, n_ctx = await self._upload_media(
                         zf, lpset_item.context_audio, _AUDIO_EXTS
                     )
@@ -183,9 +179,7 @@ class LpsetImportService:
                     if target_lang_id and t_lang_id == target_lang_id and translation_id is None:
                         translation_id = db_trans.id
 
-                await self._items.add_to_set(
-                    db_set.id, db_item.id, sort_order, translation_id
-                )
+                await self._items.add_to_set(db_set.id, db_item.id, sort_order, translation_id)
 
         return {
             "set_id": db_set.id,
@@ -207,9 +201,7 @@ class LpsetImportService:
         hashes: list[str],
     ):
         """Return existing Set (active or deleted) if title + langs + item hashes match exactly."""
-        candidates = await self._sets.find_by_title_and_langs(
-            title, source_lang_id, target_lang_id
-        )
+        candidates = await self._sets.find_by_title_and_langs(title, source_lang_id, target_lang_id)
         for candidate in candidates:
             candidate_hashes = await self._sets.get_ordered_item_hashes(candidate.id)
             if candidate_hashes == hashes:

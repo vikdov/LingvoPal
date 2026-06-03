@@ -44,9 +44,7 @@ class UserRepository:
         if load_settings:
             stmt = stmt.options(
                 selectinload(User.settings).selectinload(UserSettings.native_language),
-                selectinload(User.settings).selectinload(
-                    UserSettings.interface_language
-                ),
+                selectinload(User.settings).selectinload(UserSettings.interface_language),
             )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
@@ -64,9 +62,7 @@ class UserRepository:
         if load_settings:
             stmt = stmt.options(
                 selectinload(User.settings).selectinload(UserSettings.native_language),
-                selectinload(User.settings).selectinload(
-                    UserSettings.interface_language
-                ),
+                selectinload(User.settings).selectinload(UserSettings.interface_language),
             )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
@@ -132,9 +128,7 @@ class UserRepository:
         return user
 
     async def update_profile_fields(self, user_id: int, patch: dict) -> None:
-        await self._session.execute(
-            update(User).where(User.id == user_id).values(**patch)
-        )
+        await self._session.execute(update(User).where(User.id == user_id).values(**patch))
 
     async def update_password(self, user_id: int, new_hash: str) -> None:
         await self._session.execute(
@@ -154,9 +148,7 @@ class UserRepository:
         from datetime import datetime, timezone
 
         await self._session.execute(
-            update(User)
-            .where(User.id == user_id)
-            .values(deleted_at=datetime.now(timezone.utc))
+            update(User).where(User.id == user_id).values(deleted_at=datetime.now(timezone.utc))
         )
 
     async def update_pending_email(self, user_id: int, pending_email: str | None) -> None:

@@ -28,13 +28,28 @@ class User(Base, SoftDeleteTimestampMixin):
     __table_args__ = (
         # Partial unique indexes — exclude soft-deleted rows so that a deleted
         # user's email/username can be re-used by a new account.
-        Index("uq_users_email_active", "email", unique=True, postgresql_where=text("deleted_at IS NULL")),
-        Index("uq_users_username_active", "username", unique=True, postgresql_where=text("deleted_at IS NULL AND username IS NOT NULL")),
+        Index(
+            "uq_users_email_active",
+            "email",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
+        Index(
+            "uq_users_username_active",
+            "username",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL AND username IS NOT NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_status: Mapped[UserRole] = mapped_column(
-        pgEnum(UserRole, name="user_role", create_type=False, values_callable=lambda obj: [e.value for e in obj]),
+        pgEnum(
+            UserRole,
+            name="user_role",
+            create_type=False,
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         nullable=False,
         default=UserRole.USER,
     )
@@ -103,12 +118,22 @@ class UserSettings(Base, TimestampMixin):
     # ── Learning behaviour ───────────────────────────────────────────────────
 
     learning_intensity: Mapped[LearningIntensity] = mapped_column(
-        pgEnum(LearningIntensity, name="learning_intensity", create_type=False, values_callable=lambda obj: [e.value for e in obj]),
+        pgEnum(
+            LearningIntensity,
+            name="learning_intensity",
+            create_type=False,
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         nullable=False,
         comment="Pace at which new material is introduced",
     )
     evaluation_mode: Mapped[EvaluationMode] = mapped_column(
-        pgEnum(EvaluationMode, name="evaluation_mode", create_type=False, values_callable=lambda obj: [e.value for e in obj]),
+        pgEnum(
+            EvaluationMode,
+            name="evaluation_mode",
+            create_type=False,
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         nullable=False,
         comment="How strictly typed answers are graded",
     )
@@ -152,7 +177,12 @@ class UserSettings(Base, TimestampMixin):
         comment="Max new items introduced in a single practice session",
     )
     retention_priority: Mapped[RetentionPriority] = mapped_column(
-        pgEnum(RetentionPriority, name="retention_priority", create_type=False, values_callable=lambda obj: [e.value for e in obj]),
+        pgEnum(
+            RetentionPriority,
+            name="retention_priority",
+            create_type=False,
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         nullable=False,
         comment="Speed vs. long-term mastery trade-off",
     )

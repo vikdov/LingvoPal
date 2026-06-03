@@ -7,7 +7,6 @@ Requires TEST_DATABASE_URL. All tests run in a rolled-back transaction.
 
 import pytest
 
-
 SIGNUP_PAYLOAD = {
     "email": "test@example.com",
     "password": "Str0ng!Password#1",

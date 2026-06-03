@@ -23,12 +23,8 @@ class UserSetLibrary(Base):
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
-    set_id: Mapped[int] = mapped_column(
-        ForeignKey("sets.id", ondelete="CASCADE"), primary_key=True
-    )
-    added_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), nullable=False
-    )
+    set_id: Mapped[int] = mapped_column(ForeignKey("sets.id", ondelete="CASCADE"), primary_key=True)
+    added_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
     last_opened_at: Mapped[datetime | None] = mapped_column(nullable=True)
     is_pinned: Mapped[bool] = mapped_column(default=False, nullable=False)
 

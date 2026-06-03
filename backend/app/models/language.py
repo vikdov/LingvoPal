@@ -17,9 +17,7 @@ class Language(Base):
         nullable=False,
         comment="ISO 639-1 language code (e.g., 'en', 'pl', 'es')",
     )
-    name: Mapped[str] = mapped_column(
-        nullable=False, comment="Human-readable language name"
-    )
+    name: Mapped[str] = mapped_column(nullable=False, comment="Human-readable language name")
 
     def __repr__(self) -> str:
         return f"<Language {self.code}: {self.name}>"

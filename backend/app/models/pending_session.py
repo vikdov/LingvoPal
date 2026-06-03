@@ -38,9 +38,7 @@ class PendingSession(Base):
         unique=True,
         comment="One pending-session record per study session",
     )
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     raw_events_json: Mapped[list] = mapped_column(
         JSONB,
         nullable=False,
@@ -63,9 +61,7 @@ class PendingSession(Base):
     study_session: Mapped["StudySession"] = relationship()
     user: Mapped["User"] = relationship()
 
-    __table_args__ = (
-        Index("idx_pending_sessions_user", "user_id", "recovered"),
-    )
+    __table_args__ = (Index("idx_pending_sessions_user", "user_id", "recovered"),)
 
     def __repr__(self) -> str:
         return f"<PendingSession session={self.session_id} recovered={self.recovered}>"

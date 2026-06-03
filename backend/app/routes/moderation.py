@@ -13,7 +13,7 @@ Routes:
 
 from typing import NoReturn
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 
 from app.core.dependencies import CurrentUser, ModerationServiceDep
 from app.core.exceptions import LingvoPalError

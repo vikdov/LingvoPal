@@ -130,4 +130,4 @@ class TestS3EndpointUrl:
 
     def test_https_when_tls_enabled(self) -> None:
         s = Settings(**_base_kwargs(S3_HOST="storage.example.com", S3_PORT=443, S3_USE_TLS=True))
-        assert s.S3_ENDPOINT_URL == "https://storage.example.com:443"
+        assert s.S3_ENDPOINT_URL == "https://storage.example.com"
