@@ -43,6 +43,10 @@ class TestProductionConstraints:
             CORS_ORIGINS=["https://lingvopal.com"],
             DEBUG=False,
             S3_USE_TLS=True,
+            DATABASE_SSL=True,
+            REDIS_SSL=True,
+            SMTP_HOST="smtp.gmail.com",
+            SMTP_TLS=True,
         )
         base.update(overrides)
         return base
@@ -70,6 +74,22 @@ class TestProductionConstraints:
     def test_s3_tls_required_in_production(self) -> None:
         with pytest.raises(ValidationError, match="S3_USE_TLS"):
             Settings(**self._prod(S3_USE_TLS=False))
+
+    def test_database_ssl_required_in_production(self) -> None:
+        with pytest.raises(ValidationError, match="DATABASE_SSL"):
+            Settings(**self._prod(DATABASE_SSL=False))
+
+    def test_redis_ssl_required_in_production(self) -> None:
+        with pytest.raises(ValidationError, match="REDIS_SSL"):
+            Settings(**self._prod(REDIS_SSL=False))
+
+    def test_localhost_smtp_rejected_in_production(self) -> None:
+        with pytest.raises(ValidationError, match="SMTP_HOST"):
+            Settings(**self._prod(SMTP_HOST="localhost"))
+
+    def test_smtp_tls_required_in_production(self) -> None:
+        with pytest.raises(ValidationError, match="SMTP_TLS"):
+            Settings(**self._prod(SMTP_TLS=False))
 
     def test_production_constraints_not_applied_in_development(self) -> None:
         # All constraints that would fail in production should pass in development

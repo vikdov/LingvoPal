@@ -183,7 +183,6 @@ class Settings(BaseSettings):
 
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
-    DATABASE_SSL_REQUIRE: bool = False
 
     # =========================================================================
     # Application
@@ -530,6 +529,36 @@ class Settings(BaseSettings):
                 "Plaintext S3 connections leak credentials and object data."
             )
 
+        # --- Database TLS ---
+        if not self.DATABASE_SSL:
+            raise ValueError(
+                "DATABASE_SSL must be True in production. "
+                "Managed Postgres (Neon) enforces TLS; a plaintext connection is "
+                "rejected at handshake and leaks credentials in transit."
+            )
+
+        # --- Redis TLS ---
+        if not self.REDIS_SSL:
+            raise ValueError(
+                "REDIS_SSL must be True in production. "
+                "Managed Redis (Upstash) enforces TLS; without it the rediss:// "
+                "scheme is never used and session/cache traffic is sent in plaintext."
+            )
+
+        # --- SMTP reachability ---
+        # The development default (localhost:1025, no TLS) silently drops mail in
+        # production: password-reset and verification emails never leave the host.
+        if self.SMTP_HOST in ("localhost", "127.0.0.1"):
+            raise ValueError(
+                "SMTP_HOST must be a real mail host in production, not localhost. "
+                "The default mailcatcher target silently discards transactional email."
+            )
+        if not self.SMTP_TLS:
+            raise ValueError(
+                "SMTP_TLS must be True in production. "
+                "Transactional email sent without TLS exposes credentials and message content."
+            )
+
         return self
 
     # =========================================================================
@@ -609,7 +638,7 @@ class Settings(BaseSettings):
             f"@{self.DATABASE_HOST}:{self.DATABASE_PORT}"
             f"/{self.DATABASE_NAME}"
         )
-        if self.DATABASE_SSL_REQUIRE:
+        if self.DATABASE_SSL:
             url += "?ssl=require"
         return url
 
