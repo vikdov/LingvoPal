@@ -35,7 +35,7 @@ repos:
       - id: eslint
         name: ESLint
         language: node
-        entry: bash -c 'cd frontend && npx eslint --max-warnings 0 "$@"' --
+        entry: bash -c 'cd frontend && npx eslint --max-warnings 0 "${@#frontend/}"' --
         types_or: [javascript, jsx, ts, tsx]
         files: ^frontend/src/
         pass_filenames: true
