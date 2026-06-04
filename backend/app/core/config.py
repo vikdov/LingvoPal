@@ -196,7 +196,7 @@ class Settings(BaseSettings):
     # =========================================================================
 
     API_TITLE: str = "LingvoPal"
-    API_VERSION: str = "1.0.3"
+    API_VERSION: str = "1.0.4"
     API_HOST: str = "0.0.0.0"  # nosec B104
     API_PORT: int = 8000
 
