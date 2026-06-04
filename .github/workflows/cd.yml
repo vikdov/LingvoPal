@@ -133,7 +133,7 @@ jobs:
           start=$(date +%s)
           url="${{ secrets.BACKEND_PUBLIC_URL }}/health"
           echo "Polling $url until commit == ${GITHUB_SHA}"
-          for i in $(seq 1 5); do        # TRIAL 3b: shortened from 90; revert with this commit
+          for i in $(seq 1 90); do        # up to ~15 min, covers a cold build
             body=$(curl -s --max-time 10 "$url" || true)
             live=$(printf '%s' "$body" | jq -r '.commit // empty' 2>/dev/null || true)
             if [ "$live" = "${GITHUB_SHA}" ]; then
