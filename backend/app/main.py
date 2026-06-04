@@ -4,7 +4,6 @@
 import json
 import logging
 import logging.config
-import os
 from contextlib import asynccontextmanager
 
 import sentry_sdk
@@ -341,7 +340,6 @@ def create_app() -> FastAPI:
             "status": "ok",
             "app": settings.API_TITLE,
             "version": settings.API_VERSION,
-            "commit": os.getenv("RENDER_GIT_COMMIT", "unknown"),
         }
 
     # ========================================================================
