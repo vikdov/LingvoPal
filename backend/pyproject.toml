@@ -23,7 +23,7 @@ dependencies = [
     "pydantic[email]>=2.12.5",
     "bcrypt==4.3.0",
     "aioboto3>=15.5.0",
-    "aiosmtplib>=5.1.0",
+    "aiosmtplib>=5.1.1",
     "langdetect>=1.0.9",
     "better-profanity>=0.7.0",
     "spacy>=3.8.14",
