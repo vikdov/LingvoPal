@@ -1,254 +1,287 @@
-# LingvoPal
+# Experiment 08 — Continuous Integration
 
-**Writing-first language learning app built on active recall and spaced repetition.**
+**Branch:** `experiment/08-ci`
+**Measures:** manual verification time (min), step count, CI time-to-feedback cold/warm (min), detection times per trial
 
-Most language apps let you tap the right answer. LingvoPal makes you type it — inside a real sentence, from memory. That friction is the point.
-
----
-
-## How it works
-
-1. A sentence appears with one word missing
-2. You type the answer (no hints, no multiple choice)
-3. Immediate feedback — correct or not
-4. SM-2 algorithm schedules the next review based on your performance
-
-Active recall + contextual writing + spaced repetition in one focused loop.
+Pipeline: 12 jobs — backend lint, tests, migrations+alembic-check, docker+Trivy, bandit, uv-audit, gitleaks; frontend lint-build, tests, audit, docker+Trivy; plus `ci-success` aggregate gate.
+CodeQL runs separately on `main`/`develop` + weekly cron — never on `experiment/*`.
+`ci-success` mirrors any failed job — stated once, not repeated per phase.
 
 ---
 
-## Features
-
-| Area | What's implemented |
-|---|---|
-| **Auth** | Email/password signup, JWT sessions, password reset |
-| **Practice** | Cloze sentences, manual text input, confidence override, session summary |
-| **Spaced Repetition** | SM-2 with lapsed-card recovery, intensity multiplier, 6-hour new-word phase |
-| **Sets** | Create/edit vocab sets, public/private visibility, Anki import |
-| **Discovery** | Browse and filter public sets by language pair, level, source |
-| **Stats** | Daily reviews, accuracy trends, activity charts |
-| **Admin** | Moderation queue for community-submitted content |
-| **Settings** | Interface language, target language, theme, account management |
-
----
-
-## Tech Stack
-
-### Frontend
-- **React 19** + **TypeScript** — Vite 8 build
-- **Tailwind CSS v4** — CSS-first, no config file
-- **shadcn/ui** — accessible component primitives
-- **Zustand 5** — lightweight feature-scoped state
-- **TanStack Query 5** — server state, caching, mutations
-- **Recharts** — progress and activity charts
-
-### Backend
-- **FastAPI** — async Python API, auto-generated OpenAPI docs
-- **SQLAlchemy 2.0** — async ORM with `asyncpg`
-- **Pydantic v2** — schema validation and settings
-- **Redis** — session buffering, SRS queue
-- **Alembic** — database migrations
-- **uv** — fast Python package manager
-
-### Infrastructure
-- **PostgreSQL 16** — primary database
-- **Redis** — caching and session state
-- **Docker Compose** — local dev environment
-
----
-
-## Architecture
-
-### Backend — strict layered separation
-
-```
-Routes → Services → Repositories → Models
-```
-
-- **Routes** (`app/routes/`) — parse HTTP, call services, map exceptions to status codes. No logic.
-- **Services** (`app/services/`) — all business logic, transaction boundaries, domain exceptions.
-- **Repositories** (`app/repositories/`) — raw ORM queries only.
-- **Models** (`app/models/`) — SQLAlchemy table definitions.
-- **Schemas** (`app/schemas/`) — Pydantic request/response contracts.
-
-### Frontend — feature-based structure
-
-```
-src/features/{feature}/
-  api/          # TanStack Query hooks + fetch calls
-  components/   # Feature-specific UI
-  hooks/        # Custom hooks
-  store/        # Zustand slice
-  types/        # TypeScript types
-  views/        # Page-level components
-```
-
-Shared UI primitives live in `src/components/ui/`. Features export public APIs via `index.ts` barrels.
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Docker + Docker Compose
-- Node.js 20+
-- Python 3.12+ with [uv](https://docs.astral.sh/uv/)
-
-### 1. Start infrastructure
+## Pre-conditions
 
 ```bash
-docker compose up -d
+cd ~/code/LingvoPal
+git checkout experiment/08-ci
+git status      # must be clean
+gh auth status
 ```
 
-Starts PostgreSQL 16, Redis, and pgAdmin.
+One-time governance: set `ci-success` as a required status check on `main`
+(Settings → Branches → branch protection). Screenshot → Appendix B.
 
-### 2. Backend
+---
+
+## Timing helper — paste once per shell
+
+Keys on the pushed commit SHA; never waits for a stale prior run.
 
 ```bash
-cd backend
-uv sync                              # Install dependencies
-uv run alembic upgrade head          # Apply migrations
-uvicorn app.main:app --reload        # Dev server → http://localhost:8000
+ci_wait() {
+  local sha rid=""
+  sha=$(git rev-parse HEAD)
+  for _ in $(seq 1 40); do
+    rid=$(gh run list --workflow ci.yml --branch "$(git branch --show-current)" \
+          --limit 15 --json databaseId,headSha \
+          -q "[.[] | select(.headSha==\"$sha\")][0].databaseId")
+    [ -n "$rid" ] && break
+    sleep 3
+  done
+  [ -z "$rid" ] && { echo "no CI run found for $sha"; return 2; }
+  echo "run $rid  (sha ${sha:0:8})"
+  gh run watch "$rid" --exit-status; local rc=$?
+  gh run view "$rid" --json conclusion,createdAt,updatedAt,jobs -q '
+    "conclusion=\(.conclusion)  wall=\((((.updatedAt|fromdateiso8601)-(.createdAt|fromdateiso8601))/60*100|floor)/100) min",
+    (.jobs[] | "  \(.conclusion // "running")  \(((((.completedAt//.startedAt)|fromdateiso8601)-(.startedAt|fromdateiso8601))/60*100|floor)/100)m  \(.name)")'
+  return $rc
+}
 ```
 
-API docs available at `http://localhost:8000/docs`.
+---
 
-### 3. Frontend
+## Phase −1 — Green baseline + seam-cost log (run FIRST)
 
 ```bash
-cd frontend
-npm install
-npm run dev                          # Dev server → http://localhost:5173
+git commit --allow-empty -m "ci: green baseline check"
+git push
+ci_wait   # expect conclusion=success, all 12 green
 ```
 
-### Environment
-
-Copy `.env.example` to `.env` and fill in values. The config loader resolves `.env` → `.env.{ENV}` → `.env.local`.
-
----
-
-## Spaced Repetition
-
-`backend/app/services/spaced_repetition.py` — pure SM-2 implementation, no side effects.
-
-Key behaviors:
-- New words: 6-hour initial interval before entering full SR schedule
-- Lapsed cards: short retry loop (5–120 min) before resuming normal intervals
-- User intensity multiplier: adjusts interval growth per user preference
-- Confidence override: user can flag "knew it" / "didn't know it" regardless of typed answer
-
----
-
-## Project Status
-
-MVP v0.1 — core learning loop is complete and functional.
-
-- [x] Auth + sessions
-- [x] Practice loop (cloze → answer → SM-2 → reschedule)
-- [x] Vocabulary sets + Anki import
-- [x] Public content discovery
-- [x] Stats dashboard
-- [x] Admin moderation queue
-- [ ] Email delivery (SMTP config required)
-- [ ] CI/CD pipeline
-- [ ] Production deployment
-
----
-
-## Design Philosophy
-
-> Type it. Don't tap it.
-
-LingvoPal intentionally removes passive recognition. Writing activates different recall pathways than selecting from options. The app optimizes for long-term retention over short-term engagement metrics.
-
-- Active recall over recognition
-- Writing over tapping  
-- Quality content over quantity
-- Focused method over feature sprawl
-
----
-
-## Academic Context
-
-LingvoPal serves as the primary case study for a bachelor's thesis:
-
-> **"Impact of DevOps Practices on Software Delivery Efficiency and Business Performance"**
-
-### Core Thesis Argument
-
-DevOps is not a technology stack to install — it is a corrective toolkit applied to specific bottlenecks. The right question is never "which DevOps tools exist?" but "what hurts most right now, and which practice fixes it?"
-
-Adopting tools without identifying the underlying inefficiency produces **Cargo Cult DevOps**: the rituals are followed, the tools are running, but no real friction is removed.
-
-The thesis demonstrates the alternative: each practice was adopted when a specific bottleneck made it necessary, and gains compound as practices stack.
-
-### DevOps Practices Inventory
-
-| Practice | Tool | Status | Bottleneck it solves |
-|---|---|---|---|
-| Version control conventions | Conventional commits + feature branches | Present | Change traceability, rework visibility |
-| Dependency management | `uv` + lockfile | Present | Reproducible installs, fast setup |
-| Containerization | Docker Compose | Present | Environment parity, service orchestration |
-| Environment automation | `scripts/setup.sh` | Present | Onboarding friction, manual steps |
-| Database migrations | Alembic | Present | Schema safety, rollback capability |
-| Test automation | pytest | Partial | Defect detection before integration |
-| Continuous Integration | GitHub Actions | Planned | Automated validation on every PR |
-| Continuous Deployment | Railway | Planned | Manual deploy eliminated, lead time reduced |
-| Observability | Structured logging | Deferred | No production users yet — adding now = Cargo Cult |
-| IaC / Orchestration | — | Deferred | Single server — no infra drift problem at this scale |
-
-### Research Methodology
-
-A controlled experiment reconstructs the adoption sequence on isolated git branches. Each practice is introduced one at a time; metrics are recorded before and after each addition to isolate its individual contribution.
+If any job is red: fix it (bump dep / base image — never weaken a gate).
+Log each incident with resolution time → Appendix A.9 `tests ↔ CI` row:
 
 ```
-experiment/00-baseline     ← no DevOps practices
-experiment/01-vcs          ← + conventional commits & branching
-experiment/02-deps         ← + uv + lockfile
-experiment/03-docker       ← + Docker Compose
-experiment/04-scripts      ← + setup.sh
-experiment/05-migrations   ← + Alembic
-experiment/06-tests        ← + pytest
-experiment/07-ci           ← + GitHub Actions CI
-experiment/08-deploy       ← + CD pipeline + live deployment
+| tests ↔ CI | <what failed> | <min> |
 ```
 
-Metrics are practice-specific — each practice is evaluated on the capability it introduces, not a single universal measure:
+---
 
-| Branch | Metric |
-|---|---|
-| `00-baseline` | Setup time (min), manual step count |
-| `01-vcs` | `fix:`/`feat:` commit ratio, branch lifetime |
-| `02-deps` | Install time, reproducibility |
-| `03-docker` | Setup time delta, eliminated manual service steps |
-| `04-scripts` | Step count: manual vs scripted |
-| `05-migrations` | Migration apply + rollback time |
-| `06-tests` | Time-to-detect injected bug, coverage % |
-| `07-ci` | Time-to-feedback (min), manual steps eliminated |
-| `08-deploy` | Lead time commit→live (min), deploy step count |
+## Phase 0 — Manual baseline (sequential, dev machine)
 
-### Compounding Effect
+Record wall time AND step count.
 
-Practices in isolation give linear gains. Practices in combination give superlinear gains:
+**Warm first (untimed):** run the block once, discard timing — primes gitleaks pre-commit env, uvx bandit fetch, Docker build cache. Time the second run.
 
-- Tests alone — catches bugs locally, sometimes skipped
-- Tests + CI — catches bugs automatically on every push, never skipped
-- Tests + CI + CD — catches bugs and ships fixes with a single `git push`
+```bash
+time (
+  cd backend && \
+  uv run ruff check . && \
+  uv run ruff format --check . && \
+  uv run pytest -q && \
+  uv run alembic upgrade head && \
+  uv run alembic check && \
+  uv audit --no-dev && \
+  uvx 'bandit[toml]==1.9.4' -c pyproject.toml -r app -l && \
+  docker build -t lingvopal-backend:manual-check . > /dev/null && \
+  cd .. && \
+  pre-commit run gitleaks --all-files && \
+  cd frontend && \
+  npm run lint && \
+  npx tsc --noEmit && \
+  npm audit --audit-level=high --omit=dev && \
+  npm run test:coverage && \
+  npm run build > /dev/null
+)
+```
 
-Each layer multiplies the value of the one before it.
+Record: total wall time (min); N = number of `&&`-separated commands typed by hand → §4.8.3 "manual steps eliminated" = N → 0.
 
-### Deferred Practices
+> **Note — asymmetry:** Phase 0 measures checks a developer ran *by hand in the pre-CI world*. CI does strictly more (Trivy image scan, full-history gitleaks, CodeQL) — that model shift is the finding, not a like-for-like benchmark. Never subtract Phase 0 time from CI time.
 
-The following practices are understood but intentionally not yet adopted — the bottlenecks they solve have not materialized at current project scale:
+| CI job | In manual baseline? |
+|--------|-------------------|
+| Backend lint / tests / migrations / bandit / uv audit | yes |
+| Frontend lint+build / tests / npm audit | yes |
+| gitleaks secret scan | partial — manual = working tree; CI = full history |
+| Backend Docker — Trivy scan | NO |
+| Frontend Docker — build + Trivy | NO |
+| CodeQL | NO |
 
-| Practice | Adopted when |
-|---|---|
-| Kubernetes / orchestration | Multi-instance traffic scaling required |
-| Feature flags | Multiple active user segments need independent releases |
-| Full observability stack (Sentry, Prometheus) | First real production user complaints |
-| Load testing | Pre-launch performance SLA defined |
-| Secret management (Vault) | Multi-team credential access required |
-| IaC (Terraform) | Multi-environment infra drift becomes a real problem |
+---
 
-Deferring these is the correct DevOps decision at MVP stage. Adopting them now would be Cargo Cult.
+## Phase 1 — CI time-to-feedback (3 runs, serialized)
+
+Run 1 = fully cold — clear all GHA caches first:
+
+```bash
+gh cache delete --all
+
+git commit --allow-empty -m "ci: timing run 1 (cold)"; git push; ci_wait
+git commit --allow-empty -m "ci: timing run 2 (warm)"; git push; ci_wait
+git commit --allow-empty -m "ci: timing run 3 (warm)"; git push; ci_wait
+git commit --allow-empty -m "ci: timing run 4 (warm)"; git push; ci_wait
+```
+
+Record per run: wall (min) + 12 per-job durations (`ci_wait` prints both).
+Report Run 1 (cold) and Runs 2–4 (warm, n=3) separately — do not average across the cache boundary.
+Time-to-feedback = slowest *work* job (critical path), not the sum. Report `ci-success` separately.
+
+---
+
+## Phase 2 — Broken-commit detection
+
+```bash
+cat >> backend/tests/test_sm2_engine.py << 'EOF'
+
+def test_intentional_failure():
+    """CI detection trial — reverted after test."""
+    assert False, "intentional failure"
+EOF
+git add backend/tests/test_sm2_engine.py
+git commit -m "test: inject failing test for CI detection trial"
+git push; ci_wait
+```
+
+**Expected red:** `Backend · Tests` + `CI Success`.
+
+Record: root-cause job + push→failure wall (min).
+
+```bash
+git revert HEAD --no-edit && git push; ci_wait   # → 12-green
+```
+
+### Phase 2b — Counterfactual: no gate on pre-CI branch
+
+```bash
+# Verify chosen branch has no workflow file:
+git show experiment/07-security:.github/workflows/ci.yml 2>/dev/null \
+  && echo "HAS CI — use 06-tests instead" || echo "no CI on 07-security ✓"
+
+git stash -u 2>/dev/null; git checkout experiment/07-security
+cat >> backend/tests/test_sm2_engine.py << 'EOF'
+
+def test_optional_side_counterfactual():
+    assert False, "no CI gate here"
+EOF
+git add -A && git commit -m "test: optional-side counterfactual (no CI)"
+git push
+gh run list --branch experiment/07-security --limit 3   # expect: 0 runs triggered
+
+git revert HEAD --no-edit && git push
+git checkout experiment/08-ci; git stash pop 2>/dev/null || true
+```
+
+Record: broken code pushed, zero gate fired → §5.4 counterfactual.
+
+---
+
+## Phase 3 — Bypass enforcement: SAST
+
+```bash
+cat >> backend/app/main.py << 'EOF'
+
+# CI BYPASS TEST — reverted after test
+import subprocess
+subprocess.call("ls", shell=True)   # bandit B602/B607
+EOF
+git add backend/app/main.py
+git commit --no-verify -m "test: bypass pre-commit for CI SAST trial"
+git push; ci_wait
+```
+
+**Expected red:** `Backend · SAST (bandit)` + `Backend · Lint` (ruff E402) + `CI Success`.
+
+Record: local hooks bypassed via `--no-verify`, CI blocks independently; push→failure wall (min).
+
+```bash
+git revert HEAD --no-edit && git push; ci_wait   # → 12-green
+```
+
+### Phase 3b — Bypass enforcement: secret scan (throwaway branch)
+
+```bash
+git checkout -b experiment/08-ci-secrettrial
+printf '%s\n' '-----BEGIN RSA PRIVATE KEY-----' \
+  'MIIEowIBAAKCAQEAfaketestkeyDONOTUSE000000000000000000000000000000' \
+  '-----END RSA PRIVATE KEY-----' > FAKE_TEST_KEY_DELETE_ME.pem
+git add FAKE_TEST_KEY_DELETE_ME.pem
+git commit --no-verify -m "test: gitleaks CI enforcement trial"
+git push -u origin experiment/08-ci-secrettrial
+ci_wait   # expect red: Security · Secret scan (gitleaks) + CI Success
+# Screenshot the red gitleaks job → Appendix B
+
+# Teardown — key ends up on no live branch:
+git checkout experiment/08-ci
+git branch -D experiment/08-ci-secrettrial
+git push origin --delete experiment/08-ci-secrettrial
+```
+
+Record: local hook bypassed via `--no-verify`, CI gitleaks blocked it; push→failure wall (min).
+
+---
+
+## Phase 4 — Migration-drift detection
+
+```bash
+# Verify current head revision first:
+cd backend && uv run alembic heads
+# Use the printed hash as down_revision below
+
+cat > backend/migrations/versions/zzzz_drift_trial.py << 'EOF'
+"""drift trial — reverted after test"""
+from alembic import op
+revision = "zzzz_drift_trial"
+down_revision = "246fdd13f6ee"   # replace with actual head from alembic heads
+def upgrade():
+    op.execute("ALTER TABLE table_that_does_not_exist ADD COLUMN x int")
+def downgrade():
+    pass
+EOF
+git add backend/migrations/versions/zzzz_drift_trial.py
+git commit -m "test: add unmigrated model field for alembic check trial"
+git push; ci_wait
+```
+
+**Expected red:** `Backend · Migrations` + `CI Success`.
+
+Record: model↔migration drift caught, schema blocked before production; push→failure wall (min).
+
+```bash
+git revert HEAD --no-edit && git push; ci_wait   # → 12-green (final clean state)
+```
+
+---
+
+## Final sanity
+
+```bash
+git status
+ls FAKE_TEST_KEY_DELETE_ME.pem 2>/dev/null && echo "LEFTOVER KEY — remove" || echo "no leftover key ✓"
+ci_wait   # last run on experiment/08-ci must be 12-green
+```
+
+---
+
+## Phase 5 — Friction table (→ §4.8 / Appendix A.8)
+
+| Check | Before (ad hoc, unenforced) | After (08-ci, enforced) |
+|-------|-----------------------------|------------------------|
+| Lint (ruff + eslint) | ad hoc, skippable | mandatory every push |
+| Tests (pytest + vitest) | ad hoc, skippable | mandatory every push |
+| TS type-check + build | ad hoc, skippable | mandatory every push |
+| Migration drift (alembic check) | unenforced | mandatory every push |
+| Docker image build + Trivy (×2) | unenforced | mandatory every push |
+| Dependency CVE audit (uv + npm) | unenforced | mandatory (own jobs) |
+| SAST (bandit) | unenforced | mandatory (own job) |
+| Secret scan (gitleaks) | local hook only, bypassable | mandatory server-side |
+| CodeQL | none | enforced on main/develop + cron |
+| Pre-commit bypass (--no-verify) | undetected, no fallback | CI re-runs independently |
+| Aggregate required gate | none | `ci-success` branch-protection |
+| Execution model | sequential, manual, optional | parallel, automated, mandatory |
+
+---
+
+## Run order
+
+Phase −1 (green + seam log + branch protection) → Phase 0 (warm then timed) → Phase 1 (cold, then warm ×2) → Phase 2 + 2b → Phase 3 + 3b → Phase 4 + final sanity → Phase 5 table.
