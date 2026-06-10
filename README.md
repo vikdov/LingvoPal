@@ -1,254 +1,268 @@
-# LingvoPal
+# Experiment 09 — Continuous Deployment
 
-**Writing-first language learning app built on active recall and spaced repetition.**
+**Branch:** `experiment/09-deploy` | deployed from: `main`
+**Measures:** lead time commit→live (min), deployment steps manual vs automated, deployment frequency capability
 
-Most language apps let you tap the right answer. LingvoPal makes you type it — inside a real sentence, from memory. That friction is the point.
+Pipeline: 5 jobs, strictly sequential —
+`migrate (Neon) → deploy-backend (Render) → smoke-backend (/health SHA-match) → deploy-frontend (Vercel) → smoke-frontend (200)`.
+CD fires on `push: main` and `v*.*.*` tags only.
 
----
+> **Branch reality:** `main` already carries `cd.yml` — no merge is needed. Render and Vercel build from `main` HEAD at hook-fire time (not a pushed image). The only timing lever is the PaaS build cache (cold vs warm); branch staleness is irrelevant.
 
-## How it works
-
-1. A sentence appears with one word missing
-2. You type the answer (no hints, no multiple choice)
-3. Immediate feedback — correct or not
-4. SM-2 algorithm schedules the next review based on your performance
-
-Active recall + contextual writing + spaced repetition in one focused loop.
+> **Measurement boundary:** elapsed printed inside smoke jobs = hook→healthy window only, excludes the Render/Vercel build queue. The §4.9.3 lead-time figure is the EXTERNAL measure: push timestamp → first `/health` reporting the new commit (`lead_time` helper below).
 
 ---
 
-## Features
-
-| Area | What's implemented |
-|---|---|
-| **Auth** | Email/password signup, JWT sessions, password reset |
-| **Practice** | Cloze sentences, manual text input, confidence override, session summary |
-| **Spaced Repetition** | SM-2 with lapsed-card recovery, intensity multiplier, 6-hour new-word phase |
-| **Sets** | Create/edit vocab sets, public/private visibility, Anki import |
-| **Discovery** | Browse and filter public sets by language pair, level, source |
-| **Stats** | Daily reviews, accuracy trends, activity charts |
-| **Admin** | Moderation queue for community-submitted content |
-| **Settings** | Interface language, target language, theme, account management |
-
----
-
-## Tech Stack
-
-### Frontend
-- **React 19** + **TypeScript** — Vite 8 build
-- **Tailwind CSS v4** — CSS-first, no config file
-- **shadcn/ui** — accessible component primitives
-- **Zustand 5** — lightweight feature-scoped state
-- **TanStack Query 5** — server state, caching, mutations
-- **Recharts** — progress and activity charts
-
-### Backend
-- **FastAPI** — async Python API, auto-generated OpenAPI docs
-- **SQLAlchemy 2.0** — async ORM with `asyncpg`
-- **Pydantic v2** — schema validation and settings
-- **Redis** — session buffering, SRS queue
-- **Alembic** — database migrations
-- **uv** — fast Python package manager
-
-### Infrastructure
-- **PostgreSQL 16** — primary database
-- **Redis** — caching and session state
-- **Docker Compose** — local dev environment
-
----
-
-## Architecture
-
-### Backend — strict layered separation
-
-```
-Routes → Services → Repositories → Models
-```
-
-- **Routes** (`app/routes/`) — parse HTTP, call services, map exceptions to status codes. No logic.
-- **Services** (`app/services/`) — all business logic, transaction boundaries, domain exceptions.
-- **Repositories** (`app/repositories/`) — raw ORM queries only.
-- **Models** (`app/models/`) — SQLAlchemy table definitions.
-- **Schemas** (`app/schemas/`) — Pydantic request/response contracts.
-
-### Frontend — feature-based structure
-
-```
-src/features/{feature}/
-  api/          # TanStack Query hooks + fetch calls
-  components/   # Feature-specific UI
-  hooks/        # Custom hooks
-  store/        # Zustand slice
-  types/        # TypeScript types
-  views/        # Page-level components
-```
-
-Shared UI primitives live in `src/components/ui/`. Features export public APIs via `index.ts` barrels.
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Docker + Docker Compose
-- Node.js 20+
-- Python 3.12+ with [uv](https://docs.astral.sh/uv/)
-
-### 1. Start infrastructure
+## Pre-conditions
 
 ```bash
-docker compose up -d
+cd ~/code/LingvoPal
+git checkout main
+git status        # must be clean
+gh auth status
+gh secret list    # expect the 9 secrets
 ```
 
-Starts PostgreSQL 16, Redis, and pgAdmin.
+Provisioning (one-time, not counted in metric #2): Neon (pooled), Upstash, R2 bucket + public access, Gmail App Password; Render (Docker, root `backend/`, health `/health`, Auto-Deploy OFF, `REDIS_SSL=true`, `REDIS_PASSWORD`, strong `SECRET_KEY`, `CORS_ORIGINS`=vercel URL); Vercel (root `frontend/`, `VITE_API_URL=…/api/v1`, `vercel.json git.deploymentEnabled:false`, deploy hook).
 
-### 2. Backend
+---
+
+## Env + timing helpers — paste once per shell
+
+The deploy-hook URLs are write-only secrets — copy from dashboards (Render: Settings → Deploy Hook; Vercel: Settings → Git → Deploy Hooks).
 
 ```bash
-cd backend
-uv sync                              # Install dependencies
-uv run alembic upgrade head          # Apply migrations
-uvicorn app.main:app --reload        # Dev server → http://localhost:8000
+BE=https://lingvopal.onrender.com
+FE=https://FILL-app.vercel.app
+RENDER_DEPLOY_HOOK_URL='FILL-from-render-dashboard'
+VERCEL_DEPLOY_HOOK_URL='FILL-from-vercel-dashboard'
 ```
 
-API docs available at `http://localhost:8000/docs`.
-
-### 3. Frontend
+**`cd_wait`** — watch the CD run for the pushed commit; print wall + 5 per-job durations:
 
 ```bash
-cd frontend
-npm install
-npm run dev                          # Dev server → http://localhost:5173
+cd_wait() {
+  local sha rid=""
+  sha=$(git rev-parse HEAD)
+  for _ in $(seq 1 40); do
+    rid=$(gh run list --workflow cd.yml --branch main --limit 15 \
+          --json databaseId,headSha \
+          -q "[.[] | select(.headSha==\"$sha\")][0].databaseId")
+    [ -n "$rid" ] && break
+    sleep 3
+  done
+  [ -z "$rid" ] && { echo "no CD run for $sha"; return 2; }
+  echo "run $rid  (sha ${sha:0:8})"
+  gh run watch "$rid" --exit-status; local rc=$?
+  gh run view "$rid" --json conclusion,createdAt,updatedAt,jobs -q '
+    "conclusion=\(.conclusion)  wall=\((((.updatedAt|fromdateiso8601)-(.createdAt|fromdateiso8601))/60*100|floor)/100) min",
+    (.jobs[] | "  \(.conclusion // "running")  \(((((.completedAt//.startedAt)|fromdateiso8601)-(.startedAt|fromdateiso8601))/60*100|floor)/100)m  \(.name)")'
+  return $rc
+}
 ```
 
-### Environment
+**`lead_time`** — TRUE commit→live measure (metric #1). Run right after `git push`:
 
-Copy `.env.example` to `.env` and fill in values. The config loader resolves `.env` → `.env.{ENV}` → `.env.local`.
-
----
-
-## Spaced Repetition
-
-`backend/app/services/spaced_repetition.py` — pure SM-2 implementation, no side effects.
-
-Key behaviors:
-- New words: 6-hour initial interval before entering full SR schedule
-- Lapsed cards: short retry loop (5–120 min) before resuming normal intervals
-- User intensity multiplier: adjusts interval growth per user preference
-- Confidence override: user can flag "knew it" / "didn't know it" regardless of typed answer
-
----
-
-## Project Status
-
-MVP v0.1 — core learning loop is complete and functional.
-
-- [x] Auth + sessions
-- [x] Practice loop (cloze → answer → SM-2 → reschedule)
-- [x] Vocabulary sets + Anki import
-- [x] Public content discovery
-- [x] Stats dashboard
-- [x] Admin moderation queue
-- [ ] Email delivery (SMTP config required)
-- [ ] CI/CD pipeline
-- [ ] Production deployment
-
----
-
-## Design Philosophy
-
-> Type it. Don't tap it.
-
-LingvoPal intentionally removes passive recognition. Writing activates different recall pathways than selecting from options. The app optimizes for long-term retention over short-term engagement metrics.
-
-- Active recall over recognition
-- Writing over tapping  
-- Quality content over quantity
-- Focused method over feature sprawl
-
----
-
-## Academic Context
-
-LingvoPal serves as the primary case study for a bachelor's thesis:
-
-> **"Impact of DevOps Practices on Software Delivery Efficiency and Business Performance"**
-
-### Core Thesis Argument
-
-DevOps is not a technology stack to install — it is a corrective toolkit applied to specific bottlenecks. The right question is never "which DevOps tools exist?" but "what hurts most right now, and which practice fixes it?"
-
-Adopting tools without identifying the underlying inefficiency produces **Cargo Cult DevOps**: the rituals are followed, the tools are running, but no real friction is removed.
-
-The thesis demonstrates the alternative: each practice was adopted when a specific bottleneck made it necessary, and gains compound as practices stack.
-
-### DevOps Practices Inventory
-
-| Practice | Tool | Status | Bottleneck it solves |
-|---|---|---|---|
-| Version control conventions | Conventional commits + feature branches | Present | Change traceability, rework visibility |
-| Dependency management | `uv` + lockfile | Present | Reproducible installs, fast setup |
-| Containerization | Docker Compose | Present | Environment parity, service orchestration |
-| Environment automation | `scripts/setup.sh` | Present | Onboarding friction, manual steps |
-| Database migrations | Alembic | Present | Schema safety, rollback capability |
-| Test automation | pytest | Partial | Defect detection before integration |
-| Continuous Integration | GitHub Actions | Planned | Automated validation on every PR |
-| Continuous Deployment | Railway | Planned | Manual deploy eliminated, lead time reduced |
-| Observability | Structured logging | Deferred | No production users yet — adding now = Cargo Cult |
-| IaC / Orchestration | — | Deferred | Single server — no infra drift problem at this scale |
-
-### Research Methodology
-
-A controlled experiment reconstructs the adoption sequence on isolated git branches. Each practice is introduced one at a time; metrics are recorded before and after each addition to isolate its individual contribution.
-
-```
-experiment/00-baseline     ← no DevOps practices
-experiment/01-vcs          ← + conventional commits & branching
-experiment/02-deps         ← + uv + lockfile
-experiment/03-docker       ← + Docker Compose
-experiment/04-scripts      ← + setup.sh
-experiment/05-migrations   ← + Alembic
-experiment/06-tests        ← + pytest
-experiment/07-ci           ← + GitHub Actions CI
-experiment/08-deploy       ← + CD pipeline + live deployment
+```bash
+lead_time() {
+  local sha start now live
+  sha=$(git rev-parse HEAD); start=$(date +%s)
+  echo "waiting for $BE/health to report ${sha:0:8} ..."
+  for _ in $(seq 1 120); do
+    live=$(curl -s --max-time 10 "$BE/health" | jq -r '.commit // empty' 2>/dev/null)
+    if [ "$live" = "$sha" ]; then
+      now=$(date +%s)
+      echo "LIVE: push→backend-live = $(( now - start )) s  ($(( (now-start)/60 ))m$(( (now-start)%60 ))s)"
+      return 0
+    fi
+    sleep 10
+  done
+  echo "did not go live within window"; return 1
+}
 ```
 
-Metrics are practice-specific — each practice is evaluated on the capability it introduces, not a single universal measure:
+**`bump`** — the timed change class. Increments `API_VERSION` by one patch level (one app-source line); only the final Docker `COPY` layer rebuilds. Same class used in every timed run so build-cache state is the only variable:
 
-| Branch | Metric |
-|---|---|
-| `00-baseline` | Setup time (min), manual step count |
-| `01-vcs` | `fix:`/`feat:` commit ratio, branch lifetime |
-| `02-deps` | Install time, reproducibility |
-| `03-docker` | Setup time delta, eliminated manual service steps |
-| `04-scripts` | Step count: manual vs scripted |
-| `05-migrations` | Migration apply + rollback time |
-| `06-tests` | Time-to-detect injected bug, coverage % |
-| `07-ci` | Time-to-feedback (min), manual steps eliminated |
-| `08-deploy` | Lead time commit→live (min), deploy step count |
+```bash
+bump() {
+  f=~/code/LingvoPal/backend/app/core/config.py
+  cur=$(grep -oP 'API_VERSION: str = "\K[0-9.]+' "$f")
+  IFS=. read -r a b c <<< "$cur"; new="$a.$b.$((c+1))"
+  sed -i "s/API_VERSION: str = \"$cur\"/API_VERSION: str = \"$new\"/" "$f"
+  echo "API_VERSION $cur -> $new"
+}
+```
 
-### Compounding Effect
+---
 
-Practices in isolation give linear gains. Practices in combination give superlinear gains:
+## Phase 0 — Manual deploy baseline (metric #1 before, metric #2 before = 8)
 
-- Tests alone — catches bugs locally, sometimes skipped
-- Tests + CI — catches bugs automatically on every push, never skipped
-- Tests + CI + CD — catches bugs and ships fixes with a single `git push`
+Record wall time AND step count. The hand-run equivalent of `cd.yml`, job for job.
+Provisioning excluded (one-time).
 
-Each layer multiplies the value of the one before it.
+**Warm-first priming (untimed):** fire both hooks on current HEAD to prime cache and wake free instance. No bump needed:
 
-### Deferred Practices
+```bash
+curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
+curl -fsS -X POST "$VERCEL_DEPLOY_HOOK_URL"
+# Wait until both show Live/Ready in dashboards, then proceed.
+```
 
-The following practices are understood but intentionally not yet adopted — the bottlenecks they solve have not materialized at current project scale:
+**Change-class pre-step (untimed, not a counted action):** push the bump with `[skip ci]` so CD does not fire — in the manual world there is no pipeline:
 
-| Practice | Adopted when |
-|---|---|
-| Kubernetes / orchestration | Multi-instance traffic scaling required |
-| Feature flags | Multiple active user segments need independent releases |
-| Full observability stack (Sentry, Prometheus) | First real production user complaints |
-| Load testing | Pre-launch performance SLA defined |
-| Secret management (Vault) | Multi-team credential access required |
-| IaC (Terraform) | Multi-environment infra drift becomes a real problem |
+```bash
+bump
+git commit -am "deploy: manual baseline release [skip ci]"
+git push origin main   # CD skipped — no run fires
+```
 
-Deferring these is the correct DevOps decision at MVP stage. Adopting them now would be Cargo Cult.
+**Start timer. Run the 8 manual steps:**
+
+```bash
+# Step 1
+cd ~/code/LingvoPal/backend && PGSSLMODE=require PGCHANNELBINDING=require \
+  uv run alembic upgrade head
+
+# Step 2
+# Read migration output by hand: "Running upgrade … done"
+
+# Step 3
+curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
+
+# Step 4
+# Watch Render dashboard until status = Live
+
+# Step 5
+curl -s "$BE/health" | jq .    # eyeball version + commit (no automated commit match)
+
+# Step 6
+curl -fsS -X POST "$VERCEL_DEPLOY_HOOK_URL"
+
+# Step 7
+# Watch Vercel dashboard until status = Ready
+
+# Step 8
+curl -s -o /dev/null -w '%{http_code}' "$FE"
+```
+
+Record: total wall time (min) → metric #1 "before"; 8 steps → metric #2 "before".
+
+> **Note — asymmetry:** manual baseline has no enforced ordering and no commit-matched health gate. This is the pre-CD state. The pipeline enforcing strict sequencing + health gating is the finding — do not add that discipline to the baseline.
+
+---
+
+## Phase 1 — First automated release, COLD
+
+> ⚠ Phase 0 just warmed the cache and woke the free instance — Phase 1 is NOT cold after Phase 0. Either (a) run Phase 1 BEFORE Phase 0, or (b) clear Render's build cache in the dashboard and let the instance idle back to sleep (~15 min). State which in A.8.
+
+```bash
+bump
+git commit -am "cd: cold release timing run"
+git push origin main & lead_time   # external commit→live measure (COLD)
+cd_wait                            # workflow wall + 5 per-job durations
+```
+
+Record: COLD lead time → A.8, with free-tier cold-start caveat.
+
+**Verify gate functions:** `/health` must show `"commit":"<sha>"` not `"unknown"`. If `unknown`, `RENDER_GIT_COMMIT` not injected → `smoke-backend` never passes → set it in Render env manually.
+
+**Functional verification (not metrics — confirms production is live):**
+
+```bash
+curl -s "$BE/health" | jq .   # asyncpg+Neon up; commit == sha
+# browser: register / log in   → CORS + Redis (Upstash TLS) sessions
+# browser: upload an image      → R2 (https + SigV4 + path-style)
+# browser: request password reset → Gmail SMTP
+```
+
+---
+
+## Phase 2 — Warm release (headline "after" figure)
+
+```bash
+bump
+git commit -am "cd: warm release timing run"
+git push origin main & lead_time   # WARM = §4.9.3 "after" lead time
+cd_wait
+```
+
+Report WARM as the §4.9.3 "after" headline. COLD (Phase 1) goes to A.8 with free-tier cold-start note. Do NOT average across the cold/warm boundary. Metric #2 "after" = 1 (`git push`).
+
+---
+
+## Phase 3 — Failed migration halts release
+
+```bash
+# Verify current migration head first:
+cd ~/code/LingvoPal/backend && uv run alembic heads
+# Use the printed hash as down_revision below
+
+cat > ~/code/LingvoPal/backend/migrations/versions/zzzz_drift_trial.py << 'EOF'
+"""drift trial — reverted after test"""
+from alembic import op
+revision = "zzzz_drift_trial"
+down_revision = "246fdd13f6ee"   # replace with actual head from alembic heads
+def upgrade():
+    op.execute("ALTER TABLE table_that_does_not_exist ADD COLUMN x int")
+def downgrade():
+    pass
+EOF
+git add backend/migrations/versions/zzzz_drift_trial.py
+git commit -m "test: failing migration for release-gate trial"
+git push origin main; cd_wait
+```
+
+**Expected red:** `migrate`. Verify `deploy-backend`, `smoke-backend`, `deploy-frontend`, `smoke-frontend` all **skipped**; `/health` still reports the PREVIOUS commit; frontend unchanged.
+
+Record: binary — release blocked, nothing deployed → §4.9.1 / §4.9.5.
+
+```bash
+git revert HEAD --no-edit && git push origin main; cd_wait   # → green + live
+```
+
+### Phase 3b — Unhealthy backend blocks frontend (optional)
+
+> ⚠ `smoke-backend` polls ~15 min before failing. Optionally lower the loop count in `cd.yml` for this trial only, then revert.
+
+```bash
+# Edit backend/app/main.py health_check: temporarily remove the "commit" field
+git add backend/app/main.py
+git commit -m "test: health-gate trial (commit not reported)"
+git push origin main; cd_wait
+```
+
+**Expected red:** `smoke-backend`. Verify `deploy-frontend` + `smoke-frontend` **skipped**.
+
+```bash
+git revert HEAD --no-edit && git push origin main; cd_wait   # → green + live
+```
+
+---
+
+## Phase 4 — Recovery path (note only)
+
+The revert in Phase 3/3b IS the recovery path — one `git push` re-runs the full gated pipeline. Report qualitatively as "recovery uses the identical one-command release path." Do NOT report a time-to-restore number; MTTR is owned by §4.5 (Alembic rollback).
+
+---
+
+## Phase 5 — Friction / DORA mapping table (→ §4.9 / Appendix A.8)
+
+| Release concern | Before (manual) | After (09-deploy) |
+|-----------------|-----------------|-------------------|
+| Trigger release | hand-run hooks + dashboard watch | `git push main` (1 step) |
+| Migrate before deploy | developer may forget | enforced: `deploy-* needs migrate` |
+| Backend healthy before frontend | no check | enforced: commit-matched `/health` gate |
+| Failed migration | code can ship on bad schema | halts whole release; nothing deploys |
+| Confirm new revision live | manual eyeball | `smoke-backend` matches `RENDER_GIT_COMMIT` |
+| Deployment steps | 8 | 1 |
+| Release status visibility | split Render + Vercel dashboards | single GitHub Actions run |
+
+DORA (within this case study):
+- **Lead time for changes** — push→live: warm headline (Phase 2) + cold in A.8 (Phase 1).
+- **Deployment frequency** — on-demand capability: every push to `main` releases with no human step.
+
+---
+
+## Run order
+
+Pre-conditions + fill 4 env vars → Phase 0 (warm priming, then timed 8-step baseline) → [clear Render cache + ~15 min idle if needed] → Phase 1 (cold automated release + functional verify) → Phase 2 (warm = headline "after") → Phase 3 (failed migration) → Phase 3b (optional) → Phase 5 table. Leave `main` green and live.
