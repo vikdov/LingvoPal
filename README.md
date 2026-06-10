@@ -1,254 +1,183 @@
-# LingvoPal
+# Experiment 07 — Security Hardening
 
-**Writing-first language learning app built on active recall and spaced repetition.**
-
-Most language apps let you tap the right answer. LingvoPal makes you type it — inside a real sentence, from memory. That friction is the point.
-
----
-
-## How it works
-
-1. A sentence appears with one word missing
-2. You type the answer (no hints, no multiple choice)
-3. Immediate feedback — correct or not
-4. SM-2 algorithm schedules the next review based on your performance
-
-Active recall + contextual writing + spaced repetition in one focused loop.
+**Branch:** `experiment/07-security`
+**Measures:** CVE counts, SAST block time (s), secret detection block time (s), container user, rate limit boundary
 
 ---
 
-## Features
-
-| Area | What's implemented |
-|---|---|
-| **Auth** | Email/password signup, JWT sessions, password reset |
-| **Practice** | Cloze sentences, manual text input, confidence override, session summary |
-| **Spaced Repetition** | SM-2 with lapsed-card recovery, intensity multiplier, 6-hour new-word phase |
-| **Sets** | Create/edit vocab sets, public/private visibility, Anki import |
-| **Discovery** | Browse and filter public sets by language pair, level, source |
-| **Stats** | Daily reviews, accuracy trends, activity charts |
-| **Admin** | Moderation queue for community-submitted content |
-| **Settings** | Interface language, target language, theme, account management |
-
----
-
-## Tech Stack
-
-### Frontend
-- **React 19** + **TypeScript** — Vite 8 build
-- **Tailwind CSS v4** — CSS-first, no config file
-- **shadcn/ui** — accessible component primitives
-- **Zustand 5** — lightweight feature-scoped state
-- **TanStack Query 5** — server state, caching, mutations
-- **Recharts** — progress and activity charts
-
-### Backend
-- **FastAPI** — async Python API, auto-generated OpenAPI docs
-- **SQLAlchemy 2.0** — async ORM with `asyncpg`
-- **Pydantic v2** — schema validation and settings
-- **Redis** — session buffering, SRS queue
-- **Alembic** — database migrations
-- **uv** — fast Python package manager
-
-### Infrastructure
-- **PostgreSQL 16** — primary database
-- **Redis** — caching and session state
-- **Docker Compose** — local dev environment
-
----
-
-## Architecture
-
-### Backend — strict layered separation
-
-```
-Routes → Services → Repositories → Models
-```
-
-- **Routes** (`app/routes/`) — parse HTTP, call services, map exceptions to status codes. No logic.
-- **Services** (`app/services/`) — all business logic, transaction boundaries, domain exceptions.
-- **Repositories** (`app/repositories/`) — raw ORM queries only.
-- **Models** (`app/models/`) — SQLAlchemy table definitions.
-- **Schemas** (`app/schemas/`) — Pydantic request/response contracts.
-
-### Frontend — feature-based structure
-
-```
-src/features/{feature}/
-  api/          # TanStack Query hooks + fetch calls
-  components/   # Feature-specific UI
-  hooks/        # Custom hooks
-  store/        # Zustand slice
-  types/        # TypeScript types
-  views/        # Page-level components
-```
-
-Shared UI primitives live in `src/components/ui/`. Features export public APIs via `index.ts` barrels.
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Docker + Docker Compose
-- Node.js 20+
-- Python 3.12+ with [uv](https://docs.astral.sh/uv/)
-
-### 1. Start infrastructure
+## Pre-conditions (once, untimed)
 
 ```bash
-docker compose up -d
+cd ~/code/LingvoPal
+git checkout experiment/07-security
+git log --oneline -3   # security commit must be on top of 06-tests chain
+pre-commit install
+
+# Verify pre-commit hooks are clean on current codebase
+pre-commit run --all-files
+# Expected: all hooks pass (bandit, detect-secrets, ruff)
 ```
 
-Starts PostgreSQL 16, Redis, and pgAdmin.
+---
 
-### 2. Backend
+## Phase 1 — Dependency CVE scanning
+
+**Backend:**
 
 ```bash
-cd backend
-uv sync                              # Install dependencies
-uv run alembic upgrade head          # Apply migrations
-uvicorn app.main:app --reload        # Dev server → http://localhost:8000
+cd ~/code/LingvoPal/backend
+uv audit
 ```
 
-API docs available at `http://localhost:8000/docs`.
-
-### 3. Frontend
+**Frontend:**
 
 ```bash
-cd frontend
-npm install
-npm run dev                          # Dev server → http://localhost:5173
+cd ~/code/LingvoPal/frontend
+npm audit --audit-level=none
 ```
 
-### Environment
-
-Copy `.env.example` to `.env` and fill in values. The config loader resolves `.env` → `.env.{ENV}` → `.env.local`.
+Record: Critical / High / Medium / Low counts for backend and frontend → §4.7.3 / Appendix A.7.
 
 ---
 
-## Spaced Repetition
+## Phase 2a — Bandit SAST injection
 
-`backend/app/services/spaced_repetition.py` — pure SM-2 implementation, no side effects.
+**Inject insecure code:**
 
-Key behaviors:
-- New words: 6-hour initial interval before entering full SR schedule
-- Lapsed cards: short retry loop (5–120 min) before resuming normal intervals
-- User intensity multiplier: adjusts interval growth per user preference
-- Confidence override: user can flag "knew it" / "didn't know it" regardless of typed answer
+```bash
+cat >> ~/code/LingvoPal/backend/app/main.py << 'EOF'
 
----
-
-## Project Status
-
-MVP v0.1 — core learning loop is complete and functional.
-
-- [x] Auth + sessions
-- [x] Practice loop (cloze → answer → SM-2 → reschedule)
-- [x] Vocabulary sets + Anki import
-- [x] Public content discovery
-- [x] Stats dashboard
-- [x] Admin moderation queue
-- [ ] Email delivery (SMTP config required)
-- [ ] CI/CD pipeline
-- [ ] Production deployment
-
----
-
-## Design Philosophy
-
-> Type it. Don't tap it.
-
-LingvoPal intentionally removes passive recognition. Writing activates different recall pathways than selecting from options. The app optimizes for long-term retention over short-term engagement metrics.
-
-- Active recall over recognition
-- Writing over tapping  
-- Quality content over quantity
-- Focused method over feature sprawl
-
----
-
-## Academic Context
-
-LingvoPal serves as the primary case study for a bachelor's thesis:
-
-> **"Impact of DevOps Practices on Software Delivery Efficiency and Business Performance"**
-
-### Core Thesis Argument
-
-DevOps is not a technology stack to install — it is a corrective toolkit applied to specific bottlenecks. The right question is never "which DevOps tools exist?" but "what hurts most right now, and which practice fixes it?"
-
-Adopting tools without identifying the underlying inefficiency produces **Cargo Cult DevOps**: the rituals are followed, the tools are running, but no real friction is removed.
-
-The thesis demonstrates the alternative: each practice was adopted when a specific bottleneck made it necessary, and gains compound as practices stack.
-
-### DevOps Practices Inventory
-
-| Practice | Tool | Status | Bottleneck it solves |
-|---|---|---|---|
-| Version control conventions | Conventional commits + feature branches | Present | Change traceability, rework visibility |
-| Dependency management | `uv` + lockfile | Present | Reproducible installs, fast setup |
-| Containerization | Docker Compose | Present | Environment parity, service orchestration |
-| Environment automation | `scripts/setup.sh` | Present | Onboarding friction, manual steps |
-| Database migrations | Alembic | Present | Schema safety, rollback capability |
-| Test automation | pytest | Partial | Defect detection before integration |
-| Continuous Integration | GitHub Actions | Planned | Automated validation on every PR |
-| Continuous Deployment | Railway | Planned | Manual deploy eliminated, lead time reduced |
-| Observability | Structured logging | Deferred | No production users yet — adding now = Cargo Cult |
-| IaC / Orchestration | — | Deferred | Single server — no infra drift problem at this scale |
-
-### Research Methodology
-
-A controlled experiment reconstructs the adoption sequence on isolated git branches. Each practice is introduced one at a time; metrics are recorded before and after each addition to isolate its individual contribution.
-
-```
-experiment/00-baseline     ← no DevOps practices
-experiment/01-vcs          ← + conventional commits & branching
-experiment/02-deps         ← + uv + lockfile
-experiment/03-docker       ← + Docker Compose
-experiment/04-scripts      ← + setup.sh
-experiment/05-migrations   ← + Alembic
-experiment/06-tests        ← + pytest
-experiment/07-ci           ← + GitHub Actions CI
-experiment/08-deploy       ← + CD pipeline + live deployment
+# TEST INJECTION — remove after test
+import subprocess
+result = subprocess.call("ls", shell=True)
+EOF
 ```
 
-Metrics are practice-specific — each practice is evaluated on the capability it introduces, not a single universal measure:
+**Attempt commit, timed:**
 
-| Branch | Metric |
-|---|---|
-| `00-baseline` | Setup time (min), manual step count |
-| `01-vcs` | `fix:`/`feat:` commit ratio, branch lifetime |
-| `02-deps` | Install time, reproducibility |
-| `03-docker` | Setup time delta, eliminated manual service steps |
-| `04-scripts` | Step count: manual vs scripted |
-| `05-migrations` | Migration apply + rollback time |
-| `06-tests` | Time-to-detect injected bug, coverage % |
-| `07-ci` | Time-to-feedback (min), manual steps eliminated |
-| `08-deploy` | Lead time commit→live (min), deploy step count |
+```bash
+time git commit -am "test: bandit injection" 2>&1
+```
 
-### Compounding Effect
+**Expected:** commit blocked; bandit fires on `subprocess.call(shell=True)`.
 
-Practices in isolation give linear gains. Practices in combination give superlinear gains:
+**Cleanup:**
 
-- Tests alone — catches bugs locally, sometimes skipped
-- Tests + CI — catches bugs automatically on every push, never skipped
-- Tests + CI + CD — catches bugs and ships fixes with a single `git push`
+```bash
+git restore backend/app/main.py
+```
 
-Each layer multiplies the value of the one before it.
+Record: blocked Yes/No, wall time (real) → §4.7.3.
 
-### Deferred Practices
+---
 
-The following practices are understood but intentionally not yet adopted — the bottlenecks they solve have not materialized at current project scale:
+## Phase 2b — Secret detection injection
 
-| Practice | Adopted when |
-|---|---|
-| Kubernetes / orchestration | Multi-instance traffic scaling required |
-| Feature flags | Multiple active user segments need independent releases |
-| Full observability stack (Sentry, Prometheus) | First real production user complaints |
-| Load testing | Pre-launch performance SLA defined |
-| Secret management (Vault) | Multi-team credential access required |
-| IaC (Terraform) | Multi-environment infra drift becomes a real problem |
+**Create fake key file:**
 
-Deferring these is the correct DevOps decision at MVP stage. Adopting them now would be Cargo Cult.
+```bash
+cat > ~/code/LingvoPal/backend/app/fake_key.py << 'EOF'
+SECRET = """
+-----BEGIN RSA PRIVATE KEY-----
+MIIEowIBAAKCAQEA2a2rwplBQLzHPZe5TNJN+KMjbmFGSGd8PqGwlqnvuZwmxkBh
+-----END RSA PRIVATE KEY-----
+"""
+EOF
+```
+
+**Attempt commit, timed:**
+
+```bash
+git add backend/app/fake_key.py
+time git commit -m "test: secret injection" 2>&1
+```
+
+**Expected:** commit blocked; `detect-private-key` hook fires.
+
+**Cleanup:**
+
+```bash
+git restore --staged backend/app/fake_key.py
+rm backend/app/fake_key.py
+```
+
+Record: blocked Yes/No, wall time (real) → §4.7.3.
+
+---
+
+## Phase 3 — Container hardening
+
+```bash
+cd ~/code/LingvoPal
+docker build -t lingvopal-security-test ./backend
+docker inspect lingvopal-security-test --format '{{.Config.User}}'
+```
+
+**Expected:** `appuser` (not empty string / root).
+
+Record: before = `` (root) → after = `appuser` → §4.7.3.
+
+---
+
+## Phase 4 — Rate limiting
+
+### 4a — Baseline static inspection
+
+```bash
+git worktree add /tmp/baseline-check experiment/00-baseline
+grep -rn "slowapi\|auth_rate_limit\|limiter" /tmp/baseline-check/backend/app/
+git worktree remove /tmp/baseline-check
+```
+
+**Expected:** no output — rate limiting absent from baseline.
+
+Record: absent on baseline → §4.7.3.
+
+### 4b — Negative test (experiment/00-baseline)
+
+```bash
+git worktree add /tmp/baseline-run experiment/00-baseline
+cd /tmp/baseline-run/backend
+REDIS_HOST=localhost uv run uvicorn app.main:app --host 0.0.0.0 --port 8002 \
+  > /tmp/uvicorn-baseline.log 2>&1 &
+echo $! > /tmp/uvicorn-baseline.pid
+until curl -sf http://localhost:8002/health > /dev/null 2>&1; do sleep 1; done
+
+for i in {1..20}; do
+  curl -s -o /dev/null -w "%{http_code}\n" \
+    -X POST http://localhost:8002/api/v1/auth/login \
+    -H "Content-Type: application/json" \
+    -d '{"email":"test@test.com","password":"wrong"}'
+done
+
+kill $(cat /tmp/uvicorn-baseline.pid)
+git worktree remove /tmp/baseline-run
+```
+
+**Expected:** requests 1–20 all return 401 — no 429, brute-force unconstrained.
+
+### 4c — Positive test (experiment/07-security)
+
+```bash
+# Flush any leftover rate-limit keys
+redis-cli -h localhost KEYS "*127.0.0.1*" | xargs -r redis-cli -h localhost DEL
+
+cd ~/code/LingvoPal/backend
+REDIS_HOST=localhost uv run uvicorn app.main:app --host 0.0.0.0 --port 8001 \
+  > /tmp/uvicorn.log 2>&1 &
+echo $! > /tmp/uvicorn.pid
+until curl -sf http://localhost:8001/health > /dev/null 2>&1; do sleep 1; done
+
+for i in {1..20}; do
+  curl -s -o /dev/null -w "%{http_code}\n" \
+    -X POST http://localhost:8001/api/v1/auth/login \
+    -H "Content-Type: application/json" \
+    -d '{"email":"test@test.com","password":"wrong"}'
+done
+
+kill $(cat /tmp/uvicorn.pid)
+```
+
+**Expected:** requests 1–10 → 401, requests 11–20 → 429 (rate limit fires at 10/min boundary).
+
+Record: limit boundary and first 429 request number → §4.7.3.
