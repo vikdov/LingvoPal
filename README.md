@@ -1,254 +1,96 @@
-# LingvoPal
+# Experiment 00 — Baseline (No DevOps)
 
-**Writing-first language learning app built on active recall and spaced repetition.**
-
-Most language apps let you tap the right answer. LingvoPal makes you type it — inside a real sentence, from memory. That friction is the point.
-
----
-
-## How it works
-
-1. A sentence appears with one word missing
-2. You type the answer (no hints, no multiple choice)
-3. Immediate feedback — correct or not
-4. SM-2 algorithm schedules the next review based on your performance
-
-Active recall + contextual writing + spaced repetition in one focused loop.
+**Branch:** `experiment/00-baseline`
+**Measures:** A.2 pip install time (warm + cold), A.3 full onboarding time, step count
 
 ---
 
-## Features
-
-| Area | What's implemented |
-|---|---|
-| **Auth** | Email/password signup, JWT sessions, password reset |
-| **Practice** | Cloze sentences, manual text input, confidence override, session summary |
-| **Spaced Repetition** | SM-2 with lapsed-card recovery, intensity multiplier, 6-hour new-word phase |
-| **Sets** | Create/edit vocab sets, public/private visibility, Anki import |
-| **Discovery** | Browse and filter public sets by language pair, level, source |
-| **Stats** | Daily reviews, accuracy trends, activity charts |
-| **Admin** | Moderation queue for community-submitted content |
-| **Settings** | Interface language, target language, theme, account management |
-
----
-
-## Tech Stack
-
-### Frontend
-- **React 19** + **TypeScript** — Vite 8 build
-- **Tailwind CSS v4** — CSS-first, no config file
-- **shadcn/ui** — accessible component primitives
-- **Zustand 5** — lightweight feature-scoped state
-- **TanStack Query 5** — server state, caching, mutations
-- **Recharts** — progress and activity charts
-
-### Backend
-- **FastAPI** — async Python API, auto-generated OpenAPI docs
-- **SQLAlchemy 2.0** — async ORM with `asyncpg`
-- **Pydantic v2** — schema validation and settings
-- **Redis** — session buffering, SRS queue
-- **Alembic** — database migrations
-- **uv** — fast Python package manager
-
-### Infrastructure
-- **PostgreSQL 16** — primary database
-- **Redis** — caching and session state
-- **Docker Compose** — local dev environment
-
----
-
-## Architecture
-
-### Backend — strict layered separation
-
-```
-Routes → Services → Repositories → Models
-```
-
-- **Routes** (`app/routes/`) — parse HTTP, call services, map exceptions to status codes. No logic.
-- **Services** (`app/services/`) — all business logic, transaction boundaries, domain exceptions.
-- **Repositories** (`app/repositories/`) — raw ORM queries only.
-- **Models** (`app/models/`) — SQLAlchemy table definitions.
-- **Schemas** (`app/schemas/`) — Pydantic request/response contracts.
-
-### Frontend — feature-based structure
-
-```
-src/features/{feature}/
-  api/          # TanStack Query hooks + fetch calls
-  components/   # Feature-specific UI
-  hooks/        # Custom hooks
-  store/        # Zustand slice
-  types/        # TypeScript types
-  views/        # Page-level components
-```
-
-Shared UI primitives live in `src/components/ui/`. Features export public APIs via `index.ts` barrels.
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Docker + Docker Compose
-- Node.js 20+
-- Python 3.12+ with [uv](https://docs.astral.sh/uv/)
-
-### 1. Start infrastructure
+## Pre-conditions (once, untimed)
 
 ```bash
-docker compose up -d
+sudo systemctl start postgresql
+sudo systemctl start redis
+
+sudo -u postgres psql << 'SQL'
+CREATE USER lingvopal WITH PASSWORD 'changeme';
+CREATE DATABASE lingvopal OWNER lingvopal;
+SQL
+
+psql -U lingvopal -d lingvopal -v ON_ERROR_STOP=1 --single-transaction -f backend/schema.sql
+
+# pyenv with Python 3.12 must be installed and on PATH
+# Add to ~/.zshrc if missing:
+# export PYENV_ROOT="$HOME/.pyenv"
+# export PATH="$PYENV_ROOT/bin:$PATH"
+# eval "$(pyenv init -)"
+
+cd ~/code/LingvoPal
+git checkout experiment/00-baseline
+cp backend/.env.example backend/.env
+# Edit backend/.env — fill all required variables
 ```
 
-Starts PostgreSQL 16, Redis, and pgAdmin.
+---
 
-### 2. Backend
+## Measurement A.2 — pip install time (warm + cold, 3 runs each)
+
+From `~/code/LingvoPal/backend`:
+
+**Warm** (system cache `~/.cache/pip` retained), run 3×:
 
 ```bash
-cd backend
-uv sync                              # Install dependencies
-uv run alembic upgrade head          # Apply migrations
-uvicorn app.main:app --reload        # Dev server → http://localhost:8000
+python3.12 -m venv venv_run && source venv_run/bin/activate
+time pip install -r requirements.txt
+deactivate && rm -rf venv_run
 ```
 
-API docs available at `http://localhost:8000/docs`.
+Record: `real` from each run. Median → Appendix A.2 pip-warm row.
 
-### 3. Frontend
+**Cold** (cache purged before each run), run 3×:
 
 ```bash
-cd frontend
+rm -rf ~/.cache/pip
+python3.12 -m venv venv_run && source venv_run/bin/activate
+time pip install -r requirements.txt
+deactivate && rm -rf venv_run
+```
+
+Record: `real` from each run. Median → Appendix A.2 pip-cold row.
+
+---
+
+## Measurement A.3 — Full onboarding time (3 runs)
+
+### Teardown — run before **each** of the 3 runs
+
+```bash
+pkill -f uvicorn 2>/dev/null; pkill -f vite 2>/dev/null
+cd ~/code/LingvoPal
+sudo -u postgres psql -c "DROP SCHEMA public CASCADE;" lingvopal
+sudo -u postgres psql -c "CREATE SCHEMA public AUTHORIZATION lingvopal;" lingvopal
+deactivate 2>/dev/null
+rm -rf backend/venv frontend/node_modules
+pyenv shell 3.12
+```
+
+### Timed run — start stopwatch, then type each step:
+
+```bash
+git checkout experiment/00-baseline
+
+cd ~/code/LingvoPal/backend
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+psql -U lingvopal -d lingvopal -v ON_ERROR_STOP=1 -f schema.sql
+psql -U lingvopal -d lingvopal -v ON_ERROR_STOP=1 -f seed.sql
+uvicorn app.main:app --reload &
+
+cd ../frontend
 npm install
-npm run dev                          # Dev server → http://localhost:5173
+npm run dev
 ```
 
-### Environment
+**Stop** when: login page loads and login as `test@test.com` succeeds in browser.
 
-Copy `.env.example` to `.env` and fill in values. The config loader resolves `.env` → `.env.{ENV}` → `.env.local`.
-
----
-
-## Spaced Repetition
-
-`backend/app/services/spaced_repetition.py` — pure SM-2 implementation, no side effects.
-
-Key behaviors:
-- New words: 6-hour initial interval before entering full SR schedule
-- Lapsed cards: short retry loop (5–120 min) before resuming normal intervals
-- User intensity multiplier: adjusts interval growth per user preference
-- Confidence override: user can flag "knew it" / "didn't know it" regardless of typed answer
-
----
-
-## Project Status
-
-MVP v0.1 — core learning loop is complete and functional.
-
-- [x] Auth + sessions
-- [x] Practice loop (cloze → answer → SM-2 → reschedule)
-- [x] Vocabulary sets + Anki import
-- [x] Public content discovery
-- [x] Stats dashboard
-- [x] Admin moderation queue
-- [ ] Email delivery (SMTP config required)
-- [ ] CI/CD pipeline
-- [ ] Production deployment
-
----
-
-## Design Philosophy
-
-> Type it. Don't tap it.
-
-LingvoPal intentionally removes passive recognition. Writing activates different recall pathways than selecting from options. The app optimizes for long-term retention over short-term engagement metrics.
-
-- Active recall over recognition
-- Writing over tapping  
-- Quality content over quantity
-- Focused method over feature sprawl
-
----
-
-## Academic Context
-
-LingvoPal serves as the primary case study for a bachelor's thesis:
-
-> **"Impact of DevOps Practices on Software Delivery Efficiency and Business Performance"**
-
-### Core Thesis Argument
-
-DevOps is not a technology stack to install — it is a corrective toolkit applied to specific bottlenecks. The right question is never "which DevOps tools exist?" but "what hurts most right now, and which practice fixes it?"
-
-Adopting tools without identifying the underlying inefficiency produces **Cargo Cult DevOps**: the rituals are followed, the tools are running, but no real friction is removed.
-
-The thesis demonstrates the alternative: each practice was adopted when a specific bottleneck made it necessary, and gains compound as practices stack.
-
-### DevOps Practices Inventory
-
-| Practice | Tool | Status | Bottleneck it solves |
-|---|---|---|---|
-| Version control conventions | Conventional commits + feature branches | Present | Change traceability, rework visibility |
-| Dependency management | `uv` + lockfile | Present | Reproducible installs, fast setup |
-| Containerization | Docker Compose | Present | Environment parity, service orchestration |
-| Environment automation | `scripts/setup.sh` | Present | Onboarding friction, manual steps |
-| Database migrations | Alembic | Present | Schema safety, rollback capability |
-| Test automation | pytest | Partial | Defect detection before integration |
-| Continuous Integration | GitHub Actions | Planned | Automated validation on every PR |
-| Continuous Deployment | Railway | Planned | Manual deploy eliminated, lead time reduced |
-| Observability | Structured logging | Deferred | No production users yet — adding now = Cargo Cult |
-| IaC / Orchestration | — | Deferred | Single server — no infra drift problem at this scale |
-
-### Research Methodology
-
-A controlled experiment reconstructs the adoption sequence on isolated git branches. Each practice is introduced one at a time; metrics are recorded before and after each addition to isolate its individual contribution.
-
-```
-experiment/00-baseline     ← no DevOps practices
-experiment/01-vcs          ← + conventional commits & branching
-experiment/02-deps         ← + uv + lockfile
-experiment/03-docker       ← + Docker Compose
-experiment/04-scripts      ← + setup.sh
-experiment/05-migrations   ← + Alembic
-experiment/06-tests        ← + pytest
-experiment/07-ci           ← + GitHub Actions CI
-experiment/08-deploy       ← + CD pipeline + live deployment
-```
-
-Metrics are practice-specific — each practice is evaluated on the capability it introduces, not a single universal measure:
-
-| Branch | Metric |
-|---|---|
-| `00-baseline` | Setup time (min), manual step count |
-| `01-vcs` | `fix:`/`feat:` commit ratio, branch lifetime |
-| `02-deps` | Install time, reproducibility |
-| `03-docker` | Setup time delta, eliminated manual service steps |
-| `04-scripts` | Step count: manual vs scripted |
-| `05-migrations` | Migration apply + rollback time |
-| `06-tests` | Time-to-detect injected bug, coverage % |
-| `07-ci` | Time-to-feedback (min), manual steps eliminated |
-| `08-deploy` | Lead time commit→live (min), deploy step count |
-
-### Compounding Effect
-
-Practices in isolation give linear gains. Practices in combination give superlinear gains:
-
-- Tests alone — catches bugs locally, sometimes skipped
-- Tests + CI — catches bugs automatically on every push, never skipped
-- Tests + CI + CD — catches bugs and ships fixes with a single `git push`
-
-Each layer multiplies the value of the one before it.
-
-### Deferred Practices
-
-The following practices are understood but intentionally not yet adopted — the bottlenecks they solve have not materialized at current project scale:
-
-| Practice | Adopted when |
-|---|---|
-| Kubernetes / orchestration | Multi-instance traffic scaling required |
-| Feature flags | Multiple active user segments need independent releases |
-| Full observability stack (Sentry, Prometheus) | First real production user complaints |
-| Load testing | Pre-launch performance SLA defined |
-| Secret management (Vault) | Multi-team credential access required |
-| IaC (Terraform) | Multi-environment infra drift becomes a real problem |
-
-Deferring these is the correct DevOps decision at MVP stage. Adopting them now would be Cargo Cult.
+Record: `real` time each run. Run 1 only: count operator actions (per §2.5 rule — `cd` and shell toggles excluded), and add the four service-provisioning actions from pre-conditions (start PostgreSQL, start Redis, create role, create database) → 12 total.
+Median of 3 → Appendix A.3 Manual (pre-Docker) row. Step count (12) → §4.3 / §4.4 tables.
