@@ -17,6 +17,7 @@ Thumbs.db
 .env
 .env.local
 .env.test
+.env.staging
 .env.development
 .env.production
 !.env.example
@@ -57,7 +58,7 @@ backend/mutants/
 *.db
 *.db-shm
 *.db-wal
-backend/dev 
+backend/dev
 
 # =====================================
 # Build & Dependency directories
@@ -90,7 +91,7 @@ docker-compose.override.yml
 .ruff_cache/
 .dmypy.json
 dmypy.json
-CLAUDE.md   
+CLAUDE.md
 # Added by code-review-graph
 .code-review-graph/
 .mcp.json
@@ -109,4 +110,3 @@ GEMINI.md
 1000_Basic_English_Words.apkg
 lingvopal-TTS.json
 backups/
-

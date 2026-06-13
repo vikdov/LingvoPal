@@ -30,15 +30,6 @@ LANGUAGES = [
     (4, "es", "Spanish"),
     (5, "fr", "French"),
     (6, "uk", "Ukrainian"),
-    (7, "it", "Italian"),
-    (8, "pt", "Portuguese"),
-    (9, "nl", "Dutch"),
-    (10, "ru", "Russian"),
-    (11, "ja", "Japanese"),
-    (12, "zh", "Chinese"),
-    (13, "ko", "Korean"),
-    (14, "tr", "Turkish"),
-    (15, "sv", "Swedish"),
 ]
 
 

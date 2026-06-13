@@ -45,6 +45,7 @@ export function AccountTab() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [newEmail, setNewEmail] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   useEffect(() => {
     if (profile) setUsername(profile.username ?? '');
@@ -65,6 +66,15 @@ export function AccountTab() {
     resendVerification.mutate(undefined, {
       onSuccess: () => toast.success(t('settings.account.verificationSent')),
       onError: () => toast.error(t('settings.account.failedSendVerification')),
+      onSettled: () => {
+        setResendCooldown(60);
+        const interval = setInterval(() => {
+          setResendCooldown((s) => {
+            if (s <= 1) { clearInterval(interval); return 0; }
+            return s - 1;
+          });
+        }, 1000);
+      },
     });
   }
 
@@ -128,10 +138,10 @@ export function AccountTab() {
             size="sm"
             variant="outline"
             onClick={handleResendVerification}
-            disabled={resendVerification.isPending || resendVerification.isSuccess}
+            disabled={resendVerification.isPending || resendVerification.isSuccess || resendCooldown > 0}
             className="shrink-0 border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
           >
-            {resendVerification.isSuccess ? t('common.sent') : resendVerification.isPending ? t('common.sending') : t('settings.account.resendEmail')}
+            {resendVerification.isSuccess ? t('common.sent') : resendVerification.isPending ? t('common.sending') : resendCooldown > 0 ? `${t('settings.account.resendEmail')} (${resendCooldown}s)` : t('settings.account.resendEmail')}
           </Button>
         </div>
       )}

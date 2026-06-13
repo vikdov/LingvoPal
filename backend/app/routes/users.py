@@ -71,7 +71,7 @@ async def get_my_profile(current_user: CurrentUser, db: DBSession) -> UserPrivat
 )
 async def patch_my_profile(
     body: UserUpdateRequest,
-    current_user: VerifiedUser,
+    current_user: CurrentUser,
     db: DBSession,
 ) -> UserPrivateResponse:
     patch = body.model_dump(exclude_unset=True)
@@ -95,7 +95,7 @@ async def patch_my_profile(
     summary="Soft-delete current user's account",
 )
 async def delete_my_account(
-    current_user: VerifiedUser,
+    current_user: CurrentUser,
     db: DBSession,
 ) -> None:
     await UserProfileService(db).soft_delete(current_user.id)
@@ -133,7 +133,7 @@ async def get_my_languages(
 )
 async def add_my_language(
     body: AddUserLanguageRequest,
-    current_user: VerifiedUser,
+    current_user: CurrentUser,
     db: DBSession,
 ) -> UserLanguageResponse:
     svc = UserLanguageService(db)
@@ -160,7 +160,7 @@ async def add_my_language(
 )
 async def activate_my_language(
     language_id: int,
-    current_user: VerifiedUser,
+    current_user: CurrentUser,
     db: DBSession,
 ) -> UserLanguageResponse:
     svc = UserLanguageService(db)
@@ -181,7 +181,7 @@ async def activate_my_language(
 )
 async def remove_my_language(
     language_id: int,
-    current_user: VerifiedUser,
+    current_user: CurrentUser,
     db: DBSession,
 ) -> None:
     svc = UserLanguageService(db)
@@ -285,7 +285,7 @@ async def confirm_email_change(
     summary="Cancel pending email change",
 )
 async def cancel_email_change(
-    current_user: VerifiedUser,
+    current_user: CurrentUser,
     db: DBSession,
     email_change_svc: EmailChangeServiceDep,
 ) -> None:

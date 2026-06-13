@@ -118,7 +118,7 @@
     },
     "account": {
       "emailNotVerifiedTitle": "E-Mail nicht bestätigt",
-      "emailNotVerifiedMessage": "Bestätige deine E-Mail, um dein Konto zu sichern und Erinnerungen zu erhalten.",
+      "emailNotVerifiedMessage": "Bestätige deine E-Mail, um dein Konto zu sichern und Erinnerungen zu erhalten. Falls du nichts siehst, prüfe den Spam-Ordner.",
       "resendEmail": "Erneut senden",
       "profileTitle": "Profil",
       "profileDescription": "Dein Anzeigename und E-Mail.",
@@ -140,7 +140,7 @@
       "confirmNewPassword": "Neues Passwort bestätigen",
       "changePassword": "Passwort ändern",
       "usernameUpdated": "Benutzername aktualisiert",
-      "verificationSent": "Bestätigungs-E-Mail gesendet — Posteingang prüfen",
+      "verificationSent": "Bestätigungs-E-Mail gesendet — Posteingang und Spam-Ordner prüfen",
       "newPasswordsNoMatch": "Neue Passwörter stimmen nicht überein",
       "passwordTooShort": "Passwort muss mindestens 8 Zeichen haben",
       "passwordChanged": "Passwort geändert",

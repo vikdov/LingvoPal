@@ -41,6 +41,8 @@ class _JsonLogFormatter(logging.Formatter):
     human-readable format instead.
     """
 
+    _SKIP = frozenset(logging.LogRecord("", 0, "", 0, "", (), None).__dict__)
+
     def format(self, record: logging.LogRecord) -> str:
         payload = {
             "ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S%z"),
@@ -48,6 +50,9 @@ class _JsonLogFormatter(logging.Formatter):
             "logger": record.name,
             "msg": record.getMessage(),
         }
+        for key, val in record.__dict__.items():
+            if key not in self._SKIP:
+                payload[key] = val
         if record.exc_info:
             payload["exc"] = self.formatException(record.exc_info)
         return json.dumps(payload, ensure_ascii=False)
@@ -55,7 +60,7 @@ class _JsonLogFormatter(logging.Formatter):
 
 def _configure_logging() -> None:
     handler = logging.StreamHandler()
-    if settings.is_production:
+    if settings.is_production or settings.is_staging:
         handler.setFormatter(_JsonLogFormatter())
     else:
         handler.setFormatter(

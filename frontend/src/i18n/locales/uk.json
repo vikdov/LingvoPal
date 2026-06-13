@@ -118,7 +118,7 @@
     },
     "account": {
       "emailNotVerifiedTitle": "Email не підтверджено",
-      "emailNotVerifiedMessage": "Підтвердіть email, щоб захистити акаунт і отримувати нагадування.",
+      "emailNotVerifiedMessage": "Підтвердіть email, щоб захистити акаунт і отримувати нагадування. Якщо листа немає — перевірте папку «Спам».",
       "resendEmail": "Надіслати повторно",
       "profileTitle": "Профіль",
       "profileDescription": "Ваше відображуване ім'я та email.",
@@ -140,7 +140,7 @@
       "confirmNewPassword": "Підтвердіть новий пароль",
       "changePassword": "Змінити пароль",
       "usernameUpdated": "Ім'я користувача оновлено",
-      "verificationSent": "Лист підтвердження надіслано — перевірте пошту",
+      "verificationSent": "Лист підтвердження надіслано — перевірте пошту та папку «Спам»",
       "newPasswordsNoMatch": "Нові паролі не збігаються",
       "passwordTooShort": "Пароль має містити щонайменше 8 символів",
       "passwordChanged": "Пароль змінено",

@@ -49,9 +49,29 @@ repos:
         files: ^frontend/src/
         types_or: [javascript, jsx, ts, tsx]
         additional_dependencies: []
-# ---------------------------------------------------------------------------
-# Python — bandit SAST
-# ---------------------------------------------------------------------------
+
+      - id: npm-audit
+        name: npm audit (high+)
+        language: system
+        entry: bash -c 'cd frontend && npm audit --audit-level=high'
+        pass_filenames: false
+        files: ^frontend/
+
+  # ---------------------------------------------------------------------------
+  # Python — uv audit (dependency vulnerability scan)
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: uv-audit
+        name: uv audit
+        language: system
+        entry: bash -c 'cd backend && uv audit'
+        pass_filenames: false
+        files: ^backend/
+
+  # ---------------------------------------------------------------------------
+  # Python — bandit SAST
+  # ---------------------------------------------------------------------------
   - repo: https://github.com/PyCQA/bandit
     rev: 1.9.4  # 1.9.x required for Python 3.14 (ast.Num removed in 3.14)
     hooks:

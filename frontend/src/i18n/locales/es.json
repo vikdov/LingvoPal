@@ -118,7 +118,7 @@
     },
     "account": {
       "emailNotVerifiedTitle": "Correo no verificado",
-      "emailNotVerifiedMessage": "Verifica tu correo para asegurar tu cuenta y activar recordatorios.",
+      "emailNotVerifiedMessage": "Verifica tu correo para asegurar tu cuenta y activar recordatorios. Si no lo ves, revisa la carpeta de spam.",
       "resendEmail": "Reenviar",
       "profileTitle": "Perfil",
       "profileDescription": "Tu nombre y correo de cuenta.",
@@ -140,7 +140,7 @@
       "confirmNewPassword": "Confirmar nueva contraseña",
       "changePassword": "Cambiar contraseña",
       "usernameUpdated": "Nombre de usuario actualizado",
-      "verificationSent": "Correo de verificación enviado — revisa tu bandeja",
+      "verificationSent": "Correo de verificación enviado — revisa tu bandeja y carpeta de spam",
       "newPasswordsNoMatch": "Las contraseñas no coinciden",
       "passwordTooShort": "La contraseña debe tener al menos 8 caracteres",
       "passwordChanged": "Contraseña cambiada",

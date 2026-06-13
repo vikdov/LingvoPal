@@ -118,7 +118,7 @@
     },
     "account": {
       "emailNotVerifiedTitle": "Email not verified",
-      "emailNotVerifiedMessage": "Verify your email to secure your account and enable reminders.",
+      "emailNotVerifiedMessage": "Verify your email to secure your account and enable reminders. Check spam if you don't see it.",
       "resendEmail": "Resend email",
       "profileTitle": "Profile",
       "profileDescription": "Your public display name and account email.",
@@ -140,7 +140,7 @@
       "confirmNewPassword": "Confirm new password",
       "changePassword": "Change password",
       "usernameUpdated": "Username updated",
-      "verificationSent": "Verification email sent — check your inbox",
+      "verificationSent": "Verification email sent — check your inbox and spam folder",
       "newPasswordsNoMatch": "New passwords do not match",
       "passwordTooShort": "Password must be at least 8 characters",
       "passwordChanged": "Password changed",
