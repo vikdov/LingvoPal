@@ -122,7 +122,7 @@ class ItemSuggestionService:
         image_suggestions: list[ImageSuggestion]
 
         if isinstance(phase1[0], Exception):
-            logger.warning(f"AI enrichment failed: {phase1[0]}")
+            logger.warning("AI enrichment failed", extra={"error": type(phase1[0]).__name__})
             warnings.append("ai_enrichment_failed")
             ai_result = {
                 "part_of_speech": None,
@@ -135,7 +135,7 @@ class ItemSuggestionService:
             ai_result = phase1[0]
 
         if isinstance(phase1[1], Exception):
-            logger.warning(f"TTS generation failed: {phase1[1]}")
+            logger.warning("TTS generation failed", extra={"error": type(phase1[1]).__name__})
             warnings.append("tts_generation_failed")
             tts_url = None
         else:
@@ -175,14 +175,14 @@ class ItemSuggestionService:
             phase2_results = [[], None]
 
         if isinstance(phase2_results[0], Exception):
-            logger.warning(f"Image search failed: {phase2_results[0]}")
+            logger.warning("Image search failed", extra={"error": type(phase2_results[0]).__name__})
             warnings.append("image_search_failed")
             image_suggestions = []
         else:
             image_suggestions = phase2_results[0]
 
         if isinstance(phase2_results[1], Exception):
-            logger.warning(f"Context TTS failed: {phase2_results[1]}")
+            logger.warning("Context TTS failed", extra={"error": type(phase2_results[1]).__name__})
             warnings.append("context_tts_generation_failed")
             context_tts_url = None
         else:

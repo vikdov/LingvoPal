@@ -139,8 +139,11 @@ class ImageSearchService:
                 )
                 for photo in data.get("results", [])
             ]
+        except httpx.HTTPStatusError as e:
+            logger.error("Unsplash search failed", extra={"status": e.response.status_code})
+            return []
         except Exception as e:
-            logger.error(f"Unsplash search failed: {e}")
+            logger.error("Unsplash search failed", extra={"error": type(e).__name__})
             return []
 
     async def _pexels_search(self, term: str, count: int) -> list[ImageSuggestion]:
@@ -162,8 +165,11 @@ class ImageSearchService:
                 )
                 for photo in data.get("photos", [])
             ]
+        except httpx.HTTPStatusError as e:
+            logger.error("Pexels search failed", extra={"status": e.response.status_code})
+            return []
         except Exception as e:
-            logger.error(f"Pexels search failed: {e}")
+            logger.error("Pexels search failed", extra={"error": type(e).__name__})
             return []
 
     async def _pixabay_search(self, term: str, count: int) -> list[ImageSuggestion]:
@@ -189,8 +195,11 @@ class ImageSearchService:
                 )
                 for hit in data.get("hits", [])
             ]
+        except httpx.HTTPStatusError as e:
+            logger.error("Pixabay search failed", extra={"status": e.response.status_code})
+            return []
         except Exception as e:
-            logger.error(f"Pixabay search failed: {e}")
+            logger.error("Pixabay search failed", extra={"error": type(e).__name__})
             return []
 
     async def close(self):

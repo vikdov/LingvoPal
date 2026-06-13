@@ -362,9 +362,10 @@ class Settings(BaseSettings):
     def S3_ENDPOINT_URL(self) -> str:
         # Managed providers (R2) require https on the implicit 443; local MinIO
         # is http on an explicit port.
+        host = self.S3_HOST.removeprefix("https://").removeprefix("http://")
         if self.S3_USE_TLS:
-            return f"https://{self.S3_HOST}"
-        return f"http://{self.S3_HOST}:{self.S3_PORT}"
+            return f"https://{host}"
+        return f"http://{host}:{self.S3_PORT}"
 
     # =========================================================================
     # Pydantic configuration
